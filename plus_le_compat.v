@@ -4,7 +4,7 @@
     with respect to the less-than-or-equal relation on natural numbers.
     
     Author: Charles C Norton
-    Date: June 7th 2025
+    Date: June 8th 2025
     License: GNU Lesser General Public License Version 2.1
     
     Compatibility: Coq 8.10+
