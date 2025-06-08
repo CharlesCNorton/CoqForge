@@ -7,7 +7,7 @@
     Date: June 8th 2025
     License: GNU Lesser General Public License Version 2.1
     
-    Compatibility: Coq 8.10+
+    Compatibility: Coq 8.20.1+
 *)
 
 Require Import Coq.Arith.Arith.
