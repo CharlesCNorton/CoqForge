@@ -1,0 +1,132 @@
+(** * Simple Pigeonhole Principle
+
+    A finitary pigeon‑hole principle for lists of natural numbers that
+    relies only on Coq’s standard library.
+
+    Author: Charles C Norton  
+    Date:   June 11th 2025  
+    License: GNU Lesser General Public License Version 2.1
+
+    Compatibility: Coq 8.20.1+
+*)
+
+From Coq Require Import Arith.PeanoNat.
+From Coq Require Import Lists.List.
+From Coq Require Import Lists.ListDec.
+From Coq Require Import Lia.
+Import ListNotations.
+
+(* -------------------------------------------------------------------- *)
+(** ** Auxiliary lemmas *)
+
+(* If an element occurs in a list, [count_occ] is at least 1. *)
+Lemma count_occ_In_ge1_nat :
+  forall (l : list nat) (x : nat),
+    In x l -> 1 <= count_occ Nat.eq_dec l x.
+Proof.
+  intros l x Hin.
+  induction l as [|y ys IH]; simpl in *.
+  - contradiction.
+  - destruct Hin as [Heq | Hin].
+    + (* Head is the element *)
+      subst y.
+      destruct (Nat.eq_dec x x); [lia|contradiction].
+    + (* Element is in the tail *)
+      destruct (Nat.eq_dec y x).
+      * subst y. lia.
+      * apply IH, Hin.
+Qed.
+
+(* Any list that is *not* [NoDup] contains an element occurring ≥ 2 times. *)
+Lemma duplicate_element :
+  forall l : list nat,
+    ~ NoDup l ->
+    exists x, In x l /\ 2 <= count_occ Nat.eq_dec l x.
+Proof.
+  intros l Hnotdup.
+  induction l as [|x xs IH].
+  - (* Empty list contradicts the premise *)
+    exfalso. apply Hnotdup. constructor.
+  - destruct (in_dec Nat.eq_dec x xs) as [Hin | Hnotin].
+    + (* Head value already occurs in the tail *)
+      exists x. split.
+      * simpl; auto.
+      * simpl. destruct (Nat.eq_dec x x); [|contradiction].
+        assert (1 <= count_occ Nat.eq_dec xs x)
+          by (apply count_occ_In_ge1_nat; exact Hin).
+        lia.
+    + (* Duplicate must be in the tail *)
+      assert (~ NoDup xs) as Hdup_tail.
+      { intro Hnd; apply Hnotdup; now constructor. }
+      specialize (IH Hdup_tail) as [y [Hy Hcnt]].
+      exists y. split.
+      * simpl; right; exact Hy.
+      * simpl. destruct (Nat.eq_dec x y).
+        -- subst y. contradiction.
+        -- exact Hcnt.
+Qed.
+
+(* Length of [seq start len] is exactly [len]. *)
+Lemma length_seq :
+  forall start len, length (seq start len) = len.
+Proof.
+  intros start len; revert start.
+  induction len as [|len IH]; intros start; simpl.
+  - reflexivity.
+  - rewrite IH. reflexivity.
+Qed.
+
+(* If [l₁] is [NoDup] and included in [l₂], its length is ≤ length [l₂]. *)
+Lemma NoDup_incl_length :
+  forall (A : Type) (l1 l2 : list A),
+    NoDup l1 ->
+    incl l1 l2 ->
+    length l1 <= length l2.
+Proof.
+  intros A l1 l2 Hnd.
+  revert l2.
+  induction Hnd as [|x l1' Hnotin Hnd' IH]; intros l2 Hincl.
+  - (* l1 = [] *) simpl; lia.
+  - (* l1 = x :: l1' *)
+    simpl.
+    (* x must occur in l2, split l2 around x *)
+    assert (In x l2) as Hx by (apply Hincl; simpl; auto).
+    apply in_split in Hx as [l2a [l2b Hl2]].
+    subst l2.
+    (* Everything in l1' appears in l2a ++ l2b *)
+    assert (incl l1' (l2a ++ l2b)) as Hincl'.
+    { intros y Hy.
+      specialize (Hincl y (or_intror Hy)) as HyIn.
+      rewrite in_app_iff in HyIn; simpl in HyIn.
+      destruct HyIn as [Hleft | [Heq | Hright]].
+      - apply in_or_app; left; exact Hleft.
+      - subst y; contradiction.
+      - apply in_or_app; right; exact Hright. }
+    (* Apply induction hypothesis to the tail *)
+    specialize (IH (l2a ++ l2b) Hincl').
+    (* Compare lengths *)
+    rewrite !app_length in *; simpl in *.
+    lia.
+Qed.
+
+(* A duplicate‑free list of naturals bounded by [n] has length ≤ [n]. *)
+Lemma nodup_upper_bound_length :
+  forall (l : list nat) (n : nat),
+    NoDup l ->
+    (forall x, In x l -> x < n) ->
+    length l <= n.
+Proof.
+  intros l n Hnd Hbound.
+  (* Every element of [l] lies in [seq 0 n] *)
+  assert (incl l (seq 0 n)) as Hincl.
+  { intros x HIn.
+    apply in_seq.
+    split.
+    - lia.                             (* 0 ≤ x *)
+    - apply Hbound; exact HIn.         (* x < n *)
+  }
+  (* Now compare lengths using the previous lemma *)
+  eapply NoDup_incl_length in Hnd; [|exact Hincl].
+  rewrite length_seq in Hnd.           (* |seq 0 n| = n *)
+  exact Hnd.
+Qed.
