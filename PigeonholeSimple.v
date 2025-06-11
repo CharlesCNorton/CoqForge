@@ -150,3 +150,87 @@ Proof.
   - (* Otherwise a duplicate element exists – obtain it *) 
     apply duplicate_element in Hnd; exact Hnd.
 Qed.
+
+(** ** Corollary *)
+
+(* A list of naturals longer than [n] and bounded by [n] **cannot** be [NoDup]. *)
+Corollary pigeonhole_simple_not_NoDup :
+  forall (l : list nat) (n : nat),
+    (forall x, In x l -> x < n) ->
+    n < length l ->
+    ~ NoDup l.
+Proof.
+  intros l n Hbound Hlong Hnodup.
+  pose proof (nodup_upper_bound_length l n Hnodup Hbound) as Hle.
+  lia.
+Qed.
+
+(** ** Example *)
+
+Example pigeonhole_example :
+  exists x, In x [0; 0] /\ 2 <= count_occ Nat.eq_dec [0; 0] x.
+Proof.
+  (* 1.  Every element of [0;0] is < 1. *)
+  assert (Hbound : forall y, In y [0; 0] -> y < 1).
+  { intros y Hy; destruct Hy as [->|[->|[]]]; lia. }
+  (* 2.  Apply the main theorem with n := 1 (|[0;0]| = 2 > 1). *)
+  apply (pigeonhole_simple [0; 0] 1); simpl; try lia; exact Hbound.
+Qed.
+
+(** ** Dual form *)
+
+(* A duplicate‑free list of naturals whose elements are all < n
+   can never be longer than n. *)
+Corollary pigeonhole_simple_NoDup_length :
+  forall (l : list nat) (n : nat),
+    NoDup l ->
+    (forall x, In x l -> x < n) ->
+    length l <= n.
+Proof.
+  intros l n Hnd Hbound.
+  apply nodup_upper_bound_length; assumption.
+Qed.
+
+(* -------------------------------------------------------------------- *)
+(** ** Notes
+
+    - **Purpose and scope.**  This file delivers a *self‑contained*
+      finite pigeon‑hole principle for lists of natural numbers,
+      requiring *only* Coq’s standard library.  It avoids heavier
+      alternatives such as MathComp’s `FinFun`/`FinSet` or stdpp’s
+      finite‑set infrastructure.
+
+    - **Proof structure recap.**
+      1.  `NoDup_incl_length` shows that a duplicate‑free list
+          included in another list cannot be longer than the latter.
+      2.  Instantiating the “other list” with `seq 0 n` yields
+         `nodup_upper_bound_length`.
+      3.  If a list is longer than `n`, duplicate‑freedom contradicts
+         step 2, so `pigeonhole_simple` must exhibit a duplicate,
+         which `duplicate_element` constructs explicitly.
+
+    - **Constructivity.**  All proofs are constructive; the witness
+      produced by `pigeonhole_simple` can be *computed* and reused in
+      further developments.
+
+    - **Why this is not in stdlib.**  The standard library contains
+      many lemmas about `NoDup`, `count_occ`, and `seq` individually,
+      but it never puts them together into this classical principle.
+      External libraries do, but at the cost of extra dependencies.
+
+    - **Typical usage pattern.**
+
+      ```coq
+      (* l : list nat,  n : nat,  Hlen : n < length l *)
+      assert (Hbound : forall x, In x l -> x < n) by <prove>;
+      destruct (pigeonhole_simple l n Hbound Hlen)
+        as [x [Hin Hdup]].
+      ```
+
+      You now have a concrete `x` with `2 ≤ count_occ _ l x`.
+
+    - **Compatibility.**  Verified with Coq 8.20.1; should work
+      unchanged with any 8.16 or newer release that exports
+      `count_occ` for lists.
+
+*)
