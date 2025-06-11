@@ -130,3 +130,23 @@ Proof.
   rewrite length_seq in Hnd.           (* |seq 0 n| = n *)
   exact Hnd.
 Qed.
+
+(* -------------------------------------------------------------------- *)
+(** ** Main theorem *)
+
+Lemma pigeonhole_simple :
+  forall (l : list nat) (n : nat),
+    (forall x, In x l -> x < n) ->          (* every value < n *)
+    n < length l ->                         (* more pigeons than holes *)
+    exists x,                               (* some value …              *)
+      In x l /\                             (* … occurs in the list …    *)
+      2 <= count_occ Nat.eq_dec l x.        (* … at least twice          *)
+Proof.
+  intros l n Hbound Hlong.
+  destruct (NoDup_dec Nat.eq_dec l) as [Hnd | Hnd].
+  - (* If [l] were duplicate‑free, its length cannot exceed [n] *)
+    pose proof (nodup_upper_bound_length l n Hnd Hbound) as Hle.
+    lia.                                     (* contradicts [n < |l|] *)
+  - (* Otherwise a duplicate element exists – obtain it *) 
+    apply duplicate_element in Hnd; exact Hnd.
+Qed.
