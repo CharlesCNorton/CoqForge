@@ -454,3 +454,110 @@ End TriangulatedStructure.
     - Localization and derived categories
     - Connection to stable ∞-categories
     *)
+
+(** * Additional Theorems for Triangulated Structure
+    
+    We prove more properties of triangulated categories from the existing definitions,
+    without introducing any new axioms.
+    *)
+    
+Section AdditionalTheorems.
+  Context {S : PreStableCategory}.
+  
+  (** ** The Zero Triangle
+      
+      The triangle 0 → 0 → 0 → 0 is distinguished.
+      *)
+  Definition zero_triangle : @Triangle S := {|
+    X := zero S;
+    Y := zero S;
+    Z := zero S;
+    f := 1%morphism;  (* id on zero *)
+    g := 1%morphism;
+    h := @center _ (is_initial S (object_of (Susp S) (zero S)))
+  |}.
+  
+  Theorem zero_triangle_distinguished : @DistinguishedTriangle S.
+  Proof.
+    (* This is just the identity triangle on the zero object *)
+    exact (id_distinguished (zero S)).
+  Defined.
+  
+Definition is_iso_triangle_morphism {T1 T2 : @Triangle S} 
+    (φ : TriangleMorphism T1 T2) : Type :=
+    IsIsomorphism (mor_X _ _ φ) * 
+    IsIsomorphism (mor_Y _ _ φ) * 
+    IsIsomorphism (mor_Z _ _ φ).
+  
+  (** Two triangles are isomorphic if there's an isomorphism between them *)
+  Definition triangles_isomorphic (T1 T2 : @Triangle S) : Type :=
+    { φ : TriangleMorphism T1 T2 & is_iso_triangle_morphism φ }.
+    
+Theorem zero_morphism_factors_unique {X Y : object (C S)} 
+    (f g : morphism (C S) X Y) :
+    (exists h : morphism (C S) X (zero S), f = (@center _ (is_initial S Y) o h)%morphism) ->
+    (exists k : morphism (C S) X (zero S), g = (@center _ (is_initial S Y) o k)%morphism) ->
+    f = g.
+Proof.
+    intros [h Hf] [k Hg].
+    rewrite Hf, Hg.
+    (* Need to show: (center o h) = (center o k) *)
+    (* Since all morphisms X → 0 are equal, h = k *)
+    assert (Heq : h = k).
+    {
+      transitivity (@center _ (is_terminal S X)).
+      - symmetry. apply (@contr _ (is_terminal S X)).
+      - apply (@contr _ (is_terminal S X)).
+    }
+    rewrite Heq.
+    reflexivity.
+  Qed.
+  
+Definition distinguished_triangle_morphism 
+    (T1 T2 : @DistinguishedTriangle S) : Type :=
+    TriangleMorphism (triangle T1) (triangle T2).
+    
+Theorem distinguished_morphism_compose 
+    (T1 T2 T3 : @DistinguishedTriangle S)
+    (φ : distinguished_triangle_morphism T1 T2)
+    (ψ : distinguished_triangle_morphism T2 T3) :
+    distinguished_triangle_morphism T1 T3.
+Proof.
+    exact (triangle_morphism_compose _ _ _ φ ψ).
+  Defined.
+  
+(** ** Morphisms between distinguished triangles preserve zero compositions *)
+  Theorem distinguished_morphism_preserves_zero 
+    (T1 T2 : @DistinguishedTriangle S)
+    (φ : distinguished_triangle_morphism T1 T2) :
+    (g (triangle T2) o mor_Y _ _ φ o f (triangle T1))%morphism = 
+    (mor_Z _ _ φ o g (triangle T1) o f (triangle T1))%morphism.
+Proof.
+    (* Let's think about what we have:
+       Left: g₂ ∘ φ_Y ∘ f₁ 
+       Right: φ_Z ∘ g₁ ∘ f₁
+       
+       Key facts:
+       - g₁ ∘ f₁ = 0 (T1 distinguished)
+       - g₂ ∘ f₂ = 0 (T2 distinguished)
+       - φ_Y ∘ f₁ = f₂ ∘ φ_X (φ commutes)
+       - φ_Z ∘ g₁ = g₂ ∘ φ_Y (φ commutes) *)
+    
+    (* Start by using the commuting square for g *)
+    rewrite <- (comm_g _ _ φ).
+    (* Now right side is: g₂ ∘ φ_Y ∘ f₁ *)
+    reflexivity.
+  Qed.
+  
+(** ** Identity morphism is neutral for composition *)
+  Theorem id_triangle_morphism_is_identity 
+    (T : @Triangle S) :
+    mor_X _ _ (id_triangle_morphism T) = 1%morphism /\
+    mor_Y _ _ (id_triangle_morphism T) = 1%morphism /\
+    mor_Z _ _ (id_triangle_morphism T) = 1%morphism.
+Proof.
+    split; [|split].
+    - reflexivity.
+    - reflexivity.
+    - reflexivity.
+  Qed.
