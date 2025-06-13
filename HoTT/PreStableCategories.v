@@ -250,3 +250,65 @@ Axiom distinguished_triangle_zero_axiom_3 :
     is_distinguished S {| X := X; Y := Y; Z := Z; f := f; g := g; h := h |}.
 
 End StableCategories.
+
+Section ChainComplexAsPreStable.
+  Context `{Funext}.
+
+  (* Define the trivial abelian group *)
+  Definition trivial_ab_group : AbGroup := {|
+    carrier := Unit;
+    ab_zero := tt;
+    plus := fun _ _ => tt;
+    neg := fun _ => tt;
+    plus_assoc := fun _ _ _ => idpath;
+    plus_zero_l := fun u => match u with tt => idpath end;
+    plus_neg_l := fun u => match u with tt => idpath end;
+    plus_comm := fun _ _ => idpath
+  |}.
+
+  (* Define the zero complex *)
+  Definition zero_complex : ChainComplex' := {|
+    chain_group := fun n => trivial_ab_group;
+    chain_diff' := fun n x => tt;
+    chain_diff_group_hom := fun n => (fun _ _ => idpath, idpath);
+    chain_diff_squared' := fun n x => idpath
+  |}.
+
+  (* Define suspension of chain complexes *)
+  Definition chain_suspend (C : ChainComplex') : ChainComplex' := {|
+    chain_group := fun n => chain_group C (int_pred n);
+    chain_diff' := fun n => chain_diff' C (int_pred n);
+    chain_diff_group_hom := fun n => chain_diff_group_hom C (int_pred n);
+    chain_diff_squared' := fun n => chain_diff_squared' C (int_pred n)
+  |}.
+
+  (* Define loop (desuspension) of chain complexes *)
+  Definition chain_loop (C : ChainComplex') : ChainComplex'.
+  Proof.
+    unshelve econstructor.
+    - (* chain_group *)
+      exact (fun n => chain_group C (int_succ n)).
+    - (* chain_diff' *)
+      intros n x.
+      (* We need to transport along the equality int_pred (int_succ n) = n *)
+      (* and then along n = int_succ (int_pred n) *)
+      assert (H1 : int_pred (int_succ n) = n) by apply int_pred_succ.
+      assert (H2 : n = int_succ (int_pred n)) by apply (int_succ_pred n)^.
+      exact (transport (fun m => carrier (chain_group C m)) H2
+              (transport (fun m => carrier (chain_group C m)) H1
+                (chain_diff' C (int_succ n) x))).
+    - (* chain_diff_group_hom *)
+      intros n.
+      (* The transported differential is still a group homomorphism *)
+      split.
+      + intros x y. 
+        (* transport preserves addition *)
+        admit.
+      + (* transport preserves zero *)
+        admit.
+    - (* chain_diff_squared' *)
+      intros n x.
+      admit.
+  Admitted.
+
+End ChainComplexAsPreStable.
