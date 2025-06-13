@@ -561,3 +561,50 @@ Proof.
     - reflexivity.
     - reflexivity.
   Qed.
+  
+(** Helper: Isomorphisms preserve zero morphisms *)
+  Lemma iso_preserves_zero_left {X Y Z : object (C S)}
+    (f : morphism (C S) X Y) 
+    (φ : morphism (C S) Y Z)
+    (φ_inv : morphism (C S) Z Y)
+    (Hleft : (φ_inv o φ)%morphism = 1%morphism) :
+    f = zero_morphism X Y ->
+    (φ o f)%morphism = zero_morphism X Z.
+Proof.
+    intro Hf.
+    rewrite Hf.
+    unfold zero_morphism.
+    rewrite <- associativity.
+    (* We need: (φ ∘ center(0→Y)) ∘ center(X→0) = center(0→Z) ∘ center(X→0) *)
+    (* Both φ ∘ center(0→Y) and center(0→Z) are morphisms 0 → Z *)
+    assert (H: (φ o @center _ (is_initial S Y))%morphism = @center _ (is_initial S Z)).
+    { 
+      symmetry.
+      apply (contr (φ o @center _ (is_initial S Y))%morphism).
+    }
+    rewrite H.
+    reflexivity.
+  Qed.
+  
+(** ** Zero morphism is unique between any two objects *)
+  Theorem zero_morphism_unique_characterization {X Y : object (C S)} 
+    (f : morphism (C S) X Y) :
+    f = zero_morphism X Y <->
+    exists (h : morphism (C S) X (zero S)), 
+      f = (@center _ (is_initial S Y) o h)%morphism.
+Proof.
+    split.
+    - (* -> direction *)
+      intro Hf.
+      exists (@center _ (is_terminal S X)).
+      exact Hf.
+    - (* <- direction *)
+      intros [h Hf].
+      rewrite Hf.
+      unfold zero_morphism.
+      apply ap.
+      symmetry.
+      apply (@contr _ (is_terminal S X)).
+  Qed.
+  
+End AdditionalTheorems.
