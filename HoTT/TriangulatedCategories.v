@@ -12,8 +12,8 @@
     - Triangle morphisms form a category
     - All proofs are constructive except susp_preserves_zero
     
-    Author: [Your name]
-    Date: [Date]
+    Author: Charles Norton
+    Date: June 13th 2025
     *)
 
 From HoTT Require Import Basics.
