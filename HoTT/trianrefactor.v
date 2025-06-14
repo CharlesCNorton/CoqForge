@@ -1398,11 +1398,8 @@ Section TR2Helpers.
     (HY_iso : IsIsomorphism (mor_Y _ _ φ)) :
     g T2 = (mor_Z _ _ φ o g T1 o iso_inverse HY_iso)%morphism.
   Proof.
-    (* From comm_g: mor_Z ∘ g T1 = g T2 ∘ mor_Y *)
-    (* We need to compose on the right with iso_inverse HY_iso *)
     pose proof (comm_g _ _ φ) as Hcomm.
     
-    (* Apply composition on the right to both sides *)
     assert (H: forall (g h : morphism S (Y T1) (Z T2)) (k : morphism S (Y T2) (Y T1)),
               g = h -> (g o k)%morphism = (h o k)%morphism).
     {
@@ -1457,3 +1454,211 @@ Lemma get_morphisms_adjacent {A B C D E F : object S}
     rewrite morphism_associativity.
     reflexivity.
   Qed.
+  
+Lemma four_morphism_assoc {A B C D E : object S}
+    (φ : morphism S D E)
+    (g : morphism S C D)
+    (f : morphism S B C)
+    (ψ : morphism S A B) :
+    (φ o g o f o ψ)%morphism = (φ o (g o f) o ψ)%morphism.
+  Proof.
+    rewrite (morphism_associativity ψ f (φ o g)%morphism).
+    rewrite (morphism_associativity (f o ψ)%morphism g φ).
+    rewrite <- (morphism_associativity ψ f g).
+    rewrite <- morphism_associativity.
+    reflexivity.
+  Qed.
+  
+Lemma morphism_four_compose_with_zero {A B C D E : object S}
+    (φ : morphism S D E)
+    (g : morphism S C D)
+    (f : morphism S B C)
+    (ψ : morphism S A B) :
+    (g o f)%morphism = zero_morphism (add_zero S) B D ->
+    (φ o g o f o ψ)%morphism = zero_morphism (add_zero S) A E.
+  Proof.
+    intro H.
+    rewrite four_morphism_assoc.
+    rewrite H.
+    rewrite zero_morphism_right.
+    rewrite zero_morphism_left.
+    reflexivity.
+  Qed.
+  
+Lemma triangle_composition_pattern {X1 Y1 Z1 X2 Y2 Z2 : object S}
+    (φZ : morphism S Z1 Z2)
+    (g : morphism S Y1 Z1)
+    (φY_inv : morphism S Y2 Y1)
+    (φY : morphism S Y1 Y2)
+    (f : morphism S X1 Y1)
+    (φX_inv : morphism S X2 X1) :
+    (φY_inv o φY)%morphism = 1%morphism ->
+    ((φZ o g o φY_inv) o (φY o f o φX_inv))%morphism = 
+    (φZ o g o f o φX_inv)%morphism.
+  Proof.
+    intro H.
+    rewrite !morphism_associativity.
+    rewrite get_morphisms_adjacent.
+    rewrite H.
+    rewrite morphism_left_identity.
+    reflexivity.
+  Qed.
+  
+Lemma triangle_iso_preserves_zero_comp_1 
+    {T1 T2 : @Triangle S} 
+    (φ : TriangleMorphism T1 T2)
+    (Hφ : IsTriangleIsomorphism φ) :
+    (g T1 o f T1)%morphism = zero_morphism (add_zero S) (X T1) (Z T1) ->
+    (g T2 o f T2)%morphism = zero_morphism (add_zero S) (X T2) (Z T2).
+  Proof.
+    intro H.
+    destruct Hφ as [[HX_iso HY_iso] HZ_iso].
+    
+    rewrite (triangle_iso_f_formula φ HY_iso HX_iso).
+    rewrite (triangle_iso_g_formula φ HZ_iso HY_iso).
+    
+    rewrite (triangle_composition_pattern 
+               (mor_Z _ _ φ) (g T1) 
+               (iso_inverse HY_iso) (mor_Y _ _ φ)
+               (f T1) (iso_inverse HX_iso)
+               (iso_inverse_left HY_iso)).
+    
+    apply morphism_four_compose_with_zero.
+    exact H.
+  Qed.
+
+  Lemma triangle_iso_h_formula 
+    {T1 T2 : @Triangle S} 
+    (φ : TriangleMorphism T1 T2)
+    (HX_iso : IsIsomorphism (mor_X _ _ φ))
+    (HZ_iso : IsIsomorphism (mor_Z _ _ φ)) :
+    h T2 = (morphism_of (Susp S) (mor_X _ _ φ) o h T1 o iso_inverse HZ_iso)%morphism.
+  Proof.
+
+    pose proof (comm_h _ _ φ) as Hcomm.
+    
+    assert (H: forall (g h : morphism S (Z T1) (object_of (Susp S) (X T2))) 
+                      (k : morphism S (Z T2) (Z T1)),
+              g = h -> (g o k)%morphism = (h o k)%morphism).
+    {
+      intros g h k Heq. rewrite Heq. reflexivity.
+    }
+    
+    apply (H _ _ (iso_inverse HZ_iso)) in Hcomm.
+    rewrite !morphism_associativity in Hcomm.
+    rewrite (iso_inverse_right HZ_iso) in Hcomm.
+    rewrite morphism_right_identity in Hcomm.
+    rewrite <- morphism_associativity in Hcomm.
+    exact Hcomm^.
+  Qed.
+  
+  Lemma triangle_iso_preserves_zero_comp_2 
+    {T1 T2 : @Triangle S} 
+    (φ : TriangleMorphism T1 T2)
+    (Hφ : IsTriangleIsomorphism φ) :
+    (h T1 o g T1)%morphism = zero_morphism (add_zero S) (Y T1) (object_of (Susp S) (X T1)) ->
+    (h T2 o g T2)%morphism = zero_morphism (add_zero S) (Y T2) (object_of (Susp S) (X T2)).
+  Proof.
+    intro H.
+    destruct Hφ as [[HX_iso HY_iso] HZ_iso].
+    
+    rewrite (triangle_iso_g_formula φ HZ_iso HY_iso).
+    rewrite (triangle_iso_h_formula φ HX_iso HZ_iso).
+    
+    rewrite (triangle_composition_pattern 
+               (morphism_of (Susp S) (mor_X _ _ φ)) (h T1) 
+               (iso_inverse HZ_iso) (mor_Z _ _ φ)
+               (g T1) (iso_inverse HY_iso)
+               (iso_inverse_left HZ_iso)).
+    apply morphism_four_compose_with_zero.
+    exact H.
+  Qed.
+  
+  Lemma functor_preserves_inverse {C D : PreCategory} (F : Functor C D)
+    {X Y : object C} (f : morphism C X Y) (H : IsIsomorphism f) :
+    morphism_of F (iso_inverse H) = 
+    iso_inverse (functor_preserves_iso F f H).
+  Proof.
+    destruct H as [g [Hgf Hfg]].
+    simpl.
+    assert (Hinv1: (morphism_of F g o morphism_of F f = 1)%morphism).
+    {
+      rewrite <- composition_of.
+      rewrite Hgf.
+      apply identity_of.
+    }
+    assert (Hinv2: (morphism_of F f o morphism_of F g = 1)%morphism).
+    {
+      rewrite <- composition_of.
+      rewrite Hfg.
+      apply identity_of.
+    }
+    reflexivity.
+  Qed.
+  
+(* Helper: Triangle isomorphism preserves zero composition 3 *)
+  Lemma triangle_iso_preserves_zero_comp_3 
+    {T1 T2 : @Triangle S} 
+    (φ : TriangleMorphism T1 T2)
+    (Hφ : IsTriangleIsomorphism φ) :
+    (morphism_of (Susp S) (f T1) o h T1)%morphism = 
+    zero_morphism (add_zero S) (Z T1) (object_of (Susp S) (Y T1)) ->
+    (morphism_of (Susp S) (f T2) o h T2)%morphism = 
+    zero_morphism (add_zero S) (Z T2) (object_of (Susp S) (Y T2)).
+  Proof.
+    intro H.
+    destruct Hφ as [[HX_iso HY_iso] HZ_iso].
+    
+    (* Use our formulas *)
+    rewrite (triangle_iso_f_formula φ HY_iso HX_iso).
+    rewrite (triangle_iso_h_formula φ HX_iso HZ_iso).
+    
+    (* Now Σ(f T2) = Σ(mor_Y φ o f T1 o iso_inverse HX_iso) *)
+    rewrite (composition_of (Susp S)).
+    rewrite (composition_of (Susp S)).
+    
+    (* Now we have: (Σ(mor_Y) o Σ(f T1) o Σ(iso_inverse HX_iso)) o (Σ(mor_X) o h T1 o iso_inverse HZ_iso) *)
+    
+    (* Use functor_preserves_inverse *)
+    rewrite (functor_preserves_inverse (Susp S) (mor_X _ _ φ) HX_iso).
+    
+    (* Now use our pattern lemma *)
+    rewrite (triangle_composition_pattern 
+               (morphism_of (Susp S) (mor_Y _ _ φ)) 
+               (morphism_of (Susp S) (f T1))
+               (iso_inverse (functor_preserves_iso (Susp S) (mor_X _ _ φ) HX_iso))
+               (morphism_of (Susp S) (mor_X _ _ φ))
+               (h T1) 
+               (iso_inverse HZ_iso)
+               (iso_inverse_left (functor_preserves_iso (Susp S) (mor_X _ _ φ) HX_iso))).
+    
+    (* Now we have: Σ(mor_Y) o Σ(f T1) o h T1 o iso_inverse HZ_iso *)
+    (* Apply the four morphism zero lemma *)
+    apply morphism_four_compose_with_zero.
+    exact H.
+  Qed.
+
+(* TR2: Isomorphic triangles preserve distinguished property *)
+  Theorem TR2 {T1 T2 : @Triangle S} 
+    (φ : TriangleMorphism T1 T2)
+    (Hφ : IsTriangleIsomorphism φ)
+    (D1 : @DistinguishedTriangle S)
+    (H1 : triangle D1 = T1) :
+    @DistinguishedTriangle S.
+  Proof.
+    (* Construct the distinguished triangle with T2 *)
+    destruct Hφ as [[HX_iso HY_iso] HZ_iso].
+    refine {| triangle := T2 |}.
+    - (* zero_comp_1: g T2 ∘ f T2 = 0 *)
+      apply (triangle_iso_preserves_zero_comp_1 φ (conj (conj HX_iso HY_iso) HZ_iso)).
+      rewrite <- H1.
+      exact (zero_comp_1 D1).
+    - (* zero_comp_2: h T2 ∘ g T2 = 0 *)
+      apply (triangle_iso_preserves_zero_comp_2 φ (conj (conj HX_iso HY_iso) HZ_iso)).
+      rewrite <- H1.
+      exact (zero_comp_2 D1).
+    - (* zero_comp_3: Σf T2 ∘ h T2 = 0 *)
+      apply (triangle_iso_preserves_zero_comp_3 φ (conj (conj HX_iso HY_iso) HZ_iso)).
+      rewrite <- H1.
+      exact (zero_comp_3 D1).
+  Defined.
