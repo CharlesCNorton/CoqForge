@@ -693,3 +693,99 @@ Section TriangleMorphismComposition.
   Defined.
   
 End TriangleMorphismComposition.
+
+(** * Left Identity Law for Triangle Morphisms *)
+
+Section TriangleMorphismLeftIdentity.
+  Context {S : PreStableCategory}.
+  
+  (** First we need a lemma about equality of triangle morphisms *)
+  Lemma triangle_morphism_eq (T1 T2 : @Triangle S) 
+    (φ ψ : TriangleMorphism T1 T2) :
+    mor_X _ _ φ = mor_X _ _ ψ ->
+    mor_Y _ _ φ = mor_Y _ _ ψ ->
+    mor_Z _ _ φ = mor_Z _ _ ψ ->
+    φ = ψ.
+  Proof.
+    destruct φ as [φX φY φZ φf φg φh].
+    destruct ψ as [ψX ψY ψZ ψf ψg ψh].
+    simpl. intros HX HY HZ.
+    destruct HX, HY, HZ.
+    (* The commutativity proofs are propositions *)
+    assert (Hf: φf = ψf) by apply path_ishprop.
+    assert (Hg: φg = ψg) by apply path_ishprop.
+    assert (Hh: φh = ψh) by apply path_ishprop.
+    destruct Hf, Hg, Hh.
+    reflexivity.
+  Qed.
+  
+  (** Left identity law *)
+  Lemma triangle_morphism_left_id (T1 T2 : @Triangle S) 
+    (φ : TriangleMorphism T1 T2) :
+    triangle_morphism_compose T1 T2 T2 φ (id_triangle_morphism T2) = φ.
+  Proof.
+    apply triangle_morphism_eq.
+    - simpl. apply morphism_left_identity.
+    - simpl. apply morphism_left_identity.  
+    - simpl. apply morphism_left_identity.
+  Qed.
+  
+End TriangleMorphismLeftIdentity.
+
+(** * Right Identity Law for Triangle Morphisms *)
+
+Section TriangleMorphismRightIdentity.
+  Context {S : PreStableCategory}.
+  
+  (** Right identity law *)
+  Lemma triangle_morphism_right_id (T1 T2 : @Triangle S) 
+    (φ : TriangleMorphism T1 T2) :
+    triangle_morphism_compose T1 T1 T2 (id_triangle_morphism T1) φ = φ.
+  Proof.
+    apply triangle_morphism_eq.
+    - simpl. apply morphism_right_identity.
+    - simpl. apply morphism_right_identity.
+    - simpl. apply morphism_right_identity.
+  Qed.
+  
+End TriangleMorphismRightIdentity.
+
+(** * Associativity Law for Triangle Morphisms *)
+
+(** This is defined outside of sections so it's globally available *)
+Lemma triangle_morphism_assoc {S : PreStableCategory} 
+  (T1 T2 T3 T4 : @Triangle S)
+  (φ : TriangleMorphism T1 T2)
+  (ψ : TriangleMorphism T2 T3)
+  (χ : TriangleMorphism T3 T4) :
+  triangle_morphism_compose T1 T2 T4 φ (triangle_morphism_compose T2 T3 T4 ψ χ) =
+  triangle_morphism_compose T1 T3 T4 (triangle_morphism_compose T1 T2 T3 φ ψ) χ.
+Proof.
+  apply triangle_morphism_eq.
+  - simpl. apply Category.Core.associativity.
+  - simpl. apply Category.Core.associativity.
+  - simpl. apply Category.Core.associativity.
+Qed.
+
+(** * Main Theorem: Triangles Form a Category *)
+
+Theorem triangles_form_category {S : PreStableCategory} : 
+  (* Composition is associative *)
+  (forall (T1 T2 T3 T4 : @Triangle S) 
+          (φ : TriangleMorphism T1 T2)
+          (ψ : TriangleMorphism T2 T3)
+          (χ : TriangleMorphism T3 T4),
+    triangle_morphism_compose T1 T2 T4 φ (triangle_morphism_compose T2 T3 T4 ψ χ) =
+    triangle_morphism_compose T1 T3 T4 (triangle_morphism_compose T1 T2 T3 φ ψ) χ) /\
+  (* Left identity *)
+  (forall (T1 T2 : @Triangle S) (φ : TriangleMorphism T1 T2),
+    triangle_morphism_compose T1 T2 T2 φ (id_triangle_morphism T2) = φ) /\
+  (* Right identity *)
+  (forall (T1 T2 : @Triangle S) (φ : TriangleMorphism T1 T2),
+    triangle_morphism_compose T1 T1 T2 (id_triangle_morphism T1) φ = φ).
+Proof.
+  split; [|split].
+  - intros. apply triangle_morphism_assoc.
+  - intros. apply triangle_morphism_left_id.
+  - intros. apply triangle_morphism_right_id.
+Qed.
