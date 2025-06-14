@@ -7,8 +7,8 @@
     
     Part of a larger formalization of triangulated categories.
     
-    Author: Charles Norton
-    Date: June 14th 2025
+    Author: [Your name]
+    Date: [Current date]
     *)
 
 (** ** Imports *)
@@ -362,19 +362,334 @@ Proof.
   reflexivity.
 Qed.
 
-(** ** Summary
+(** * Pre-Stable Categories
     
-    We have established:
-    1. A formalization of additive categories with zero objects and biproducts
-    2. The notion of additive functors that preserve this structure
-    3. A constructive proof that additive functors preserve zero morphisms
-    
-    This provides a foundation for further developments in homological
-    algebra and triangulated categories within HoTT.
-    
-    Next steps:
-    - Define pre-stable categories using additive functors
-    - Construct mapping cones
-    - Develop the theory of triangulated categories
-    - Provide concrete examples (e.g., chain complexes)
+    A pre-stable category is an additive category equipped with
+    suspension and loop functors that are additive and adjoint.
     *)
+
+Record PreStableCategory := {
+  (** Underlying additive category *)
+  A :> AdditiveCategory;
+  
+  (** Suspension functor Σ : A → A *)
+  Susp : AdditiveFunctor A A;
+  
+  (** Loop functor Ω : A → A *)
+  Loop : AdditiveFunctor A A;
+  
+  (** Unit of the (Loop ⊣ Susp) adjunction *)
+  eta : NaturalTransformation 1%functor (Loop o Susp)%functor;
+  
+  (** Counit of the (Loop ⊣ Susp) adjunction *)
+  epsilon : NaturalTransformation (Susp o Loop)%functor 1%functor
+}.
+
+(** * Suspension Preserves Zero Morphisms *)
+
+Theorem susp_preserves_zero_morphisms {S : PreStableCategory} (X Y : object S) :
+  morphism_of (Susp S) (zero_morphism (add_zero S) X Y) = 
+  zero_morphism (add_zero S) (object_of (Susp S) X) (object_of (Susp S) Y).
+Proof.
+  (** This follows immediately from our general theorem *)
+  apply additive_functor_preserves_zero_morphisms.
+Qed.
+
+(** * Triangles in Pre-Stable Categories
+    
+    A triangle consists of three objects and three morphisms forming:
+    X --f--> Y --g--> Z --h--> ΣX
+    *)
+
+Section Triangles.
+  Context {S : PreStableCategory}.
+  
+  Record Triangle := {
+    X : object S;
+    Y : object S;
+    Z : object S;
+    f : morphism S X Y;
+    g : morphism S Y Z;
+    h : morphism S Z (object_of (Susp S) X)
+  }.
+  
+End Triangles.
+
+(** * Distinguished Triangles
+    
+    A distinguished triangle is a triangle where consecutive compositions
+    are zero. This captures the exactness property.
+    *)
+
+Section DistinguishedTriangles.
+  Context {S : PreStableCategory}.
+  
+  Record DistinguishedTriangle := {
+    triangle : Triangle;
+    
+    (** g ∘ f = 0 *)
+    zero_comp_1 : (g triangle o f triangle)%morphism = 
+                  zero_morphism (add_zero S) (X triangle) (Z triangle);
+    
+    (** h ∘ g = 0 *)
+    zero_comp_2 : (h triangle o g triangle)%morphism = 
+                  zero_morphism (add_zero S) (Y triangle) (object_of (Susp S) (X triangle));
+    
+    (** Σf ∘ h = 0 *)
+    zero_comp_3 : (morphism_of (Susp S) (f triangle) o h triangle)%morphism = 
+                  zero_morphism (add_zero S) (Z triangle) (object_of (Susp S) (Y triangle))
+  }.
+  
+End DistinguishedTriangles.
+
+(** * The Identity Triangle
+    
+    For any object X, we have the distinguished triangle:
+    X --id--> X --!--> 0 --!--> ΣX
+    where ! denotes the unique morphism to/from zero.
+    *)
+
+Section IdentityTriangle.
+  Context {S : PreStableCategory}.
+  
+  Definition id_triangle (X : object S) : @Triangle S := {|
+    X := X;
+    Y := X;
+    Z := @zero _ (add_zero S);
+    f := 1%morphism;
+    g := @center _ (@is_terminal _ (add_zero S) X);
+    h := @center _ (@is_initial _ (add_zero S) (object_of (Susp S) X))
+  |}.
+  
+End IdentityTriangle.
+
+(** * Lemmas about zero morphisms
+    
+    These will help prove the identity triangle is distinguished.
+    *)
+
+Section ZeroLemmas.
+  Context {S : PreStableCategory}.
+  
+  (** The unique morphism from 0 to 0 is the identity *)
+  Lemma zero_to_zero_is_id : 
+    @center _ (@is_initial _ (add_zero S) (@zero _ (add_zero S))) = 1%morphism.
+  Proof.
+    apply (@contr _ (@is_initial _ (add_zero S) (@zero _ (add_zero S)))).
+  Qed.
+  
+  (** Composition with terminal morphism gives zero morphism *)
+  Lemma terminal_comp_is_zero (X Y : object S) 
+    (f : morphism S X (@zero _ (add_zero S))) :
+    (@center _ (@is_initial _ (add_zero S) Y) o f)%morphism = 
+    zero_morphism (add_zero S) X Y.
+  Proof.
+    apply morphism_through_zero_is_zero.
+  Qed.
+  
+End ZeroLemmas.
+
+(** * Identity laws for morphisms
+    
+    Basic category theory laws.
+    *)
+
+Section MorphismIdentityLaws.
+  Context {C : PreCategory}.
+  
+  Lemma morphism_right_identity {X Y : object C} (f : morphism C X Y) :
+    (f o 1)%morphism = f.
+  Proof.
+    apply Category.Core.right_identity.
+  Qed.
+  
+  Lemma morphism_left_identity {X Y : object C} (f : morphism C X Y) :
+    (1 o f)%morphism = f.
+  Proof.
+    apply Category.Core.left_identity.
+  Qed.
+  
+End MorphismIdentityLaws.
+
+Lemma zero_morphism_from_zero {S : PreStableCategory} (Y : object S) :
+  zero_morphism (add_zero S) (@zero _ (add_zero S)) Y =
+  @center _ (@is_initial _ (add_zero S) Y).
+Proof.
+  unfold zero_morphism.
+  (* We have: (0→Y) ∘ (0→0)_terminal = (0→Y) *)
+  (* We know that any morphism 0→0 is identity *)
+  assert (H: @center _ (@is_terminal _ (add_zero S) (@zero _ (add_zero S))) = 
+            (1%morphism : morphism S (@zero _ (add_zero S)) (@zero _ (add_zero S)))).
+  { 
+    (* All morphisms 0→0 are equal, and id is one of them *)
+    apply (@contr _ (@is_terminal _ (add_zero S) (@zero _ (add_zero S)))).
+  }
+  rewrite H.
+  apply morphism_right_identity.
+Qed.
+
+Lemma terminal_zero_to_zero_is_id {S : PreStableCategory} : 
+  @center _ (@is_terminal _ (add_zero S) (@zero _ (add_zero S))) = 
+  (1%morphism : morphism S (@zero _ (add_zero S)) (@zero _ (add_zero S))).
+Proof.
+  (* All morphisms 0 → 0 are equal *)
+  apply terminal_morphism_unique.
+  apply (@is_terminal _ (add_zero S) (@zero _ (add_zero S))).
+Qed.
+
+(** * The Identity Triangle is Distinguished
+    
+    We prove that for any object X, the triangle X --id--> X --!--> 0 --!--> ΣX
+    is distinguished.
+    *)
+
+Section IdentityTriangleDistinguished.
+  Context {S : PreStableCategory}.
+  
+  (** Suspension of identity is identity *)
+  Lemma susp_preserves_identity (X : object S) :
+    morphism_of (Susp S) (1%morphism : morphism S X X) = 
+    (1%morphism : morphism S (object_of (Susp S) X) (object_of (Susp S) X)).
+  Proof.
+    apply (identity_of (Susp S)).
+  Qed.
+  
+  (** Main theorem: The identity triangle is distinguished *)
+  Theorem id_triangle_distinguished (X : object S) : 
+    @DistinguishedTriangle S.
+  Proof.
+    refine {| triangle := id_triangle X |}.
+    
+    (** First condition: g ∘ f = 0, i.e., terminal ∘ id = 0 *)
+    - simpl.
+      rewrite morphism_right_identity.
+      unfold zero_morphism.
+      rewrite zero_to_zero_is_id.
+      rewrite morphism_left_identity.
+      reflexivity.
+    
+    (** Second condition: h ∘ g = 0, i.e., initial ∘ terminal = 0 *)
+    - simpl.
+      apply terminal_comp_is_zero.
+    
+    (** Third condition: Σf ∘ h = 0, i.e., Σ(id) ∘ initial = 0 *)
+    - simpl.
+      rewrite susp_preserves_identity.
+      rewrite morphism_left_identity.
+      rewrite <- zero_morphism_from_zero.
+      reflexivity.
+  Defined.
+  
+End IdentityTriangleDistinguished.
+
+(** * Triangle Morphisms
+    
+    A morphism between triangles consists of three morphisms making
+    all squares commute.
+    *)
+
+Section TriangleMorphism.
+  Context {S : PreStableCategory}.
+  
+  Record TriangleMorphism (T1 T2 : @Triangle S) := {
+    mor_X : morphism S (X T1) (X T2);
+    mor_Y : morphism S (Y T1) (Y T2);
+    mor_Z : morphism S (Z T1) (Z T2);
+    
+    (** The f-square commutes *)
+    comm_f : (mor_Y o f T1)%morphism = (f T2 o mor_X)%morphism;
+    
+    (** The g-square commutes *)
+    comm_g : (mor_Z o g T1)%morphism = (g T2 o mor_Y)%morphism;
+    
+    (** The h-square commutes (with Σ applied to mor_X) *)
+    comm_h : (morphism_of (Susp S) mor_X o h T1)%morphism = 
+             (h T2 o mor_Z)%morphism
+  }.
+  
+End TriangleMorphism.
+
+(** * Identity Triangle Morphism
+    
+    The identity morphism on a triangle has identity components.
+    *)
+
+Section IdentityTriangleMorphism.
+  Context {S : PreStableCategory}.
+  
+  Definition id_triangle_morphism (T : @Triangle S) : TriangleMorphism T T.
+  Proof.
+    refine {| 
+      mor_X := 1%morphism;
+      mor_Y := 1%morphism;
+      mor_Z := 1%morphism
+    |}.
+    - (* comm_f *) 
+      rewrite morphism_left_identity.
+      rewrite morphism_right_identity.
+      reflexivity.
+    - (* comm_g *) 
+      rewrite morphism_left_identity.
+      rewrite morphism_right_identity.
+      reflexivity.
+    - (* comm_h *)
+      rewrite (identity_of (Susp S)).
+      rewrite morphism_left_identity.
+      rewrite morphism_right_identity.
+      reflexivity.
+  Defined.
+  
+End IdentityTriangleMorphism.
+
+(** * Composition of Triangle Morphisms
+    
+    Triangle morphisms compose componentwise.
+    *)
+
+Section TriangleMorphismComposition.
+  Context {S : PreStableCategory}.
+  
+  Lemma morphism_associativity {W X Y Z : object S} 
+    (f : morphism S W X) (g : morphism S X Y) (h : morphism S Y Z) :
+    ((h o g) o f)%morphism = (h o (g o f))%morphism.
+  Proof.
+    apply Category.Core.associativity.
+  Qed.
+  
+  Definition triangle_morphism_compose 
+    (T1 T2 T3 : @Triangle S)
+    (φ : TriangleMorphism T1 T2)
+    (ψ : TriangleMorphism T2 T3) : 
+    TriangleMorphism T1 T3.
+  Proof.
+    refine {| 
+      mor_X := (mor_X _ _ ψ o mor_X _ _ φ)%morphism;
+      mor_Y := (mor_Y _ _ ψ o mor_Y _ _ φ)%morphism;
+      mor_Z := (mor_Z _ _ ψ o mor_Z _ _ φ)%morphism
+    |}.
+    - (* comm_f *)
+      rewrite morphism_associativity.
+      rewrite (comm_f _ _ φ).
+      rewrite <- morphism_associativity.
+      rewrite (comm_f _ _ ψ).
+      rewrite morphism_associativity.
+      reflexivity.
+    - (* comm_g *)
+      rewrite morphism_associativity.
+      rewrite (comm_g _ _ φ).
+      rewrite <- morphism_associativity.
+      rewrite (comm_g _ _ ψ).
+      rewrite morphism_associativity.
+      reflexivity.
+    - (* comm_h *)
+      simpl.
+      rewrite (composition_of (Susp S)).
+      rewrite morphism_associativity.
+      rewrite (comm_h _ _ φ).
+      rewrite <- morphism_associativity.
+      rewrite (comm_h _ _ ψ).
+      rewrite morphism_associativity.
+      reflexivity.
+  Defined.
+  
+End TriangleMorphismComposition.
