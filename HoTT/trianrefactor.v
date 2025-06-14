@@ -1232,3 +1232,228 @@ Section ComposeRightHelper.
   Qed.
   
 End ComposeRightHelper.
+
+Section ShiftTriangle.
+  Context {S : PreStableCategory}.
+  
+  (* The shift of a triangle is its rotation *)
+  Definition shift_triangle (T : @Triangle S) : @Triangle S := 
+    rotate_triangle T.
+  
+  (* Shift preserves distinguished triangles *)
+  Theorem shift_distinguished (T : @DistinguishedTriangle S) :
+    @DistinguishedTriangle S.
+  Proof.
+    exact (rotate_distinguished T).
+  Defined.
+  
+  Definition shift_triangle_morphism {T1 T2 : @Triangle S}
+    (φ : TriangleMorphism T1 T2) : 
+    TriangleMorphism (shift_triangle T1) (shift_triangle T2).
+  Proof.
+    unfold shift_triangle, rotate_triangle.
+
+    apply Build_TriangleMorphism with
+      (mor_X := mor_Y T1 T2 φ)
+      (mor_Y := mor_Z T1 T2 φ)
+      (mor_Z := morphism_of (Susp S) (mor_X T1 T2 φ)).
+    - (* comm_f *)
+      exact (comm_g T1 T2 φ).
+    - (* comm_g *)
+      exact (comm_h T1 T2 φ).
+    - (* comm_h *)
+      rewrite <- (composition_of (Susp S)).
+      rewrite (comm_f T1 T2 φ).
+      rewrite (composition_of (Susp S)).
+      reflexivity.
+  Defined.
+    
+End ShiftTriangle.
+
+Section TR2.
+  Context {S : PreStableCategory}.
+  
+  Lemma iso_preserves_terminal {X Y : object S}
+    (φ : morphism S X Y) (H : IsIsomorphism φ)
+    (f : morphism S X (@zero _ (add_zero S))) :
+    (f o iso_inverse H)%morphism = @center _ (@is_terminal _ (add_zero S) Y).
+  Proof.
+    symmetry.
+    apply (@contr _ (@is_terminal _ (add_zero S) Y)).
+  Qed.
+  
+  Lemma iso_preserves_initial {X Y : object S}
+    (φ : morphism S X Y) (H : IsIsomorphism φ)
+    (f : morphism S (@zero _ (add_zero S)) X) :
+    (φ o f)%morphism = @center _ (@is_initial _ (add_zero S) Y).
+  Proof.
+    symmetry.
+    apply (@contr _ (@is_initial _ (add_zero S) Y)).
+  Qed.
+  
+  Lemma zero_morphism_right {X Y Z : object S}
+    (g : morphism S Y Z) :
+    (g o zero_morphism (add_zero S) X Y)%morphism = 
+    zero_morphism (add_zero S) X Z.
+  Proof.
+    unfold zero_morphism.
+
+    assert (H: (g o @center _ (@is_initial _ (add_zero S) Y))%morphism = 
+               @center _ (@is_initial _ (add_zero S) Z)).
+    {
+      symmetry.
+      apply (@contr _ (@is_initial _ (add_zero S) Z)).
+    }
+    rewrite <- morphism_associativity.
+    rewrite H.
+    reflexivity.
+  Qed.
+  
+  Lemma zero_morphism_left {X Y Z : object S}
+    (f : morphism S X Y) :
+    (zero_morphism (add_zero S) Y Z o f)%morphism = 
+    zero_morphism (add_zero S) X Z.
+  Proof.
+    unfold zero_morphism.
+    assert (H: (@center _ (@is_terminal _ (add_zero S) Y) o f)%morphism = 
+               @center _ (@is_terminal _ (add_zero S) X)).
+    {
+      symmetry.
+      apply (@contr _ (@is_terminal _ (add_zero S) X)).
+    }
+    rewrite morphism_associativity.
+    rewrite H.
+    reflexivity.
+  Qed. 
+  
+  Lemma iso_preserves_zero {X Y Z W : object S}
+    (φX : morphism S X Z) (φY : morphism S Y W)
+    (HX : IsIsomorphism φX) (HY : IsIsomorphism φY)
+    (f : morphism S X Y) :
+    f = zero_morphism (add_zero S) X Y ->
+    (φY o f o iso_inverse HX)%morphism = zero_morphism (add_zero S) Z W.
+  Proof.
+    intro Hf.
+    rewrite Hf.
+    rewrite zero_morphism_right.
+    rewrite zero_morphism_left.
+    reflexivity.
+  Qed. 
+  
+End TR2.
+
+Section FunctorPreservesIso.
+  Context {C D : PreCategory} (F : Functor C D).
+  
+  Lemma functor_preserves_iso {X Y : object C} 
+    (f : morphism C X Y) (H : IsIsomorphism f) :
+    IsIsomorphism (morphism_of F f).
+  Proof.
+    destruct H as [g [Hgf Hfg]].
+    exists (morphism_of F g).
+    split.
+    - (* F(g) ∘ F(f) = F(g ∘ f) = F(1) = 1 *)
+      rewrite <- composition_of.
+      rewrite Hgf.
+      apply identity_of.
+    - (* F(f) ∘ F(g) = F(f ∘ g) = F(1) = 1 *)
+      rewrite <- composition_of.
+      rewrite Hfg.
+      apply identity_of.
+  Defined.
+  
+End FunctorPreservesIso.
+
+Section TR2Helpers.
+  Context {S : PreStableCategory}.
+  
+  Lemma triangle_iso_f_formula 
+    {T1 T2 : @Triangle S} 
+    (φ : TriangleMorphism T1 T2)
+    (HY_iso : IsIsomorphism (mor_Y _ _ φ))
+    (HX_iso : IsIsomorphism (mor_X _ _ φ)) :
+    f T2 = (mor_Y _ _ φ o f T1 o iso_inverse HX_iso)%morphism.
+  Proof.
+    pose proof (comm_f _ _ φ) as Hcomm.
+    
+    assert (H: forall (g h : morphism S (X T1) (Y T2)) (k : morphism S (X T2) (X T1)),
+              g = h -> (g o k)%morphism = (h o k)%morphism).
+    {
+      intros g h k Heq. rewrite Heq. reflexivity.
+    }
+    
+    apply (H _ _ (iso_inverse HX_iso)) in Hcomm.
+    rewrite !morphism_associativity in Hcomm.
+    rewrite (iso_inverse_right HX_iso) in Hcomm.
+    rewrite morphism_right_identity in Hcomm.
+    rewrite <- morphism_associativity in Hcomm.
+    exact Hcomm^.
+  Qed.
+  
+  
+  Lemma triangle_iso_g_formula 
+    {T1 T2 : @Triangle S} 
+    (φ : TriangleMorphism T1 T2)
+    (HZ_iso : IsIsomorphism (mor_Z _ _ φ))
+    (HY_iso : IsIsomorphism (mor_Y _ _ φ)) :
+    g T2 = (mor_Z _ _ φ o g T1 o iso_inverse HY_iso)%morphism.
+  Proof.
+    (* From comm_g: mor_Z ∘ g T1 = g T2 ∘ mor_Y *)
+    (* We need to compose on the right with iso_inverse HY_iso *)
+    pose proof (comm_g _ _ φ) as Hcomm.
+    
+    (* Apply composition on the right to both sides *)
+    assert (H: forall (g h : morphism S (Y T1) (Z T2)) (k : morphism S (Y T2) (Y T1)),
+              g = h -> (g o k)%morphism = (h o k)%morphism).
+    {
+      intros g h k Heq. rewrite Heq. reflexivity.
+    }
+    
+    apply (H _ _ (iso_inverse HY_iso)) in Hcomm.
+    rewrite !morphism_associativity in Hcomm.
+    rewrite (iso_inverse_right HY_iso) in Hcomm.
+    rewrite morphism_right_identity in Hcomm.
+    rewrite <- morphism_associativity in Hcomm.
+    exact Hcomm^.
+  Qed.
+  
+Lemma iso_morphism_cancel {X Y : object S}
+    (φ : morphism S X Y) (H : IsIsomorphism φ) :
+    (iso_inverse H o φ)%morphism = 1%morphism.
+  Proof.
+    apply iso_inverse_left.
+  Qed.
+  
+Lemma composition_with_identity_middle {A B C D : object S}
+    (f : morphism S C D)
+    (g : morphism S B C) 
+    (h : morphism S A B) :
+    (f o 1 o g o h)%morphism = (f o g o h)%morphism.
+  Proof.
+    rewrite morphism_right_identity.
+    reflexivity.
+  Qed.
+  
+Lemma rearrange_middle_composition {A B C D E : object S}
+    (f : morphism S D E)
+    (g : morphism S C D)
+    (h : morphism S B C)
+    (k : morphism S A B) :
+    (f o (g o (h o k)))%morphism = (f o ((g o h) o k))%morphism.
+  Proof.
+    rewrite morphism_associativity.
+    reflexivity.
+  Qed.
+  
+Lemma get_morphisms_adjacent {A B C D E F : object S}
+    (f : morphism S E F)
+    (g : morphism S D E)
+    (h : morphism S C D)
+    (k : morphism S B C)
+    (l : morphism S A B) :
+    (f o (g o (h o (k o l))))%morphism = 
+    (f o (g o ((h o k) o l)))%morphism.
+  Proof.
+    rewrite morphism_associativity.
+    reflexivity.
+  Qed.
