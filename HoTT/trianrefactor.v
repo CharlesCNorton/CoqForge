@@ -7,8 +7,8 @@
     
     Part of a larger formalization of triangulated categories.
     
-    Author: [Your name]
-    Date: [Current date]
+    Author: Charles Norton
+    Date: June 14th 2025
     *)
 
 (** ** Imports *)
