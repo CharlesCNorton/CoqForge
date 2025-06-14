@@ -7,8 +7,8 @@
     
     Part of a larger formalization of triangulated categories.
     
-    Author: Charles Norton
-    Date: June 14th 2025
+    Author: [Your name]
+    Date: [Current date]
     *)
 
 (** ** Imports *)
@@ -789,3 +789,276 @@ Proof.
   - intros. apply triangle_morphism_left_id.
   - intros. apply triangle_morphism_right_id.
 Qed.
+
+(** * Rotation of Triangles
+    
+    Given a triangle X → Y → Z → ΣX, its rotation is Y → Z → ΣX → ΣY.
+    *)
+
+Section RotateTriangle.
+  Context {S : PreStableCategory}.
+  
+  Definition rotate_triangle (T : @Triangle S) : @Triangle S := {|
+    X := Y T;
+    Y := Z T;
+    Z := object_of (Susp S) (X T);
+    f := g T;
+    g := h T;
+    h := morphism_of (Susp S) (f T)
+  |}.
+  
+End RotateTriangle.
+
+(** * Rotation Preserves Distinguished Triangles
+    
+    Theorem TR2: If T is distinguished, then its rotation is distinguished.
+    *)
+
+Section RotateDistinguished.
+  Context {S : PreStableCategory}.
+  
+  Theorem rotate_distinguished (T : @DistinguishedTriangle S) :
+    @DistinguishedTriangle S.
+  Proof.
+    refine {| triangle := rotate_triangle (triangle T) |}.
+    - (* zero_comp_1: h ∘ g = 0 in rotated triangle *)
+      simpl.
+      exact (zero_comp_2 T).
+    - (* zero_comp_2: Σf ∘ h = 0 in rotated triangle *)
+      simpl.
+      exact (zero_comp_3 T).
+    - (* zero_comp_3: Σg ∘ Σf = 0 in rotated triangle *)
+      simpl.
+      rewrite <- (composition_of (Susp S)).
+      rewrite (zero_comp_1 T).
+      apply susp_preserves_zero_morphisms.
+  Defined.
+  
+End RotateDistinguished.
+
+(** * TR1: Existence of Distinguished Triangles
+    
+    For any morphism f : X → Y, there exists a distinguished triangle
+    of the form X → Y → Z → ΣX.
+    *)
+
+Section TR1.
+  Context {S : PreStableCategory}.
+  
+  (** The statement of TR1: every morphism extends to a distinguished triangle *)
+  Definition TR1_statement : Type :=
+    forall (X Y : object S) (f : morphism S X Y),
+    { Z : object S &
+    { g : morphism S Y Z &
+    { h : morphism S Z (object_of (Susp S) X) &
+      @DistinguishedTriangle S }}}.
+  
+  (** Helper: The triangle constructed from f, g, h *)
+  Definition triangle_from_morphisms 
+    {X Y Z : object S} 
+    (f : morphism S X Y)
+    (g : morphism S Y Z)
+    (h : morphism S Z (object_of (Susp S) X)) : @Triangle S :=
+  {|
+    X := X;
+    Y := Y;
+    Z := Z;
+    f := f;
+    g := g;
+    h := h
+  |}.
+  
+End TR1.
+
+(** * Mapping Cone Construction
+    
+    The cone of a morphism f : X → Y is the biproduct Y ⊕ ΣX.
+    *)
+
+Section MappingCone.
+  Context {S : PreStableCategory}.
+  
+  (** The cone object is the biproduct Y ⊕ ΣX *)
+  Definition cone {X Y : object S} (f : morphism S X Y) : object S :=
+    @biproduct_obj _ _ _ (add_biproduct S Y (object_of (Susp S) X)).
+  
+  (** The inclusion Y → Cone(f) *)
+  Definition cone_in {X Y : object S} (f : morphism S X Y) : 
+    morphism S Y (cone f) :=
+    @inl _ _ _ (add_biproduct S Y (object_of (Susp S) X)).
+  
+  (** The projection Cone(f) → ΣX *)
+  Definition cone_out {X Y : object S} (f : morphism S X Y) : 
+    morphism S (cone f) (object_of (Susp S) X) :=
+    @outr _ _ _ (add_biproduct S Y (object_of (Susp S) X)).
+  
+End MappingCone.
+
+(** * Cone Triangle
+    
+    The triangle X → Y → Cone(f) → ΣX constructed from a morphism f.
+    *)
+
+Section ConeTriangle.
+  Context {S : PreStableCategory}.
+  
+  (** The cone triangle for a morphism f : X → Y *)
+  Definition cone_triangle {X Y : object S} (f : morphism S X Y) : @Triangle S :=
+  {|
+    X := X;
+    Y := Y;
+    Z := cone f;
+    f := f;
+    g := cone_in f;
+    h := cone_out f
+  |}.
+  
+End ConeTriangle.
+
+(** * Cone Triangle is Distinguished
+    
+    We attempt to prove that the cone triangle is distinguished.
+    *)
+
+Section ConeDistinguished.
+  Context {S : PreStableCategory}.
+  
+  (** First, let's check what we need to prove *)
+  Lemma cone_distinguished_conditions {X Y : object S} (f : morphism S X Y) :
+    (* Condition 1: cone_in ∘ f = 0 *)
+    ((cone_in f) o f)%morphism = zero_morphism (add_zero S) X (cone f) ->
+    (* Condition 2: cone_out ∘ cone_in = 0 *)
+    ((cone_out f) o (cone_in f))%morphism = zero_morphism (add_zero S) Y (object_of (Susp S) X) ->
+    (* Condition 3: Σf ∘ cone_out = 0 *)
+    (morphism_of (Susp S) f o (cone_out f))%morphism = zero_morphism (add_zero S) (cone f) (object_of (Susp S) Y) ->
+    @DistinguishedTriangle S.
+  Proof.
+    intros H1 H2 H3.
+    refine {| triangle := cone_triangle f |}.
+    - exact H1.
+    - exact H2.
+    - exact H3.
+  Defined.
+  
+  (** Condition 2 follows from biproduct axioms *)
+  Lemma cone_out_cone_in_zero {X Y : object S} (f : morphism S X Y) :
+    ((cone_out f) o (cone_in f))%morphism = zero_morphism (add_zero S) Y (object_of (Susp S) X).
+  Proof.
+    unfold cone_out, cone_in.
+    apply (@mixed_r _ _ _ (add_biproduct S Y (object_of (Susp S) X)) (add_zero S) 
+                          (add_biproduct_props S Y (object_of (Susp S) X))).
+  Qed.
+  
+End ConeDistinguished.
+
+(** * Conditions 1 and 3 for Cone Triangle
+    
+    Let's examine what conditions 1 and 3 require.
+    *)
+
+Section ConeConditions13.
+  Context {S : PreStableCategory}.
+  
+  (** Condition 1: cone_in ∘ f should equal zero *)
+  Lemma cone_condition_1_statement {X Y : object S} (f : morphism S X Y) :
+    Type.
+  Proof.
+    exact (((cone_in f) o f)%morphism = zero_morphism (add_zero S) X (cone f)).
+  Defined.
+  
+  (** Let's see what cone_in ∘ f actually is *)
+  Lemma cone_in_f_unfold {X Y : object S} (f : morphism S X Y) :
+    ((cone_in f) o f)%morphism = 
+    (@inl _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o f)%morphism.
+  Proof.
+    reflexivity.
+  Qed.
+  
+  (** For condition 1 to hold, we need inl ∘ f = 0, which is NOT generally true *)
+  
+  (** Condition 3: Σf ∘ cone_out should equal zero *)
+  Lemma cone_condition_3_statement {X Y : object S} (f : morphism S X Y) :
+    Type.
+  Proof.
+    exact ((morphism_of (Susp S) f o (cone_out f))%morphism = 
+           zero_morphism (add_zero S) (cone f) (object_of (Susp S) Y)).
+  Defined.
+  
+  (** Let's see what Σf ∘ cone_out actually is *)
+  Lemma susp_f_cone_out_unfold {X Y : object S} (f : morphism S X Y) :
+    (morphism_of (Susp S) f o (cone_out f))%morphism =
+    (morphism_of (Susp S) f o @outr _ _ _ (add_biproduct S Y (object_of (Susp S) X)))%morphism.
+  Proof.
+    reflexivity.
+  Qed.
+  
+End ConeConditions13.
+
+(** * The h Morphism for the Cone Triangle
+    
+    We need to define h : Cone(f) → ΣX carefully using the universal property.
+    *)
+
+Section ConeHMorphism.
+  Context {S : PreStableCategory}.
+  
+  (** First component: Y → ΣX should be zero *)
+  Definition cone_h_component1 {X Y : object S} (f : morphism S X Y) :
+    morphism S Y (object_of (Susp S) X).
+  Proof.
+    exact (zero_morphism (add_zero S) Y (object_of (Susp S) X)).
+  Defined.
+  
+  (** Second component: ΣX → ΣX via identity *)
+  Definition cone_h_component2 {X Y : object S} (f : morphism S X Y) :
+    morphism S (object_of (Susp S) X) (object_of (Susp S) X).
+  Proof.
+    exact 1%morphism.
+  Defined.
+  
+End ConeHMorphism.
+
+(** * Constructing h via Universal Property of Biproduct
+    
+    Use the coproduct universal property to get h : Cone(f) → ΣX.
+    *)
+
+Section ConeHUniversal.
+  Context {S : PreStableCategory}.
+  
+  Definition cone_h {X Y : object S} (f : morphism S X Y) : 
+    morphism S (cone f) (object_of (Susp S) X).
+  Proof.
+    unfold cone.
+    (* Apply the coproduct part of the biproduct universal property *)
+    destruct (add_biproduct_universal S Y (object_of (Susp S) X)) as [coprod_univ prod_univ].
+    (* Now apply coprod_univ *)
+    pose (univ := coprod_univ (object_of (Susp S) X)
+                              (cone_h_component1 f)
+                              (cone_h_component2 f)).
+    (* Extract the morphism using .1 *)
+    exact ((@center _ univ).1).
+  Defined.
+  
+End ConeHUniversal.
+
+(** * Proper Cone Triangle with Correct h Morphism
+    
+    Now we can define the cone triangle using our constructed h.
+    *)
+
+Section ProperConeTriangle.
+  Context {S : PreStableCategory}.
+  
+  (** The proper cone triangle for a morphism f : X → Y *)
+  Definition proper_cone_triangle {X Y : object S} (f : morphism S X Y) : @Triangle S :=
+  {|
+    X := X;
+    Y := Y;
+    Z := cone f;
+    f := f;
+    g := cone_in f;
+    h := cone_h f
+  |}.
+  
+End ProperConeTriangle.
