@@ -821,3 +821,49 @@ Section ConeCondition2.
   Qed.
   
 End ConeCondition2.
+
+Section ProjectionZeroLemma.
+  Context {S : PreStableCategory}.
+  
+  Lemma outl_zero_is_zero {X Y Z : object S} :
+    (@outl _ _ _ (add_biproduct S Y Z) o 
+     zero_morphism (add_zero S) X (@biproduct_obj _ _ _ (add_biproduct S Y Z)))%morphism = 
+    zero_morphism (add_zero S) X Y.
+  Proof.
+    unfold zero_morphism.
+    rewrite <- morphism_associativity.
+    (* Apply ap to the function (λ f, f ∘ terminal) *)
+    apply (ap (fun f => (f o @center _ (@is_terminal _ (add_zero S) X))%morphism)).
+    (* Now prove: outl ∘ initial = initial *)
+    apply initial_morphism_unique.
+    apply (@is_initial _ (add_zero S) Y).
+  Qed.
+  
+End ProjectionZeroLemma.
+
+Section CompleteInlFNotZero.
+  Context {S : PreStableCategory}.
+  
+  Lemma inl_f_not_zero {X Y : object S} (f : morphism S X Y) :
+    ((@inl _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o f)%morphism = 
+     zero_morphism (add_zero S) X (cone f)) ->
+    f = zero_morphism (add_zero S) X Y.
+  Proof.
+    intro H.
+    assert (Hcomp : ((@outl _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o 
+                      @inl _ _ _ (add_biproduct S Y (object_of (Susp S) X))) o f)%morphism = 
+                    (@outl _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o 
+                     zero_morphism (add_zero S) X (cone f))%morphism).
+    {
+      rewrite <- H.
+      rewrite morphism_associativity.
+      reflexivity.
+    }
+    rewrite (@beta_l _ _ _ (add_biproduct S Y (object_of (Susp S) X)) (add_zero S) 
+                           (add_biproduct_props S Y (object_of (Susp S) X))) in Hcomp.
+    rewrite morphism_left_identity in Hcomp.
+    rewrite outl_zero_is_zero in Hcomp.
+    exact Hcomp.
+  Qed.
+  
+End CompleteInlFNotZero.
