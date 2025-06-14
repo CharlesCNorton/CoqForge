@@ -867,3 +867,188 @@ Section CompleteInlFNotZero.
   Qed.
   
 End CompleteInlFNotZero.
+
+Section ConstructiveConeData.
+  Context {S : PreStableCategory}.
+  
+  Lemma cone_morphism_components {X Y : object S} (f : morphism S X Y)
+    (j : morphism S Y (cone f)) :
+    exists (α : morphism S Y Y) (β : morphism S Y (object_of (Susp S) X)),
+      ((@outl _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o j)%morphism = α) /\
+      ((@outr _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o j)%morphism = β).
+  Proof.
+    exists (@outl _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o j)%morphism.
+    exists (@outr _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o j)%morphism.
+    split; reflexivity.
+  Qed.
+  
+End ConstructiveConeData.
+
+Section ConeInRequirements.
+  Context {S : PreStableCategory}.
+  
+  Lemma cone_in_requirements {X Y : object S} (f : morphism S X Y)
+    (α : morphism S Y Y) (β : morphism S Y (object_of (Susp S) X)) :
+    α = 1%morphism ->
+    { j : morphism S Y (cone f) |
+      (@outl _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o j)%morphism = α /\
+      (@outr _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o j)%morphism = β }.
+  Proof.
+    intro H_alpha.
+    pose (bpu := add_biproduct_universal S Y (object_of (Susp S) X)).
+    pose (univ := @prod_universal _ _ _ (add_biproduct S Y (object_of (Susp S) X)) bpu Y α β).
+    destruct (@center _ univ) as [j [Hj1 Hj2]].
+    exists j.
+    exact (conj Hj1 Hj2).
+  Qed.
+  
+End ConeInRequirements.
+
+Section ConeInZeroAnalysis.
+  Context {S : PreStableCategory}.
+  
+  Lemma outr_zero_is_zero_local {X Y Z : object S} :
+    (@outr _ _ _ (add_biproduct S Y Z) o 
+     zero_morphism (add_zero S) X (@biproduct_obj _ _ _ (add_biproduct S Y Z)))%morphism = 
+    zero_morphism (add_zero S) X Z.
+  Proof.
+    unfold zero_morphism.
+    rewrite <- morphism_associativity.
+    apply (ap (fun f => (f o @center _ (@is_terminal _ (add_zero S) X))%morphism)).
+    apply initial_morphism_unique.
+    apply (@is_initial _ (add_zero S) Z).
+  Qed.
+  
+  Lemma cone_in_zero_condition {X Y : object S} (f : morphism S X Y)
+    (β : morphism S Y (object_of (Susp S) X)) :
+    let bpu := add_biproduct_universal S Y (object_of (Susp S) X) in
+    let univ := @prod_universal _ _ _ (add_biproduct S Y (object_of (Susp S) X)) bpu Y 1%morphism β in
+    let j := (@center _ univ).1 in
+    (j o f = zero_morphism (add_zero S) X (cone f))%morphism ->
+    (f = zero_morphism (add_zero S) X Y) /\ 
+    (β o f = zero_morphism (add_zero S) X (object_of (Susp S) X))%morphism.
+  Proof.
+    intros bpu univ j H.
+    destruct (@center _ univ) as [j' [Hj1 Hj2]].
+    simpl in j.
+    assert (Hjeq : j = j') by reflexivity.
+    split.
+    -
+      assert (Houtl : ((@outl _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o j) o f)%morphism = 
+                      (@outl _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o 
+                       zero_morphism (add_zero S) X (cone f))%morphism).
+      {
+        rewrite <- H.
+        rewrite morphism_associativity.
+        reflexivity.
+      }
+      rewrite Hjeq in Houtl.
+      rewrite Hj1 in Houtl.
+      rewrite morphism_left_identity in Houtl.
+      rewrite outl_zero_is_zero in Houtl.
+      exact Houtl.
+    - (* Second part: β ∘ f = 0 *)
+      assert (Houtr : ((@outr _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o j) o f)%morphism = 
+                      (@outr _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o 
+                       zero_morphism (add_zero S) X (cone f))%morphism).
+      {
+        rewrite <- H.
+        rewrite morphism_associativity.
+        reflexivity.
+      }
+      rewrite Hjeq in Houtr.
+      rewrite Hj2 in Houtr.
+      rewrite outr_zero_is_zero_local in Houtr.
+      exact Houtr.
+  Qed.
+  
+End ConeInZeroAnalysis.
+
+Section PreStableCategoryWithCofiber.
+
+  Record PreStableCategoryWithCofiber := {
+    base :> PreStableCategory;
+    
+    cofiber : forall {X Y : object base} (f : morphism base X Y), object base;
+    
+    cofiber_in : forall {X Y : object base} (f : morphism base X Y), 
+                 morphism base Y (cofiber f);
+    cofiber_out : forall {X Y : object base} (f : morphism base X Y), 
+                  morphism base (cofiber f) (object_of (Susp base) X);
+    
+    cofiber_cond1 : forall {X Y : object base} (f : morphism base X Y),
+      (cofiber_in f o f)%morphism = 
+      zero_morphism (add_zero base) X (cofiber f);
+      
+    cofiber_cond2 : forall {X Y : object base} (f : morphism base X Y),
+      (cofiber_out f o cofiber_in f)%morphism = 
+      zero_morphism (add_zero base) Y (object_of (Susp base) X);
+      
+    cofiber_cond3 : forall {X Y : object base} (f : morphism base X Y),
+      (morphism_of (Susp base) f o cofiber_out f)%morphism = 
+      zero_morphism (add_zero base) (cofiber f) (object_of (Susp base) Y)
+  }.
+
+End PreStableCategoryWithCofiber.
+
+Section TR1FromCofiber.
+  Context (S : PreStableCategoryWithCofiber).
+  
+  (** Now we can construct a distinguished triangle from any morphism *)
+  Definition triangle_from_morphism {X Y : object S} (f : morphism S X Y) : 
+    @Triangle (base S) :=
+  {|
+    X := X;
+    Y := Y;
+    Z := @cofiber S X Y f;
+    f := f;
+    g := @cofiber_in S X Y f;
+    h := @cofiber_out S X Y f
+  |}.
+  
+End TR1FromCofiber.
+
+Section CofiberTriangleDistinguished.
+  Context (S : PreStableCategoryWithCofiber).
+  
+  (** The triangle from a morphism is distinguished *)
+  Theorem cofiber_triangle_distinguished {X Y : object S} (f : morphism S X Y) :
+    @DistinguishedTriangle (base S).
+  Proof.
+    refine {| triangle := triangle_from_morphism S f |}.
+    - (* zero_comp_1: g ∘ f = 0 *)
+      simpl.
+      exact (@cofiber_cond1 S X Y f).
+    - (* zero_comp_2: h ∘ g = 0 *)
+      simpl.
+      exact (@cofiber_cond2 S X Y f).
+    - (* zero_comp_3: Σf ∘ h = 0 *)
+      simpl.
+      exact (@cofiber_cond3 S X Y f).
+  Defined.
+  
+End CofiberTriangleDistinguished.
+
+Section TR1Theorem.
+  Context (S : PreStableCategoryWithCofiber).
+  
+  (** TR1: Every morphism extends to a distinguished triangle *)
+  Theorem TR1 {X Y : object S} (f : morphism S X Y) :
+    @DistinguishedTriangle (base S).
+  Proof.
+    exact (cofiber_triangle_distinguished S f).
+  Defined.
+  
+End TR1Theorem.
+
+Section TR1Verification.
+  Context (S : PreStableCategoryWithCofiber).
+  
+  (** Verify that TR1 constructs the expected triangle *)
+  Theorem TR1_correct {X Y : object S} (f : morphism S X Y) :
+    triangle (TR1 S f) = triangle_from_morphism S f.
+  Proof.
+    reflexivity.
+  Qed.
+  
+End TR1Verification.
