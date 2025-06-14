@@ -1072,3 +1072,163 @@ Section TR1ConstructiveTest.
   Defined.
   
 End TR1ConstructiveTest.
+
+Section IsomorphismDefinition.
+  Context {C : PreCategory}.
+  
+  Definition IsIsomorphism {X Y : object C} (f : morphism C X Y) : Type :=
+    { g : morphism C Y X |
+      (g o f = 1)%morphism /\ (f o g = 1)%morphism }.
+  
+End IsomorphismDefinition.
+
+Section IsomorphismInverse.
+  Context {C : PreCategory}.
+  
+  Definition iso_inverse {X Y : object C} {f : morphism C X Y} 
+    (H : IsIsomorphism f) : morphism C Y X :=
+    H.1.
+
+  Lemma iso_identity {X : object C} : IsIsomorphism (1%morphism : morphism C X X).
+  Proof.
+    exists 1%morphism.
+    split; apply morphism_left_identity.
+  Qed.
+  
+  Lemma iso_inverse_left {X Y : object C} {f : morphism C X Y} 
+    (H : IsIsomorphism f) :
+    (iso_inverse H o f = 1)%morphism.
+  Proof.
+    destruct H as [g [Hl Hr]].
+    exact Hl.
+  Qed.
+  
+  Lemma iso_inverse_right {X Y : object C} {f : morphism C X Y} 
+    (H : IsIsomorphism f) :
+    (f o iso_inverse H = 1)%morphism.
+  Proof.
+    destruct H as [g [Hl Hr]].
+    exact Hr.
+  Qed.
+  
+End IsomorphismInverse.
+
+Section TriangleIsomorphism.
+  Context {S : PreStableCategory}.
+  
+  Definition IsTriangleIsomorphism {T1 T2 : @Triangle S} 
+    (φ : TriangleMorphism T1 T2) : Type :=
+    IsIsomorphism (mor_X _ _ φ) * 
+    IsIsomorphism (mor_Y _ _ φ) * 
+    IsIsomorphism (mor_Z _ _ φ).
+    
+End TriangleIsomorphism.
+
+Section TR3.
+  Context {S : PreStableCategory}.
+  
+  Definition TR3_statement : Type :=
+    forall (T : @Triangle S) (T' : @Triangle S) 
+           (φ : TriangleMorphism T T'),
+    IsTriangleIsomorphism φ ->
+    @DistinguishedTriangle S ->
+    @DistinguishedTriangle S.
+    
+End TR3.
+
+Section IsoComposeHelper.
+  Context {C : PreCategory}.
+  
+  Lemma ap_morphism_comp_left {X Y Z : object C} 
+    (f : morphism C Y Z) (g h : morphism C X Y) :
+    g = h -> (f o g)%morphism = (f o h)%morphism.
+  Proof.
+    intro H.
+    rewrite H.
+    reflexivity.
+  Qed.
+  
+End IsoComposeHelper.
+
+Section IsoComposeHelper2.
+  Context {C : PreCategory}.
+  
+  Lemma compose_cancel_left {X Y Z : object C} 
+    (f : morphism C Y Z) (g h : morphism C X Y) :
+    (f o g)%morphism = (f o h)%morphism -> 
+    (1 o g)%morphism = (1 o h)%morphism ->
+    g = h.
+  Proof.
+    intros H1 H2.
+    rewrite morphism_left_identity in H2.
+    rewrite morphism_left_identity in H2.
+    exact H2.
+  Qed.
+  
+End IsoComposeHelper2.
+
+Section IsoComposeHelper3.
+  Context {C : PreCategory}.
+  
+  Lemma iso_comp_to_id {X Y : object C} 
+    (f : morphism C X Y) (g : morphism C Y X)
+    (H : (g o f = 1)%morphism) :
+    forall (Z : object C) (h : morphism C Z X),
+    ((g o f) o h)%morphism = (1 o h)%morphism.
+  Proof.
+    intros Z h.
+    rewrite H.
+    reflexivity.
+  Qed.
+  
+End IsoComposeHelper3.
+
+Section FourWayComposeHelper.
+  Context {C : PreCategory}.
+  
+  Lemma four_way_compose_eq {V W X Y Z : object C}
+    (p : morphism C Y Z) 
+    (q1 q2 : morphism C X Y)
+    (r : morphism C W X)
+    (s : morphism C V W) :
+    q1 = q2 ->
+    (p o q1 o r o s)%morphism = (p o q2 o r o s)%morphism.
+  Proof.
+    intro H.
+    rewrite H.
+    reflexivity.
+  Qed.
+  
+End FourWayComposeHelper.
+
+Section ComposeBothSidesHelper.
+  Context {C : PreCategory}.
+  
+  Lemma compose_left {X Y Z : object C}
+    (p : morphism C Y Z)
+    (q1 q2 : morphism C X Y) :
+    q1 = q2 ->
+    (p o q1)%morphism = (p o q2)%morphism.
+  Proof.
+    intro H.
+    rewrite H.
+    reflexivity.
+  Qed.
+  
+End ComposeBothSidesHelper.
+
+Section ComposeRightHelper.
+  Context {C : PreCategory}.
+  
+  Lemma compose_right {X Y Z : object C}
+    (p1 p2 : morphism C Y Z)
+    (q : morphism C X Y) :
+    p1 = p2 ->
+    (p1 o q)%morphism = (p2 o q)%morphism.
+  Proof.
+    intro H.
+    rewrite H.
+    reflexivity.
+  Qed.
+  
+End ComposeRightHelper.
