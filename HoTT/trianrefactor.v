@@ -947,7 +947,7 @@ Section ConeInZeroAnalysis.
       rewrite morphism_left_identity in Houtl.
       rewrite outl_zero_is_zero in Houtl.
       exact Houtl.
-    - (* Second part: β ∘ f = 0 *)
+    - 
       assert (Houtr : ((@outr _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o j) o f)%morphism = 
                       (@outr _ _ _ (add_biproduct S Y (object_of (Susp S) X)) o 
                        zero_morphism (add_zero S) X (cone f))%morphism).
@@ -994,7 +994,6 @@ End PreStableCategoryWithCofiber.
 Section TR1FromCofiber.
   Context (S : PreStableCategoryWithCofiber).
   
-  (** Now we can construct a distinguished triangle from any morphism *)
   Definition triangle_from_morphism {X Y : object S} (f : morphism S X Y) : 
     @Triangle (base S) :=
   {|
@@ -1011,7 +1010,6 @@ End TR1FromCofiber.
 Section CofiberTriangleDistinguished.
   Context (S : PreStableCategoryWithCofiber).
   
-  (** The triangle from a morphism is distinguished *)
   Theorem cofiber_triangle_distinguished {X Y : object S} (f : morphism S X Y) :
     @DistinguishedTriangle (base S).
   Proof.
@@ -1032,7 +1030,6 @@ End CofiberTriangleDistinguished.
 Section TR1Theorem.
   Context (S : PreStableCategoryWithCofiber).
   
-  (** TR1: Every morphism extends to a distinguished triangle *)
   Theorem TR1 {X Y : object S} (f : morphism S X Y) :
     @DistinguishedTriangle (base S).
   Proof.
@@ -1044,7 +1041,6 @@ End TR1Theorem.
 Section TR1Verification.
   Context (S : PreStableCategoryWithCofiber).
   
-  (** Verify that TR1 constructs the expected triangle *)
   Theorem TR1_correct {X Y : object S} (f : morphism S X Y) :
     triangle (TR1 S f) = triangle_from_morphism S f.
   Proof.
@@ -1052,3 +1048,27 @@ Section TR1Verification.
   Qed.
   
 End TR1Verification.
+
+Section TR1ConstructiveTest.
+  Context (S : PreStableCategoryWithCofiber).
+  
+  Definition TR1_triangle_data {X Y : object (base S)} (f : morphism (base S) X Y) :
+    { Z : object (base S) & 
+    { g : morphism (base S) Y Z &
+    { h : morphism (base S) Z (object_of (Susp (base S)) X) &
+    ((g o f)%morphism = zero_morphism (add_zero (base S)) X Z) *
+    ((h o g)%morphism = zero_morphism (add_zero (base S)) Y (object_of (Susp (base S)) X)) *
+    ((morphism_of (Susp (base S)) f o h)%morphism = 
+     zero_morphism (add_zero (base S)) Z (object_of (Susp (base S)) Y)) }}}.
+  Proof.
+    exists (@cofiber S X Y f).
+    exists (@cofiber_in S X Y f).
+    exists (@cofiber_out S X Y f).
+    split.
+    - split.
+      + exact (@cofiber_cond1 S X Y f).
+      + exact (@cofiber_cond2 S X Y f).
+    - exact (@cofiber_cond3 S X Y f).
+  Defined.
+  
+End TR1ConstructiveTest.
