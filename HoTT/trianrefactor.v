@@ -2010,3 +2010,22 @@ Section AlgorithmDemo.
   Qed.
   
 End AlgorithmDemo.
+
+Section ZeroMorphismDemo.
+  Context {PS : PreStableCategory}.
+  Variables (X Y : object PS).
+  
+  Definition zero_XY := zero_morphism (add_zero PS) X Y.
+  
+  Definition zero_YX_op := 
+    zero_morphism (add_zero (opposite_prestable_category PS)) Y X.
+  
+  Theorem zero_morphism_dualizes :
+    zero_YX_op = zero_XY.
+  Proof.
+    unfold zero_YX_op, zero_XY.
+    simpl.
+    reflexivity.
+  Qed.
+  
+End ZeroMorphismDemo.
