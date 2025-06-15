@@ -2260,3 +2260,122 @@ Section ProperStableDualityTheorem.
   Qed.
   
 End ProperStableDualityTheorem.
+
+Section WeakAdditiveFunctor.
+  Context (A B : AdditiveCategory).
+  
+  Record WeakAdditiveFunctor := {
+    weak_functor :> Functor A B;
+    
+    (* The image of zero is isomorphic to zero *)
+    preserves_zero_iso : 
+      IsIsomorphism (@center _ (@is_terminal _ (add_zero B) 
+        (object_of weak_functor (@zero _ (add_zero A)))))
+  }.
+  
+End WeakAdditiveFunctor.
+
+Section WeakAdditiveFunctor.
+  Context (A B : AdditiveCategory).
+  
+  (* The canonical morphism from F(X ⊕ Y) to F(X) ⊕ F(Y) *)
+  Definition biproduct_comparison (F : Functor A B) (X Y : object A) :
+    morphism B (object_of F (@biproduct_obj _ _ _ (add_biproduct A X Y)))
+               (@biproduct_obj _ _ _ (add_biproduct B (object_of F X) (object_of F Y))).
+  Proof.
+    pose (bpu := add_biproduct_universal B (object_of F X) (object_of F Y)).
+    pose (univ := @prod_universal _ _ _ (add_biproduct B (object_of F X) (object_of F Y)) 
+                   bpu
+                   (object_of F (@biproduct_obj _ _ _ (add_biproduct A X Y)))
+                   (morphism_of F (@outl _ _ _ (add_biproduct A X Y)))
+                   (morphism_of F (@outr _ _ _ (add_biproduct A X Y)))).
+    exact (@center _ univ).1.
+  Defined.
+  
+End WeakAdditiveFunctor.
+
+Section ProperWeakAdditiveFunctor.
+  Context (A B : AdditiveCategory).
+  
+  Record ProperWeakAdditiveFunctor := {
+    proper_weak_functor :> Functor A B;
+    
+    (* The image of zero is isomorphic to zero *)
+    proper_preserves_zero_iso : 
+      IsIsomorphism (@center _ (@is_terminal _ (add_zero B) 
+        (object_of proper_weak_functor (@zero _ (add_zero A)))));
+        
+    (* The biproduct comparison map is an isomorphism *)
+    proper_preserves_biproduct_iso : forall (X Y : object A),
+      IsIsomorphism (biproduct_comparison A B proper_weak_functor X Y)
+  }.
+  
+End ProperWeakAdditiveFunctor.
+
+Section StrictToWeak.
+  Context {A B : AdditiveCategory} (F : AdditiveFunctor A B).
+  
+  (* The zero morphism in the image is an isomorphism because they're equal *)
+  Lemma strict_preserves_zero_iso :
+    IsIsomorphism (@center _ (@is_terminal _ (add_zero B) 
+      (object_of F (@zero _ (add_zero A))))).
+  Proof.
+    rewrite preserves_zero.
+    (* The unique morphism zero → zero is the identity *)
+    assert (H: @center _ (@is_terminal _ (add_zero B) (@zero _ (add_zero B))) = 1%morphism).
+    { apply terminal_morphism_unique. apply (@is_terminal _ (add_zero B)). }
+    rewrite H.
+    apply (@iso_identity B (@zero _ (add_zero B))).
+  Qed.
+  
+End StrictToWeak.
+
+Section StrictToWeakBiproduct.
+  Context {A B : AdditiveCategory} (F : AdditiveFunctor A B).
+  
+  (* First, let's understand what the comparison map does *)
+  Lemma biproduct_comparison_components (X Y : object A) :
+    let h := biproduct_comparison A B F X Y in
+    (@outl _ _ _ (add_biproduct B (object_of F X) (object_of F Y)) o h)%morphism = 
+      morphism_of F (@outl _ _ _ (add_biproduct A X Y)) /\
+    (@outr _ _ _ (add_biproduct B (object_of F X) (object_of F Y)) o h)%morphism = 
+      morphism_of F (@outr _ _ _ (add_biproduct A X Y)).
+  Proof.
+    unfold biproduct_comparison.
+    pose (bpu := add_biproduct_universal B (object_of F X) (object_of F Y)).
+    pose (univ := @prod_universal _ _ _ (add_biproduct B (object_of F X) (object_of F Y)) 
+                   bpu
+                   (object_of F (@biproduct_obj _ _ _ (add_biproduct A X Y)))
+                   (morphism_of F (@outl _ _ _ (add_biproduct A X Y)))
+                   (morphism_of F (@outr _ _ _ (add_biproduct A X Y)))).
+    exact (@center _ univ).2.
+  Qed.
+  
+End StrictToWeakBiproduct.
+
+Section StrictToWeakBiproduct3.
+  Context {A B : AdditiveCategory} (F : AdditiveFunctor A B).
+  
+  (* The inverse to the comparison map when F preserves biproducts *)
+  Definition biproduct_comparison_inv (X Y : object A) : 
+    morphism B (@biproduct_obj _ _ _ (add_biproduct B (object_of F X) (object_of F Y)))
+               (object_of F (@biproduct_obj _ _ _ (add_biproduct A X Y))).
+  Proof.
+    rewrite <- (preserves_biproduct A B F X Y).
+    exact 1%morphism.
+  Defined.
+  
+End StrictToWeakBiproduct3.
+
+Section TransportHelpers.
+  Context {A B : AdditiveCategory} (F : AdditiveFunctor A B).
+  
+  (* First: what happens to identity under transport *)
+  Lemma transport_identity {C : PreCategory} {X Y : object C} (p : X = Y) :
+    transport (fun Z => morphism C Z Z) p (1%morphism : morphism C X X) = 
+    (1%morphism : morphism C Y Y).
+  Proof.
+    destruct p. reflexivity.
+  Qed.
+  
+End TransportHelpers.
