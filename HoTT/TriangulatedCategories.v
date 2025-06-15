@@ -1236,11 +1236,9 @@ End ComposeRightHelper.
 Section ShiftTriangle.
   Context {S : PreStableCategory}.
   
-  (* The shift of a triangle is its rotation *)
   Definition shift_triangle (T : @Triangle S) : @Triangle S := 
     rotate_triangle T.
   
-  (* Shift preserves distinguished triangles *)
   Theorem shift_distinguished (T : @DistinguishedTriangle S) :
     @DistinguishedTriangle S.
   Proof.
@@ -1596,7 +1594,7 @@ Lemma triangle_iso_preserves_zero_comp_1
     reflexivity.
   Qed.
   
-(* Helper: Triangle isomorphism preserves zero composition 3 *)
+
   Lemma triangle_iso_preserves_zero_comp_3 
     {T1 T2 : @Triangle S} 
     (φ : TriangleMorphism T1 T2)
@@ -1609,20 +1607,14 @@ Lemma triangle_iso_preserves_zero_comp_1
     intro H.
     destruct Hφ as [[HX_iso HY_iso] HZ_iso].
     
-    (* Use our formulas *)
     rewrite (triangle_iso_f_formula φ HY_iso HX_iso).
     rewrite (triangle_iso_h_formula φ HX_iso HZ_iso).
     
-    (* Now Σ(f T2) = Σ(mor_Y φ o f T1 o iso_inverse HX_iso) *)
     rewrite (composition_of (Susp S)).
     rewrite (composition_of (Susp S)).
-    
-    (* Now we have: (Σ(mor_Y) o Σ(f T1) o Σ(iso_inverse HX_iso)) o (Σ(mor_X) o h T1 o iso_inverse HZ_iso) *)
-    
-    (* Use functor_preserves_inverse *)
+        
     rewrite (functor_preserves_inverse (Susp S) (mor_X _ _ φ) HX_iso).
     
-    (* Now use our pattern lemma *)
     rewrite (triangle_composition_pattern 
                (morphism_of (Susp S) (mor_Y _ _ φ)) 
                (morphism_of (Susp S) (f T1))
@@ -1632,13 +1624,10 @@ Lemma triangle_iso_preserves_zero_comp_1
                (iso_inverse HZ_iso)
                (iso_inverse_left (functor_preserves_iso (Susp S) (mor_X _ _ φ) HX_iso))).
     
-    (* Now we have: Σ(mor_Y) o Σ(f T1) o h T1 o iso_inverse HZ_iso *)
-    (* Apply the four morphism zero lemma *)
     apply morphism_four_compose_with_zero.
     exact H.
   Qed.
 
-(* TR2: Isomorphic triangles preserve distinguished property *)
   Theorem TR2 {T1 T2 : @Triangle S} 
     (φ : TriangleMorphism T1 T2)
     (Hφ : IsTriangleIsomorphism φ)
@@ -1646,18 +1635,17 @@ Lemma triangle_iso_preserves_zero_comp_1
     (H1 : triangle D1 = T1) :
     @DistinguishedTriangle S.
   Proof.
-    (* Construct the distinguished triangle with T2 *)
     destruct Hφ as [[HX_iso HY_iso] HZ_iso].
     refine {| triangle := T2 |}.
-    - (* zero_comp_1: g T2 ∘ f T2 = 0 *)
+    - 
       apply (triangle_iso_preserves_zero_comp_1 φ (conj (conj HX_iso HY_iso) HZ_iso)).
       rewrite <- H1.
       exact (zero_comp_1 D1).
-    - (* zero_comp_2: h T2 ∘ g T2 = 0 *)
+    - 
       apply (triangle_iso_preserves_zero_comp_2 φ (conj (conj HX_iso HY_iso) HZ_iso)).
       rewrite <- H1.
       exact (zero_comp_2 D1).
-    - (* zero_comp_3: Σf T2 ∘ h T2 = 0 *)
+    - 
       apply (triangle_iso_preserves_zero_comp_3 φ (conj (conj HX_iso HY_iso) HZ_iso)).
       rewrite <- H1.
       exact (zero_comp_3 D1).
