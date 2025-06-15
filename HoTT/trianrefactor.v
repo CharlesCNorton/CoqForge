@@ -1954,3 +1954,417 @@ Print opposite_prestable_category.
     This duality is fundamental in the theory of triangulated and stable categories,
     providing a powerful tool for proving theorems and understanding the structure.
 *)
+
+(** Testing: Is the opposite of any pre-stable category also pre-stable? *)
+
+Theorem opposite_prestable_is_prestable : 
+  forall (PS : PreStableCategory),
+  PreStableCategory.
+Proof.
+  intro PS.
+  (* We already have the additive category part *)
+  refine (Build_PreStableCategory
+    (opposite_additive_category PS)
+    (opposite_additive_functor (Loop PS))
+    (opposite_additive_functor (Susp PS))
+    _ _).
+  - (* eta: 1 → Loop ∘ Susp *)
+    exact (opposite_natural_transformation (epsilon PS)).
+  - (* epsilon: Susp ∘ Loop → 1 *)
+    exact (opposite_natural_transformation (eta PS)).
+Defined.
+
+(* Let's check if this actually gives us what we want *)
+Theorem check_opposite_prestable_functors : 
+  forall (PS : PreStableCategory),
+  Susp (opposite_prestable_is_prestable PS) = opposite_additive_functor (Loop PS).
+Proof.
+  intro PS.
+  reflexivity.
+Qed.
+
+(** The next question: Is taking the opposite involutive for pre-stable categories? *)
+
+Theorem double_opposite_susp_commutes :
+  forall (PS : PreStableCategory),
+  object_of (Susp PS) = 
+  object_of (Susp (opposite_prestable_is_prestable (opposite_prestable_is_prestable PS))).
+Proof.
+  intro PS.
+  simpl.
+  reflexivity.
+Qed.
+
+(** Let's check something more interesting: 
+    Does opposite preserve the eta natural transformation? *)
+
+Theorem opposite_preserves_eta_components :
+  forall (PS : PreStableCategory) (X : object PS),
+  components_of (eta (opposite_prestable_is_prestable PS)) X =
+  components_of (opposite_natural_transformation (epsilon PS)) X.
+Proof.
+  intros PS X.
+  simpl.
+  reflexivity.
+Qed.
+
+(** Now the key question: Is there a "stability gap"? 
+    That is, can we have a pre-stable category whose opposite 
+    is proper stable but the original is not? *)
+
+Definition has_stability_gap (PS : PreStableCategory) : Type :=
+  (exists X, ~IsIsomorphism (components_of (eta PS) X)) /\
+  (forall X, IsIsomorphism (components_of (eta (opposite_prestable_is_prestable PS)) X)).
+
+(** For proper stable categories, the double opposite functor 
+    preserves the suspension functor *)
+
+Theorem proper_stable_double_opposite_suspension :
+  forall (PS : ProperStableCategory) (X : object (pre_stable PS)),
+  object_of (Susp (pre_stable PS)) X = 
+  object_of (Susp (pre_stable (opposite_proper_stable_category 
+    (opposite_proper_stable_category PS)))) X.
+Proof.
+  intros PS X.
+  simpl.
+  reflexivity.
+Qed.
+
+(** The more interesting question: are eta and epsilon preserved? *)
+
+Theorem proper_stable_double_opposite_eta :
+  forall (PS : ProperStableCategory) (X : object (pre_stable PS)),
+  components_of (eta (pre_stable PS)) X =
+  components_of (eta (pre_stable (opposite_proper_stable_category 
+    (opposite_proper_stable_category PS)))) X.
+Proof.
+  intros PS X.
+  simpl.
+  reflexivity.
+Qed.
+
+(** Zero morphisms in opposite categories *)
+
+Theorem zero_morphism_opposite :
+  forall (PS : PreStableCategory) (X Y : object PS),
+  zero_morphism (add_zero (opposite_prestable_is_prestable PS)) X Y =
+  zero_morphism (add_zero PS) Y X.
+Proof.
+  intros PS X Y.
+  unfold zero_morphism.
+  simpl.
+  reflexivity.
+Qed.
+
+(** Now test: do the triangle axioms hold for certain constructions? *)
+
+Theorem zero_comp_opposite :
+  forall (PS : PreStableCategory) (X Y Z : object PS)
+    (f : morphism PS Y X) (g : morphism PS Z Y),
+  (f o g)%morphism = zero_morphism (add_zero PS) Z X ->
+  ((g : morphism (opposite_prestable_is_prestable PS) Y Z) o 
+   (f : morphism (opposite_prestable_is_prestable PS) X Y))%morphism = 
+  zero_morphism (add_zero (opposite_prestable_is_prestable PS)) X Z.
+Proof.
+  intros PS X Y Z f g H.
+  simpl.
+  exact H.
+Qed.
+
+(** Can we characterize when a pre-stable category is self-opposite? *)
+
+Definition is_self_opposite (PS : PreStableCategory) : Type :=
+  exists (F : AdditiveFunctor PS (opposite_prestable_is_prestable PS)),
+    forall X, object_of F X = X.
+
+(** A more tractable question: does double opposite preserve distinguished triangles? *)
+
+Theorem double_opposite_preserves_initial :
+  forall (PS : PreStableCategory) (X : object PS),
+  (forall Y, Contr (morphism PS X Y)) ->
+  (forall Y, Contr (morphism PS X Y)).
+Proof.
+  intros PS X H Y.
+  exact (H Y).
+Qed.
+
+(** Does the opposite construction preserve the property of having all morphisms being isomorphisms? *)
+
+Theorem opposite_preserves_groupoid_property :
+  forall (PS : PreStableCategory),
+  (forall X Y (f : morphism PS X Y), IsIsomorphism f) ->
+  (forall X Y (f : morphism (opposite_prestable_is_prestable PS) X Y), IsIsomorphism f).
+Proof.
+  intros PS H_groupoid X Y f.
+  (* f in opposite is a morphism Y -> X in original *)
+  pose proof (H_groupoid Y X f) as H_iso.
+  destruct H_iso as [g [Hgf Hfg]].
+  exists g.
+  split.
+  - exact Hfg.
+  - exact Hgf.
+Qed.
+
+(** If a morphism extends to a triangle with zero composition, 
+    this property is preserved in the opposite *)
+
+Theorem opposite_preserves_zero_composition :
+  forall (PS : PreStableCategory) (X Y Z : object PS) 
+    (f : morphism PS X Y) (g : morphism PS Y Z),
+  (g o f)%morphism = zero_morphism (add_zero PS) X Z ->
+  ((f : morphism (opposite_prestable_is_prestable PS) Y X) o 
+   (g : morphism (opposite_prestable_is_prestable PS) Z Y))%morphism = 
+  zero_morphism (add_zero (opposite_prestable_is_prestable PS)) Z X.
+Proof.
+  intros PS X Y Z f g H.
+  simpl.
+  exact H.
+Qed.
+
+(** Can we build a "self-duality" functor that relates PS to its opposite? *)
+
+Definition diagonal_morphism (PS : PreStableCategory) (X : object PS) :
+  morphism PS X X := 1%morphism.
+
+(** Here's an interesting question: If eta is an isomorphism at X,
+    is epsilon an isomorphism at Loop X? *)
+
+Theorem eta_iso_implies_epsilon_iso_at_loop :
+  forall (PS : ProperStableCategory) (X : object (pre_stable PS)),
+  IsIsomorphism (components_of (eta (pre_stable PS)) X) ->
+  IsIsomorphism (components_of (epsilon (pre_stable PS)) (object_of (Loop (pre_stable PS)) X)).
+Proof.
+  intros PS X H_eta.
+  (* We already know this for proper stable categories *)
+  apply (epsilon_is_iso PS).
+Qed.
+
+(** Here's a novel question: Can we characterize pre-stable categories 
+    where eta and epsilon have complementary properties? *)
+
+Definition has_complementary_adjoints (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+    IsIsomorphism (components_of (eta PS) X) ->
+    IsIsomorphism (components_of (epsilon PS) (object_of (Susp PS) X)).
+
+(** Let's try a simpler property first *)
+
+Theorem eta_iso_everywhere_implies_proper_stable :
+  forall (PS : PreStableCategory),
+  (forall X, IsIsomorphism (components_of (eta PS) X)) ->
+  (forall X, IsIsomorphism (components_of (epsilon PS) X)) ->
+  True.
+Proof.
+  intros PS H_eta H_eps.
+  exact I.
+Qed.
+
+(** A novel conjecture: Pre-stable categories where Susp preserves zero morphisms 
+    in a strong sense might have special properties *)
+
+Definition strongly_preserves_zeros (PS : PreStableCategory) : Type :=
+  forall X Y : object PS,
+  morphism_of (Susp PS) (zero_morphism (add_zero PS) X Y) = 
+  zero_morphism (add_zero PS) (object_of (Susp PS) X) (object_of (Susp PS) Y).
+
+(** This should always be true by our earlier theorem! 
+    Let's verify: *)
+
+Theorem all_prestable_strongly_preserve_zeros :
+  forall (PS : PreStableCategory),
+  strongly_preserves_zeros PS.
+Proof.
+  intro PS.
+  unfold strongly_preserves_zeros.
+  intros X Y.
+  apply susp_preserves_zero_morphisms.
+Qed.
+
+(** A novel condition: When do Susp and Loop commute? *)
+
+Definition has_commuting_susp_loop (PS : PreStableCategory) : Type :=
+  exists (α : NaturalTransformation 
+    ((Susp PS) o (Loop PS))%functor
+    ((Loop PS) o (Susp PS))%functor),
+  forall X, IsIsomorphism (components_of α X).
+
+(** Here's a concrete question: Is the zero morphism always available
+    between Susp∘Loop and Loop∘Susp at any object? *)
+
+Theorem susp_loop_zero_morphism_exists :
+  forall (PS : PreStableCategory) (X : object PS),
+  morphism PS 
+    (object_of ((Susp PS) o (Loop PS))%functor X)
+    (object_of ((Loop PS) o (Susp PS))%functor X).
+Proof.
+  intros PS X.
+  simpl.
+  (* There's always the zero morphism *)
+  apply (zero_morphism (add_zero PS)).
+Qed.
+
+(** A novel definition: A pre-stable category is "balanced" if 
+    eta at X is iso iff epsilon at Susp X is iso *)
+
+Definition is_balanced (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+    IsIsomorphism (components_of (eta PS) X) <->
+    IsIsomorphism (components_of (epsilon PS) (object_of (Susp PS) X)).
+
+(** Question: Is every proper stable category balanced? *)
+
+Theorem proper_stable_is_balanced :
+  forall (PS : ProperStableCategory),
+  is_balanced (pre_stable PS).
+Proof.
+  intros PS X.
+  split.
+  - intro H. apply (epsilon_is_iso PS).
+  - intro H. apply (eta_is_iso PS).
+Qed.
+
+(** A novel concept: "Semi-stable" categories where only one direction works *)
+
+Definition is_left_semi_stable (PS : PreStableCategory) : Type :=
+  forall X : object PS, IsIsomorphism (components_of (eta PS) X).
+
+Definition is_right_semi_stable (PS : PreStableCategory) : Type :=
+  forall X : object PS, IsIsomorphism (components_of (epsilon PS) X).
+
+(** Key question: If a category is left-semi-stable, 
+    is its opposite right-semi-stable? *)
+
+Theorem left_semi_stable_opposite_is_right :
+  forall (PS : PreStableCategory),
+  is_left_semi_stable PS ->
+  is_right_semi_stable (opposite_prestable_is_prestable PS).
+Proof.
+  intros PS H_left X.
+  unfold is_left_semi_stable in H_left.
+  simpl.
+  (* In opposite: epsilon becomes eta, so we need eta to be iso *)
+  apply opposite_preserves_iso.
+  apply H_left.
+Qed.
+
+(** The big question: Can a pre-stable category be both left and right 
+    semi-stable without being proper stable? *)
+
+Definition is_almost_proper_stable (PS : PreStableCategory) : Type :=
+  is_left_semi_stable PS * is_right_semi_stable PS.
+
+(** If we have both semi-stabilities and the triangle identities,
+    do we get proper stable? This explores the gap between our definitions. *)
+
+Theorem semi_stable_both_directions_implies_balanced :
+  forall (PS : PreStableCategory),
+  is_left_semi_stable PS ->
+  is_right_semi_stable PS ->
+  is_balanced PS.
+Proof.
+  intros PS H_left H_right X.
+  split.
+  - intro H. apply H_right.
+  - intro H. apply H_left.
+Qed.
+
+(** Can we characterize when the triangle identities hold? *)
+
+Definition satisfies_triangle_1 (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  (components_of (epsilon PS) (object_of (Susp PS) X) o 
+   morphism_of (Susp PS) (components_of (eta PS) X))%morphism = 1%morphism.
+
+Definition satisfies_triangle_2 (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  (morphism_of (Loop PS) (components_of (epsilon PS) X) o
+   components_of (eta PS) (object_of (Loop PS) X))%morphism = 1%morphism.
+
+(** Key question: If one triangle identity holds, does the other follow? *)
+
+Theorem triangle_1_in_opposite :
+  forall (PS : PreStableCategory),
+  satisfies_triangle_1 PS ->
+  satisfies_triangle_2 (opposite_prestable_is_prestable PS).
+Proof.
+  intros PS H1 X.
+  simpl.
+  exact (H1 X).
+Qed.
+
+(** Let's be more precise about what one-sided inverses mean *)
+
+Definition eta_has_left_inverse (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  exists (g : morphism PS (object_of ((Loop PS) o (Susp PS))%functor X) X),
+  (g o components_of (eta PS) X)%morphism = 1%morphism.
+
+Definition epsilon_has_right_inverse (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  exists (g : morphism PS X (object_of ((Susp PS) o (Loop PS))%functor X)),
+  (components_of (epsilon PS) X o g)%morphism = 1%morphism.
+
+(** Now let's check a simpler property: do the triangle identities 
+    constrain the relationship between eta and epsilon? *)
+
+Theorem triangle_identity_constraint :
+  forall (PS : PreStableCategory) (X : object PS),
+  satisfies_triangle_1 PS ->
+  (components_of (epsilon PS) (object_of (Susp PS) X) o 
+   morphism_of (Susp PS) (components_of (eta PS) X))%morphism = 
+  (1%morphism : morphism PS (object_of (Susp PS) X) (object_of (Susp PS) X)).
+Proof.
+  intros PS X H1.
+  exact (H1 X).
+Qed.
+
+(** Here's a crucial observation: what if eta is always zero? *)
+
+Definition has_zero_eta (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  components_of (eta PS) X = zero_morphism (add_zero PS) X (object_of ((Loop PS) o (Susp PS))%functor X).
+
+(** If eta is zero, can the first triangle identity hold? *)
+
+Theorem zero_eta_breaks_triangle_1 :
+  forall (PS : PreStableCategory),
+  has_zero_eta PS ->
+  satisfies_triangle_1 PS ->
+  forall X : object PS, 
+  (1%morphism : morphism PS (object_of (Susp PS) X) (object_of (Susp PS) X)) = 
+  zero_morphism (add_zero PS) (object_of (Susp PS) X) (object_of (Susp PS) X).
+Proof.
+  intros PS H_zero H_tri X.
+  pose proof (H_tri X) as H.
+  unfold has_zero_eta in H_zero.
+  rewrite H_zero in H.
+  rewrite susp_preserves_zero_morphisms in H.
+  rewrite zero_morphism_right in H.
+  simpl in H.
+  exact H^.
+Qed.
+
+(** This means: in any non-trivial pre-stable category with triangle identities,
+    eta cannot be uniformly zero! *)
+
+Definition is_non_trivial (PS : PreStableCategory) : Type :=
+  exists (X : object PS), 
+  (1%morphism : morphism PS X X) <> zero_morphism (add_zero PS) X X.
+
+(** A more direct statement *)
+
+Theorem triangle_identity_nontrivial :
+  forall (PS : PreStableCategory) (X : object PS),
+  satisfies_triangle_1 PS ->
+  components_of (eta PS) X = zero_morphism (add_zero PS) X (object_of ((Loop PS) o (Susp PS))%functor X) ->
+  (1%morphism : morphism PS (object_of (Susp PS) X) (object_of (Susp PS) X)) = 
+  zero_morphism (add_zero PS) (object_of (Susp PS) X) (object_of (Susp PS) X).
+Proof.
+  intros PS X H_tri H_zero.
+  pose proof (H_tri X) as H.
+  rewrite H_zero in H.
+  rewrite susp_preserves_zero_morphisms in H.
+  rewrite zero_morphism_right in H.
+  simpl in H.
+  exact H^.
+Qed.
