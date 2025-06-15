@@ -2005,7 +2005,6 @@ Section AlgorithmDemo.
     unfold opposite_composition, f_op, g_op.
     unfold original_composition.
     simpl.
-
     reflexivity.
   Qed.
   
@@ -2029,3 +2028,77 @@ Section ZeroMorphismDemo.
   Qed.
   
 End ZeroMorphismDemo.
+
+Section SuspensionLoopDualityDemo.
+  Context {PS : PreStableCategory}.
+  Variable (X : object PS).
+  
+  Definition susp_X := object_of (Susp PS) X.
+  
+  Definition loop_X := object_of (Loop PS) X.
+  
+  Definition susp_op_X := object_of (Susp (opposite_prestable_category PS)) X.
+  
+  Definition loop_op_X := object_of (Loop (opposite_prestable_category PS)) X.
+  
+  Theorem suspension_loop_swap :
+    susp_op_X = loop_X /\ loop_op_X = susp_X.
+  Proof.
+    split.
+    - unfold susp_op_X. simpl. reflexivity.
+    - unfold loop_op_X. simpl. reflexivity.
+  Qed.
+  
+End SuspensionLoopDualityDemo.
+
+Section DistinguishedTriangleDualityDemo.
+  Context {PS : PreStableCategory}.
+  
+  (* Start with a distinguished triangle in PS *)
+  Variable (D : @DistinguishedTriangle PS).
+  
+  (* Extract its components *)
+  Let T := triangle D.
+  Let X := X T.
+  Let Y := Y T.  
+  Let Z := Z T.
+  Let f := f T.
+  Let g := g T.
+  Let h := h T.
+  
+  (* In PS^op, we get morphisms with flipped source/target *)
+  Definition f_dual : morphism (opposite_prestable_category PS) Y X := f.
+  Definition g_dual : morphism (opposite_prestable_category PS) Z Y := g.
+  
+  (* h goes from Z to ΣX in PS, so in PS^op it goes from ΣX to Z
+     But recall: Susp(PS^op) = Loop(PS), so ΣX in PS is ΩX in PS^op *)
+  Definition h_dual : morphism (opposite_prestable_category PS) 
+    (object_of (Susp PS) X) Z := h.
+  
+  (* This shows the beautiful duality:
+     Original in PS:    X --f--> Y --g--> Z --h--> ΣX
+     As morphisms in PS^op: Y <--f-- X,  Z <--g-- Y,  ΣX <--h-- Z
+     
+     The suspension Σ and loop Ω functors swap roles! *)
+  
+End DistinguishedTriangleDualityDemo.
+
+Print opposite_prestable_category.
+
+Section Summary.
+  
+  Theorem duality_principle : 
+    forall (statement : PreStableCategory -> Prop),
+    (forall PS, statement PS) -> 
+    (forall PS, statement (opposite_prestable_category PS)).
+  Proof.
+    intros statement H PS.
+    apply H.
+  Qed.
+  
+  (* This captures the essence: every theorem about pre-stable categories
+     automatically gives us a dual theorem! *)
+  
+End Summary.
+
+Eval compute in opposite_prestable_category.
