@@ -2102,3 +2102,121 @@ Section Summary.
 End Summary.
 
 Eval compute in opposite_prestable_category.
+
+Section ProperStableCategory.
+
+  (* A proper stable category has Susp and Loop as inverse equivalences *)
+  Record ProperStableCategory := {
+    pre_stable :> PreStableCategory;
+    
+    (* Proofs that eta and epsilon are isomorphisms *)
+    eta_is_iso : forall X, IsIsomorphism (components_of (eta pre_stable) X);
+    epsilon_is_iso : forall X, IsIsomorphism (components_of (epsilon pre_stable) X);
+    
+    (* Triangle identities *)
+    triangle_1 : forall X, 
+      (components_of (epsilon pre_stable) (object_of (Susp pre_stable) X) o 
+       morphism_of (Susp pre_stable) (components_of (eta pre_stable) X))%morphism = 1%morphism;
+       
+    triangle_2 : forall X,
+      (morphism_of (Loop pre_stable) (components_of (epsilon pre_stable) X) o
+       components_of (eta pre_stable) (object_of (Loop pre_stable) X))%morphism = 1%morphism
+  }.
+  
+End ProperStableCategory.
+
+Section OppositeProperStableCategory.
+  Context (PS : ProperStableCategory).
+  
+  Lemma opposite_nat_trans_components_local {F G : Functor (pre_stable PS) (pre_stable PS)}
+    (η : NaturalTransformation F G) (X : object (pre_stable PS)) :
+    components_of (opposite_natural_transformation η) X = components_of η X.
+  Proof.
+    reflexivity.
+  Qed.
+
+End OppositeProperStableCategory.
+
+Section OppositeProperStableCategory2.
+  Context (PS : ProperStableCategory).
+  
+  Lemma opposite_preserves_iso {X Y : object PS} (f : morphism PS X Y) :
+    IsIsomorphism f -> IsIsomorphism (f : morphism (opposite_category PS) Y X).
+  Proof.
+    intro H.
+    destruct H as [g [Hgf Hfg]].
+    exists g.
+    split.
+    - simpl. exact Hfg.
+    - simpl. exact Hgf.
+  Qed.
+  
+End OppositeProperStableCategory2.
+
+Section OppositeProperStableCategory3.
+  Context (PS : ProperStableCategory).
+  
+  Lemma eta_iso_opposite : forall X,
+    IsIsomorphism (components_of (eta (opposite_prestable_category (pre_stable PS))) X).
+  Proof.
+    intro X.
+    simpl.
+    apply opposite_preserves_iso.
+    exact (epsilon_is_iso PS X).
+  Qed.
+  
+End OppositeProperStableCategory3.
+
+Section OppositeProperStableCategory4.
+  Context (PS : ProperStableCategory).
+  
+  Lemma epsilon_iso_opposite : forall X,
+    IsIsomorphism (components_of (epsilon (opposite_prestable_category (pre_stable PS))) X).
+  Proof.
+    intro X.
+    simpl.
+    apply opposite_preserves_iso.
+    exact (eta_is_iso PS X).
+  Qed.
+  
+End OppositeProperStableCategory4.
+
+Section OppositeProperStableCategory5.
+  Context (PS : ProperStableCategory).
+  
+  Lemma opposite_triangle_1 : forall X,
+    (components_of (epsilon (opposite_prestable_category (pre_stable PS))) 
+      (object_of (Susp (opposite_prestable_category (pre_stable PS))) X) o 
+     morphism_of (Susp (opposite_prestable_category (pre_stable PS))) 
+      (components_of (eta (opposite_prestable_category (pre_stable PS))) X))%morphism = 
+    1%morphism.
+  Proof.
+    intro X.
+    simpl.
+    (* In the opposite, Susp^op = Loop and eta^op = epsilon, epsilon^op = eta *)
+    (* So this becomes: eta(Loop X) o Loop(epsilon X) = 1 *)
+    (* Which is triangle_2 from the original! *)
+    exact (triangle_2 PS X).
+  Qed.
+  
+End OppositeProperStableCategory5.
+
+Section OppositeProperStableCategory6.
+  Context (PS : ProperStableCategory).
+  
+  Lemma opposite_triangle_2 : forall X,
+    (morphism_of (Loop (opposite_prestable_category (pre_stable PS))) 
+      (components_of (epsilon (opposite_prestable_category (pre_stable PS))) X) o
+     components_of (eta (opposite_prestable_category (pre_stable PS))) 
+      (object_of (Loop (opposite_prestable_category (pre_stable PS))) X))%morphism = 
+    1%morphism.
+  Proof.
+    intro X.
+    simpl.
+    (* In the opposite, Loop^op = Susp, eta^op = epsilon, epsilon^op = eta *)
+    (* So this becomes: Susp(eta X) o epsilon(Susp X) = 1 *)
+    (* Which is triangle_1 from the original! *)
+    exact (triangle_1 PS X).
+  Qed.
+  
+End OppositeProperStableCategory6. 
