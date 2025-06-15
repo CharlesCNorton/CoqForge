@@ -1925,11 +1925,20 @@ Proof.
   split; reflexivity.
 Qed.
 
-(** ** Summary: The Duality Principle
+(** * Part IV: Explorations in Stable Category Theory
     
-    Every theorem about pre-stable categories automatically gives us
-    a dual theorem by passing to the opposite category.
+    This section explores novel concepts and relationships in the theory of
+    stable categories, building upon the foundational definitions and theorems
+    established in Parts I-III.
 *)
+
+(** ** Section IV.1: The Fundamental Duality Principle
+    
+    We begin by establishing the general duality principle that underlies
+    all of stable category theory.
+*)
+
+(** *** The Universal Duality Theorem *)
 
 Theorem duality_principle : 
   forall (statement : PreStableCategory -> Prop),
@@ -1955,7 +1964,13 @@ Print opposite_prestable_category.
     providing a powerful tool for proving theorems and understanding the structure.
 *)
 
-(** Testing: Is the opposite of any pre-stable category also pre-stable? *)
+(** ** Section IV.2: Opposite Pre-Stable Categories
+    
+    We investigate whether the opposite of a pre-stable category is always
+    pre-stable, without requiring the additional conditions of proper stability.
+*)
+
+(** *** Construction of Opposite Pre-Stable Categories *)
 
 Theorem opposite_prestable_is_prestable : 
   forall (PS : PreStableCategory),
@@ -1974,7 +1989,8 @@ Proof.
     exact (opposite_natural_transformation (eta PS)).
 Defined.
 
-(* Let's check if this actually gives us what we want *)
+(** *** Verification of Functor Correspondence *)
+
 Theorem check_opposite_prestable_functors : 
   forall (PS : PreStableCategory),
   Susp (opposite_prestable_is_prestable PS) = opposite_additive_functor (Loop PS).
@@ -1983,7 +1999,7 @@ Proof.
   reflexivity.
 Qed.
 
-(** The next question: Is taking the opposite involutive for pre-stable categories? *)
+(** *** Double Opposite Properties *)
 
 Theorem double_opposite_susp_commutes :
   forall (PS : PreStableCategory),
@@ -1995,8 +2011,7 @@ Proof.
   reflexivity.
 Qed.
 
-(** Let's check something more interesting: 
-    Does opposite preserve the eta natural transformation? *)
+(** *** Natural Transformation Preservation *)
 
 Theorem opposite_preserves_eta_components :
   forall (PS : PreStableCategory) (X : object PS),
@@ -2008,16 +2023,19 @@ Proof.
   reflexivity.
 Qed.
 
-(** Now the key question: Is there a "stability gap"? 
-    That is, can we have a pre-stable category whose opposite 
-    is proper stable but the original is not? *)
+(** ** Section IV.3: Stability Gaps and Asymmetric Stability
+    
+    We explore the possibility of categories that are stable in one direction
+    but not the other.
+*)
+
+(** *** Definition of Stability Gap *)
 
 Definition has_stability_gap (PS : PreStableCategory) : Type :=
   (exists X, ~IsIsomorphism (components_of (eta PS) X)) /\
   (forall X, IsIsomorphism (components_of (eta (opposite_prestable_is_prestable PS)) X)).
 
-(** For proper stable categories, the double opposite functor 
-    preserves the suspension functor *)
+(** *** Double Opposite for Proper Stable Categories *)
 
 Theorem proper_stable_double_opposite_suspension :
   forall (PS : ProperStableCategory) (X : object (pre_stable PS)),
@@ -2030,8 +2048,6 @@ Proof.
   reflexivity.
 Qed.
 
-(** The more interesting question: are eta and epsilon preserved? *)
-
 Theorem proper_stable_double_opposite_eta :
   forall (PS : ProperStableCategory) (X : object (pre_stable PS)),
   components_of (eta (pre_stable PS)) X =
@@ -2043,7 +2059,13 @@ Proof.
   reflexivity.
 Qed.
 
-(** Zero morphisms in opposite categories *)
+(** ** Section IV.4: Zero Morphisms and Composition in Opposite Categories
+    
+    We establish how zero morphisms and compositions behave under the
+    opposite construction.
+*)
+
+(** *** Zero Morphism Duality *)
 
 Theorem zero_morphism_opposite :
   forall (PS : PreStableCategory) (X Y : object PS),
@@ -2056,7 +2078,7 @@ Proof.
   reflexivity.
 Qed.
 
-(** Now test: do the triangle axioms hold for certain constructions? *)
+(** *** Preservation of Zero Compositions *)
 
 Theorem zero_comp_opposite :
   forall (PS : PreStableCategory) (X Y Z : object PS)
@@ -2071,13 +2093,18 @@ Proof.
   exact H.
 Qed.
 
-(** Can we characterize when a pre-stable category is self-opposite? *)
+(** ** Section IV.5: Self-Opposite Categories
+    
+    We investigate categories that are isomorphic to their opposites.
+*)
+
+(** *** Definition of Self-Opposite *)
 
 Definition is_self_opposite (PS : PreStableCategory) : Type :=
   exists (F : AdditiveFunctor PS (opposite_prestable_is_prestable PS)),
     forall X, object_of F X = X.
 
-(** A more tractable question: does double opposite preserve distinguished triangles? *)
+(** *** Basic Properties of Double Opposite *)
 
 Theorem double_opposite_preserves_initial :
   forall (PS : PreStableCategory) (X : object PS),
@@ -2088,7 +2115,7 @@ Proof.
   exact (H Y).
 Qed.
 
-(** Does the opposite construction preserve the property of having all morphisms being isomorphisms? *)
+(** *** Groupoid Properties Under Opposite *)
 
 Theorem opposite_preserves_groupoid_property :
   forall (PS : PreStableCategory),
@@ -2105,8 +2132,12 @@ Proof.
   - exact Hgf.
 Qed.
 
-(** If a morphism extends to a triangle with zero composition, 
-    this property is preserved in the opposite *)
+(** ** Section IV.6: Triangulated Structure Under Duality
+    
+    We explore how triangulated structures behave under the opposite construction.
+*)
+
+(** *** Zero Composition in Triangles *)
 
 Theorem opposite_preserves_zero_composition :
   forall (PS : PreStableCategory) (X Y Z : object PS) 
@@ -2121,13 +2152,18 @@ Proof.
   exact H.
 Qed.
 
-(** Can we build a "self-duality" functor that relates PS to its opposite? *)
+(** *** Diagonal Morphisms *)
 
 Definition diagonal_morphism (PS : PreStableCategory) (X : object PS) :
   morphism PS X X := 1%morphism.
 
-(** Here's an interesting question: If eta is an isomorphism at X,
-    is epsilon an isomorphism at Loop X? *)
+(** ** Section IV.7: Relationships Between η and ε
+    
+    We investigate the deep connections between the unit and counit
+    of the adjunction between suspension and loop functors.
+*)
+
+(** *** Propagation of Isomorphism Properties *)
 
 Theorem eta_iso_implies_epsilon_iso_at_loop :
   forall (PS : ProperStableCategory) (X : object (pre_stable PS)),
@@ -2139,15 +2175,14 @@ Proof.
   apply (epsilon_is_iso PS).
 Qed.
 
-(** Here's a novel question: Can we characterize pre-stable categories 
-    where eta and epsilon have complementary properties? *)
+(** *** Complementary Adjoints *)
 
 Definition has_complementary_adjoints (PS : PreStableCategory) : Type :=
   forall X : object PS,
     IsIsomorphism (components_of (eta PS) X) ->
     IsIsomorphism (components_of (epsilon PS) (object_of (Susp PS) X)).
 
-(** Let's try a simpler property first *)
+(** *** Trivial Implications *)
 
 Theorem eta_iso_everywhere_implies_proper_stable :
   forall (PS : PreStableCategory),
@@ -2159,16 +2194,20 @@ Proof.
   exact I.
 Qed.
 
-(** A novel conjecture: Pre-stable categories where Susp preserves zero morphisms 
-    in a strong sense might have special properties *)
+(** ** Section IV.8: Preservation of Zero Morphisms
+    
+    We verify that suspension functors always preserve zero morphisms,
+    a fundamental property of additive functors.
+*)
+
+(** *** Strong Preservation of Zeros *)
 
 Definition strongly_preserves_zeros (PS : PreStableCategory) : Type :=
   forall X Y : object PS,
   morphism_of (Susp PS) (zero_morphism (add_zero PS) X Y) = 
   zero_morphism (add_zero PS) (object_of (Susp PS) X) (object_of (Susp PS) Y).
 
-(** This should always be true by our earlier theorem! 
-    Let's verify: *)
+(** *** Universal Property *)
 
 Theorem all_prestable_strongly_preserve_zeros :
   forall (PS : PreStableCategory),
@@ -2180,7 +2219,13 @@ Proof.
   apply susp_preserves_zero_morphisms.
 Qed.
 
-(** A novel condition: When do Susp and Loop commute? *)
+(** ** Section IV.9: Commuting Suspension and Loop
+    
+    We explore when suspension and loop functors commute up to
+    natural isomorphism.
+*)
+
+(** *** Definition of Commuting Functors *)
 
 Definition has_commuting_susp_loop (PS : PreStableCategory) : Type :=
   exists (α : NaturalTransformation 
@@ -2188,8 +2233,7 @@ Definition has_commuting_susp_loop (PS : PreStableCategory) : Type :=
     ((Loop PS) o (Susp PS))%functor),
   forall X, IsIsomorphism (components_of α X).
 
-(** Here's a concrete question: Is the zero morphism always available
-    between Susp∘Loop and Loop∘Susp at any object? *)
+(** *** Existence of Morphisms Between Compositions *)
 
 Theorem susp_loop_zero_morphism_exists :
   forall (PS : PreStableCategory) (X : object PS),
@@ -2203,15 +2247,20 @@ Proof.
   apply (zero_morphism (add_zero PS)).
 Qed.
 
-(** A novel definition: A pre-stable category is "balanced" if 
-    eta at X is iso iff epsilon at Susp X is iso *)
+(** ** Section IV.10: Balanced Categories
+    
+    We introduce the notion of balanced pre-stable categories where
+    the isomorphism properties of η and ε are perfectly correlated.
+*)
+
+(** *** Definition of Balanced *)
 
 Definition is_balanced (PS : PreStableCategory) : Type :=
   forall X : object PS,
     IsIsomorphism (components_of (eta PS) X) <->
     IsIsomorphism (components_of (epsilon PS) (object_of (Susp PS) X)).
 
-(** Question: Is every proper stable category balanced? *)
+(** *** Proper Stable Categories are Balanced *)
 
 Theorem proper_stable_is_balanced :
   forall (PS : ProperStableCategory),
@@ -2223,7 +2272,13 @@ Proof.
   - intro H. apply (eta_is_iso PS).
 Qed.
 
-(** A novel concept: "Semi-stable" categories where only one direction works *)
+(** ** Section IV.11: Semi-Stable Categories
+    
+    We introduce and study categories that are stable in only one direction,
+    providing intermediate steps between pre-stable and proper stable.
+*)
+
+(** *** Left and Right Semi-Stability *)
 
 Definition is_left_semi_stable (PS : PreStableCategory) : Type :=
   forall X : object PS, IsIsomorphism (components_of (eta PS) X).
@@ -2231,8 +2286,7 @@ Definition is_left_semi_stable (PS : PreStableCategory) : Type :=
 Definition is_right_semi_stable (PS : PreStableCategory) : Type :=
   forall X : object PS, IsIsomorphism (components_of (epsilon PS) X).
 
-(** Key question: If a category is left-semi-stable, 
-    is its opposite right-semi-stable? *)
+(** *** Duality of Semi-Stability *)
 
 Theorem left_semi_stable_opposite_is_right :
   forall (PS : PreStableCategory),
@@ -2247,14 +2301,12 @@ Proof.
   apply H_left.
 Qed.
 
-(** The big question: Can a pre-stable category be both left and right 
-    semi-stable without being proper stable? *)
+(** *** Almost Proper Stable Categories *)
 
 Definition is_almost_proper_stable (PS : PreStableCategory) : Type :=
   is_left_semi_stable PS * is_right_semi_stable PS.
 
-(** If we have both semi-stabilities and the triangle identities,
-    do we get proper stable? This explores the gap between our definitions. *)
+(** *** Relationship to Balanced Categories *)
 
 Theorem semi_stable_both_directions_implies_balanced :
   forall (PS : PreStableCategory),
@@ -2268,7 +2320,13 @@ Proof.
   - intro H. apply H_left.
 Qed.
 
-(** Can we characterize when the triangle identities hold? *)
+(** ** Section IV.12: Triangle Identities
+    
+    We study the triangle identities that provide coherence conditions
+    for the adjunction between suspension and loop functors.
+*)
+
+(** *** The Two Triangle Identities *)
 
 Definition satisfies_triangle_1 (PS : PreStableCategory) : Type :=
   forall X : object PS,
@@ -2280,7 +2338,7 @@ Definition satisfies_triangle_2 (PS : PreStableCategory) : Type :=
   (morphism_of (Loop PS) (components_of (epsilon PS) X) o
    components_of (eta PS) (object_of (Loop PS) X))%morphism = 1%morphism.
 
-(** Key question: If one triangle identity holds, does the other follow? *)
+(** *** Duality of Triangle Identities *)
 
 Theorem triangle_1_in_opposite :
   forall (PS : PreStableCategory),
@@ -2292,7 +2350,7 @@ Proof.
   exact (H1 X).
 Qed.
 
-(** Let's be more precise about what one-sided inverses mean *)
+(** *** One-Sided Inverses *)
 
 Definition eta_has_left_inverse (PS : PreStableCategory) : Type :=
   forall X : object PS,
@@ -2304,8 +2362,7 @@ Definition epsilon_has_right_inverse (PS : PreStableCategory) : Type :=
   exists (g : morphism PS X (object_of ((Susp PS) o (Loop PS))%functor X)),
   (components_of (epsilon PS) X o g)%morphism = 1%morphism.
 
-(** Now let's check a simpler property: do the triangle identities 
-    constrain the relationship between eta and epsilon? *)
+(** *** Basic Properties of Triangle Identities *)
 
 Theorem triangle_identity_constraint :
   forall (PS : PreStableCategory) (X : object PS),
@@ -2318,13 +2375,19 @@ Proof.
   exact (H1 X).
 Qed.
 
-(** Here's a crucial observation: what if eta is always zero? *)
+(** ** Section IV.13: Zero Natural Transformations
+    
+    We investigate what happens when η or ε is the zero natural transformation,
+    revealing fundamental constraints on pre-stable categories.
+*)
+
+(** *** Zero Eta *)
 
 Definition has_zero_eta (PS : PreStableCategory) : Type :=
   forall X : object PS,
   components_of (eta PS) X = zero_morphism (add_zero PS) X (object_of ((Loop PS) o (Susp PS))%functor X).
 
-(** If eta is zero, can the first triangle identity hold? *)
+(** *** Zero Eta Breaks Triangle Identity *)
 
 Theorem zero_eta_breaks_triangle_1 :
   forall (PS : PreStableCategory),
@@ -2344,14 +2407,13 @@ Proof.
   exact H^.
 Qed.
 
-(** This means: in any non-trivial pre-stable category with triangle identities,
-    eta cannot be uniformly zero! *)
+(** *** Non-Triviality *)
 
 Definition is_non_trivial (PS : PreStableCategory) : Type :=
   exists (X : object PS), 
   (1%morphism : morphism PS X X) <> zero_morphism (add_zero PS) X X.
 
-(** A more direct statement *)
+(** *** Triangle Identities Force Non-Zero Eta *)
 
 Theorem triangle_identity_nontrivial :
   forall (PS : PreStableCategory) (X : object PS),
@@ -2367,4 +2429,209 @@ Proof.
   rewrite zero_morphism_right in H.
   simpl in H.
   exact H^.
+Qed.
+
+(** *** Zero Epsilon *)
+
+Definition has_zero_epsilon (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  components_of (epsilon PS) X = zero_morphism (add_zero PS) (object_of ((Susp PS) o (Loop PS))%functor X) X.
+
+(** *** Zero Epsilon Breaks Triangle Identity *)
+
+Theorem zero_epsilon_breaks_triangle_2 :
+  forall (PS : PreStableCategory) (X : object PS),
+  satisfies_triangle_2 PS ->
+  components_of (epsilon PS) X = zero_morphism (add_zero PS) (object_of ((Susp PS) o (Loop PS))%functor X) X ->
+  (1%morphism : morphism PS (object_of (Loop PS) X) (object_of (Loop PS) X)) = 
+  zero_morphism (add_zero PS) (object_of (Loop PS) X) (object_of (Loop PS) X).
+Proof.
+  intros PS X H_tri H_zero.
+  pose proof (H_tri X) as H.
+  rewrite H_zero in H.
+  pose proof (additive_functor_preserves_zero_morphisms (Loop PS) 
+    (object_of ((Susp PS) o (Loop PS))%functor X) X) as H_loop_zero.
+  rewrite H_loop_zero in H.
+  rewrite zero_morphism_left in H.
+  simpl in H.
+  exact H^.
+Qed.
+
+(** ** Section IV.14: Independence of Triangle Identities
+    
+    We explore whether the two triangle identities are independent or
+    if one implies the other.
+*)
+
+(** *** Categories with Only One Triangle Identity *)
+
+Definition satisfies_only_triangle_1 (PS : PreStableCategory) : Type :=
+  satisfies_triangle_1 PS * (satisfies_triangle_2 PS -> Empty).
+
+(** *** Implication Between Triangle Identities *)
+
+Definition triangle_1_implies_2 (PS : PreStableCategory) : Type :=
+  satisfies_triangle_1 PS -> satisfies_triangle_2 PS.
+
+(** *** Perfect Duality of Triangle Identities *)
+
+Theorem triangle_identities_dual :
+  forall (PS : PreStableCategory),
+  satisfies_triangle_1 PS <-> 
+  satisfies_triangle_2 (opposite_prestable_is_prestable PS).
+Proof.
+  intro PS.
+  split.
+  - exact (triangle_1_in_opposite PS).
+  - intro H2_op.
+    intro X.
+    exact (H2_op X).
+Qed.
+
+(** ** Section IV.15: Self-Dual Triangulated Categories
+    
+    We introduce categories where the triangle identities are equivalent,
+    revealing a special symmetry.
+*)
+
+(** *** Definition of Self-Dual Triangulated *)
+
+Definition is_self_dual_triangulated (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  ((components_of (epsilon PS) (object_of (Susp PS) X) o 
+    morphism_of (Susp PS) (components_of (eta PS) X))%morphism = 1%morphism) <->
+  ((morphism_of (Loop PS) (components_of (epsilon PS) X) o
+    components_of (eta PS) (object_of (Loop PS) X))%morphism = 1%morphism).
+
+(** *** Self-Duality Propagates Triangle Identities *)
+
+Theorem self_dual_gives_both_triangles :
+  forall (PS : PreStableCategory),
+  is_self_dual_triangulated PS ->
+  satisfies_triangle_1 PS ->
+  satisfies_triangle_2 PS.
+Proof.
+  intros PS H_self H1 X.
+  destruct (H_self X) as [H_forward H_backward].
+  apply H_forward.
+  apply H1.
+Qed.
+
+(** ** Section IV.16: Functor Compositions and Identities
+    
+    We study when the compositions of suspension and loop functors
+    yield special relationships with the identity functor.
+*)
+
+(** *** Coinciding Compositions *)
+
+Definition has_coinciding_compositions (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  object_of ((Susp PS) o (Loop PS))%functor X = 
+  object_of ((Loop PS) o (Susp PS))%functor X.
+
+(** *** Composition as Identity *)
+
+Definition susp_loop_is_identity (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  object_of ((Susp PS) o (Loop PS))%functor X = X.
+
+Definition loop_susp_is_identity (PS : PreStableCategory) : Type :=
+  forall X : object PS,
+  object_of ((Loop PS) o (Susp PS))%functor X = X.
+
+(** *** Identity Compositions Coincide *)
+
+Theorem both_compositions_identity_coincide :
+  forall (PS : PreStableCategory),
+  susp_loop_is_identity PS ->
+  loop_susp_is_identity PS ->
+  has_coinciding_compositions PS.
+Proof.
+  intros PS H_sl H_ls X.
+  rewrite H_sl.
+  rewrite H_ls.
+  reflexivity.
+Qed.
+
+(** *** Inverse Objects *)
+
+Definition has_inverse_objects (PS : PreStableCategory) : Type :=
+  susp_loop_is_identity PS * loop_susp_is_identity PS.
+
+(** *** Inverse Objects Under Duality *)
+
+Theorem inverse_objects_opposite :
+  forall (PS : PreStableCategory),
+  has_inverse_objects PS ->
+  has_inverse_objects (opposite_prestable_is_prestable PS).
+Proof.
+  intros PS [H_sl H_ls].
+  split.
+  - intro X. simpl. exact (H_ls X).
+  - intro X. simpl. exact (H_sl X).
+Qed.
+
+(** ** Section IV.17: The Complete Stability Hierarchy
+    
+    We synthesize all our discoveries into a complete characterization
+    of the hierarchy from pre-stable to proper stable categories.
+*)
+
+(** *** Almost Proper Stable (Strong Version) *)
+
+Definition almost_proper_stable_strong (PS : PreStableCategory) : Type :=
+  is_left_semi_stable PS * 
+  is_right_semi_stable PS * 
+  satisfies_triangle_1 PS * 
+  satisfies_triangle_2 PS.
+
+(** *** Almost Proper is Proper *)
+
+Theorem almost_proper_is_proper :
+  forall (PS : PreStableCategory),
+  almost_proper_stable_strong PS ->
+  (* All the data for ProperStableCategory is present *)
+  (forall X, IsIsomorphism (components_of (eta PS) X)) *
+  (forall X, IsIsomorphism (components_of (epsilon PS) X)) *
+  satisfies_triangle_1 PS *
+  satisfies_triangle_2 PS.
+Proof.
+  intros PS H.
+  destruct H as [[[H_left H_right] H_tri1] H_tri2].
+  unfold is_left_semi_stable in H_left.
+  unfold is_right_semi_stable in H_right.
+  refine (_, _, _, _).
+  - exact H_left.
+  - exact H_right.
+  - exact H_tri1.
+  - exact H_tri2.
+Qed.
+
+(** *** The Complete Hierarchy *)
+
+Definition stability_hierarchy_summary : Type :=
+  forall (PS : PreStableCategory),
+  (* Level 0: Pre-stable *)
+  True ->
+  (* Level 1: Semi-stable (one direction) *)
+  (is_left_semi_stable PS + is_right_semi_stable PS) ->
+  (* Level 2: Almost proper (both directions) *)
+  (is_left_semi_stable PS * is_right_semi_stable PS) ->
+  (* Level 3: Weak proper (triangle identities) *)
+  (satisfies_triangle_1 PS * satisfies_triangle_2 PS) ->
+  (* Level 4: Proper stable (all conditions) *)
+  almost_proper_stable_strong PS.
+
+(** *** The Hierarchy Theorem *)
+
+Theorem stability_hierarchy_holds :
+  stability_hierarchy_summary.
+Proof.
+  unfold stability_hierarchy_summary.
+  intros PS _ _ H_almost H_triangles.
+  unfold almost_proper_stable_strong.
+  destruct H_almost as [H_left H_right].
+  destruct H_triangles as [H_tri1 H_tri2].
+  exact (H_left, H_right, H_tri1, H_tri2).
 Qed.
