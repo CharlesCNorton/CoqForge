@@ -2220,3 +2220,43 @@ Section OppositeProperStableCategory6.
   Qed.
   
 End OppositeProperStableCategory6. 
+
+Section OppositeProperStableCategory7.
+  Context (PS : ProperStableCategory).
+  
+  Definition opposite_proper_stable_category : ProperStableCategory.
+  Proof.
+    exact (Build_ProperStableCategory
+      (opposite_prestable_category (pre_stable PS))
+      (eta_iso_opposite PS)
+      (epsilon_iso_opposite PS)
+      (opposite_triangle_1 PS)
+      (opposite_triangle_2 PS)).
+  Defined.
+  
+End OppositeProperStableCategory7.
+
+Section ProperStableDualityTheorem.
+  
+  (* The main theorem: proper stable categories are self-dual *)
+  Theorem proper_stable_duality_principle :
+    forall (PS : ProperStableCategory),
+    exists (PS_op : ProperStableCategory),
+      pre_stable PS_op = opposite_prestable_category (pre_stable PS).
+  Proof.
+    intro PS.
+    exists (opposite_proper_stable_category PS).
+    reflexivity.
+  Qed.
+  
+  (* The beautiful symmetry: Susp and Loop swap roles perfectly *)
+  Theorem suspension_loop_duality (PS : ProperStableCategory) :
+    object_of (Susp (opposite_proper_stable_category PS)) = 
+    object_of (opposite_functor (Loop (pre_stable PS))) /\
+    object_of (Loop (opposite_proper_stable_category PS)) = 
+    object_of (opposite_functor (Susp (pre_stable PS))).
+  Proof.
+    split; reflexivity.
+  Qed.
+  
+End ProperStableDualityTheorem.
