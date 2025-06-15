@@ -1236,11 +1236,9 @@ End ComposeRightHelper.
 Section ShiftTriangle.
   Context {S : PreStableCategory}.
   
-  (* The shift of a triangle is its rotation *)
   Definition shift_triangle (T : @Triangle S) : @Triangle S := 
     rotate_triangle T.
   
-  (* Shift preserves distinguished triangles *)
   Theorem shift_distinguished (T : @DistinguishedTriangle S) :
     @DistinguishedTriangle S.
   Proof.
@@ -1596,7 +1594,7 @@ Lemma triangle_iso_preserves_zero_comp_1
     reflexivity.
   Qed.
   
-(* Helper: Triangle isomorphism preserves zero composition 3 *)
+
   Lemma triangle_iso_preserves_zero_comp_3 
     {T1 T2 : @Triangle S} 
     (φ : TriangleMorphism T1 T2)
@@ -1609,20 +1607,14 @@ Lemma triangle_iso_preserves_zero_comp_1
     intro H.
     destruct Hφ as [[HX_iso HY_iso] HZ_iso].
     
-    (* Use our formulas *)
     rewrite (triangle_iso_f_formula φ HY_iso HX_iso).
     rewrite (triangle_iso_h_formula φ HX_iso HZ_iso).
     
-    (* Now Σ(f T2) = Σ(mor_Y φ o f T1 o iso_inverse HX_iso) *)
     rewrite (composition_of (Susp S)).
     rewrite (composition_of (Susp S)).
-    
-    (* Now we have: (Σ(mor_Y) o Σ(f T1) o Σ(iso_inverse HX_iso)) o (Σ(mor_X) o h T1 o iso_inverse HZ_iso) *)
-    
-    (* Use functor_preserves_inverse *)
+        
     rewrite (functor_preserves_inverse (Susp S) (mor_X _ _ φ) HX_iso).
     
-    (* Now use our pattern lemma *)
     rewrite (triangle_composition_pattern 
                (morphism_of (Susp S) (mor_Y _ _ φ)) 
                (morphism_of (Susp S) (f T1))
@@ -1632,13 +1624,10 @@ Lemma triangle_iso_preserves_zero_comp_1
                (iso_inverse HZ_iso)
                (iso_inverse_left (functor_preserves_iso (Susp S) (mor_X _ _ φ) HX_iso))).
     
-    (* Now we have: Σ(mor_Y) o Σ(f T1) o h T1 o iso_inverse HZ_iso *)
-    (* Apply the four morphism zero lemma *)
     apply morphism_four_compose_with_zero.
     exact H.
   Qed.
 
-(* TR2: Isomorphic triangles preserve distinguished property *)
   Theorem TR2 {T1 T2 : @Triangle S} 
     (φ : TriangleMorphism T1 T2)
     (Hφ : IsTriangleIsomorphism φ)
@@ -1646,19 +1635,281 @@ Lemma triangle_iso_preserves_zero_comp_1
     (H1 : triangle D1 = T1) :
     @DistinguishedTriangle S.
   Proof.
-    (* Construct the distinguished triangle with T2 *)
     destruct Hφ as [[HX_iso HY_iso] HZ_iso].
     refine {| triangle := T2 |}.
-    - (* zero_comp_1: g T2 ∘ f T2 = 0 *)
+    - 
       apply (triangle_iso_preserves_zero_comp_1 φ (conj (conj HX_iso HY_iso) HZ_iso)).
       rewrite <- H1.
       exact (zero_comp_1 D1).
-    - (* zero_comp_2: h T2 ∘ g T2 = 0 *)
+    - 
       apply (triangle_iso_preserves_zero_comp_2 φ (conj (conj HX_iso HY_iso) HZ_iso)).
       rewrite <- H1.
       exact (zero_comp_2 D1).
-    - (* zero_comp_3: Σf T2 ∘ h T2 = 0 *)
+    - 
       apply (triangle_iso_preserves_zero_comp_3 φ (conj (conj HX_iso HY_iso) HZ_iso)).
       rewrite <- H1.
       exact (zero_comp_3 D1).
   Defined.
+  
+Section OppositeCategory.
+  Context (C : PreCategory).
+  
+  Definition opposite_category : PreCategory.
+  Proof.
+    exact (@Build_PreCategory
+      (object C)
+      (fun X Y => morphism C Y X)
+      (fun X => 1%morphism)
+      (fun X Y Z f g => (g o f)%morphism)
+      (fun s d d' d'' m1 m2 m3 => (Category.Core.associativity C d'' d' d s m3 m2 m1)^)
+      (fun a b f => Category.Core.right_identity C b a f)
+      (fun a b f => Category.Core.left_identity C b a f)
+      (fun s d => trunc_morphism C d s)).
+  Defined.
+  
+End OppositeCategory.
+
+Section OppositeZeroObject.
+  Context {C : PreCategory} (Z : ZeroObject C).
+  
+  Definition opposite_zero_object : ZeroObject (opposite_category C).
+  Proof.
+    exact (Build_ZeroObject 
+      (opposite_category C)
+      (zero _ Z)
+      (fun X => is_terminal _ Z X)
+      (fun X => is_initial _ Z X)).
+  Defined.
+  
+End OppositeZeroObject.
+
+Section OppositeBiproduct.
+  Context {C : PreCategory} {X Y : object C} (B : Biproduct X Y).
+  
+  Definition opposite_biproduct : @Biproduct (opposite_category C) Y X.
+  Proof.
+    exact (Build_Biproduct
+      (opposite_category C) Y X
+      (@biproduct_obj _ _ _ B)
+      (@outr _ _ _ B)
+      (@outl _ _ _ B)
+      (@inr _ _ _ B)
+      (@inl _ _ _ B)).
+  Defined.
+  
+End OppositeBiproduct.
+
+Section OppositeBiproductProperties.
+  Context {C : PreCategory} {X Y : object C} 
+          (B : Biproduct X Y) (Z : ZeroObject C).
+  
+  Lemma opposite_biproduct_beta_l 
+    (H : IsBiproduct B Z) :
+    (@outl _ _ _ (opposite_biproduct B) o @inl _ _ _ (opposite_biproduct B) = 1)%morphism.
+  Proof.
+    simpl.
+    exact (@beta_r _ _ _ B Z H).
+  Qed.
+  
+End OppositeBiproductProperties.
+
+Section OppositeBiproductProperties.
+  Context {C : PreCategory} {X Y : object C} 
+          (B : Biproduct X Y) (Z : ZeroObject C).
+  
+  Lemma opposite_biproduct_beta_r 
+    (H : IsBiproduct B Z) :
+    (@outr _ _ _ (opposite_biproduct B) o @inr _ _ _ (opposite_biproduct B) = 1)%morphism.
+  Proof.
+    simpl.
+    exact (@beta_l _ _ _ B Z H).
+  Qed.
+  
+End OppositeBiproductProperties.
+
+Section OppositeBiproductProperties.
+  Context {C : PreCategory} {X Y : object C} 
+          (B : Biproduct X Y) (Z : ZeroObject C).
+  
+  Lemma opposite_biproduct_mixed_r 
+    (H : IsBiproduct B Z) :
+    (@outr _ _ _ (opposite_biproduct B) o @inl _ _ _ (opposite_biproduct B))%morphism = 
+    zero_morphism (opposite_zero_object Z) Y X.
+  Proof.
+    simpl.
+    exact (@mixed_r _ _ _ B Z H).
+  Qed.
+  
+End OppositeBiproductProperties.
+
+Section OppositeBiproductUniversal.
+  Context {C : PreCategory} {X Y : object C} 
+          (B : Biproduct X Y).
+  
+  Lemma swap_product_equiv {A : Type} {P Q : A -> Type} :
+    {a : A & (P a * Q a)} <~> {a : A & (Q a * P a)}.
+  Proof.
+    apply equiv_functor_sigma_id.
+    intro a.
+    apply equiv_prod_symm.
+  Defined.
+  
+  Lemma swap_product_contr {A : Type} {P Q : A -> Type} :
+    Contr {a : A & (P a * Q a)} ->
+    Contr {a : A & (Q a * P a)}.
+  Proof.
+    intro H.
+    apply (contr_equiv' _ (swap_product_equiv)).
+  Qed.
+  
+End OppositeBiproductUniversal.
+
+Section OppositeBiproductUniversal.
+  Context {C : PreCategory} {X Y : object C} 
+          (B : Biproduct X Y).
+  
+  Lemma opposite_coprod_universal 
+    (H : BiproductUniversal B) :
+    forall (Z : object (opposite_category C)) 
+           (f : morphism (opposite_category C) Y Z) 
+           (g : morphism (opposite_category C) X Z),
+    Contr {h : morphism (opposite_category C) (@biproduct_obj _ _ _ (opposite_biproduct B)) Z | 
+           (h o @inl _ _ _ (opposite_biproduct B) = f)%morphism /\ 
+           (h o @inr _ _ _ (opposite_biproduct B) = g)%morphism}.
+  Proof.
+    intros Z f g.
+    simpl in *.
+    apply swap_product_contr.
+    exact (@prod_universal _ _ _ B H Z g f).
+  Qed.
+  
+End OppositeBiproductUniversal.
+
+Section OppositeBiproductUniversal.
+  Context {C : PreCategory} {X Y : object C} 
+          (B : Biproduct X Y).
+  
+  Lemma opposite_prod_universal 
+    (H : BiproductUniversal B) :
+    forall (Z : object (opposite_category C)) 
+           (f : morphism (opposite_category C) Z Y) 
+           (g : morphism (opposite_category C) Z X),
+    Contr {h : morphism (opposite_category C) Z (@biproduct_obj _ _ _ (opposite_biproduct B)) | 
+           (@outl _ _ _ (opposite_biproduct B) o h = f)%morphism /\ 
+           (@outr _ _ _ (opposite_biproduct B) o h = g)%morphism}.
+  Proof.
+    intros Z f g.
+    simpl in *.
+    apply swap_product_contr.
+    exact (@coprod_universal _ _ _ B H Z g f).
+  Qed.
+  
+End OppositeBiproductUniversal.
+
+Section OppositeBiproductUniversal.
+  Context {C : PreCategory} {X Y : object C} 
+          (B : Biproduct X Y).
+  
+  Definition opposite_biproduct_universal 
+    (H : BiproductUniversal B) : 
+    BiproductUniversal (opposite_biproduct B).
+  Proof.
+    exact (Build_BiproductUniversal
+      (opposite_category C) Y X
+      (opposite_biproduct B)
+      (opposite_coprod_universal B H)
+      (opposite_prod_universal B H)).
+  Defined.
+  
+End OppositeBiproductUniversal.
+
+Section OppositeAdditiveCategory.
+  Context (A : AdditiveCategory).
+  
+  Definition opposite_additive_category : AdditiveCategory.
+  Proof.
+    refine (Build_AdditiveCategory
+      (opposite_category A)
+      (opposite_zero_object (add_zero A))
+      (fun X Y => opposite_biproduct (add_biproduct A Y X))
+      _ _).
+    - intros X Y.
+      pose (B := add_biproduct A Y X).
+      pose (Z := add_zero A).
+      pose (H := add_biproduct_props A Y X).
+      exact (Build_IsBiproduct
+        (opposite_category A) X Y
+        (opposite_biproduct B)
+        (opposite_zero_object Z)
+        (@beta_r _ _ _ B Z H)
+        (@beta_l _ _ _ B Z H)
+        (@mixed_l _ _ _ B Z H)
+        (@mixed_r _ _ _ B Z H)).
+    - intros X Y.
+      apply opposite_biproduct_universal.
+      exact (add_biproduct_universal A Y X).
+  Defined.
+  
+End OppositeAdditiveCategory.
+
+Section OppositeFunctor.
+  Context {C D : PreCategory} (F : Functor C D).
+  
+  Definition opposite_functor : Functor (opposite_category C) (opposite_category D).
+  Proof.
+    exact (Build_Functor
+      (opposite_category C) (opposite_category D)
+      (object_of F)
+      (fun X Y f => morphism_of F f)
+      (fun X Y Z f g => composition_of F Z Y X g f)
+      (fun X => identity_of F X)).
+  Defined.
+  
+End OppositeFunctor.
+
+Section OppositeAdditiveFunctor.
+  Context {A B : AdditiveCategory} (F : AdditiveFunctor A B).
+  
+  Definition opposite_additive_functor : 
+    AdditiveFunctor (opposite_additive_category A) (opposite_additive_category B).
+  Proof.
+    exact (Build_AdditiveFunctor
+      (opposite_additive_category A) (opposite_additive_category B)
+      (opposite_functor F)
+      (preserves_zero A B F)
+      (fun X Y => preserves_biproduct A B F Y X)).
+  Defined.
+  
+End OppositeAdditiveFunctor.
+
+Section OppositeNaturalTransformation.
+  Context {C D : PreCategory} {F G : Functor C D} 
+          (η : NaturalTransformation F G).
+  
+  Definition opposite_natural_transformation : 
+    NaturalTransformation 
+      (opposite_functor G) 
+      (opposite_functor F).
+  Proof.
+    exact (Build_NaturalTransformation
+      (opposite_functor G) (opposite_functor F)
+      (fun X => components_of η X)
+      (fun X Y f => (commutes η Y X f)^)).
+  Defined.
+  
+End OppositeNaturalTransformation.
+
+Section OppositePreStableCategory.
+  Context (PS : PreStableCategory).
+  
+  Definition opposite_prestable_category : PreStableCategory.
+  Proof.
+    exact (Build_PreStableCategory
+      (opposite_additive_category PS)
+      (opposite_additive_functor (Loop PS))
+      (opposite_additive_functor (Susp PS))
+      (opposite_natural_transformation (epsilon PS))
+      (opposite_natural_transformation (eta PS))).
+  Defined.
+  
+End OppositePreStableCategory.
