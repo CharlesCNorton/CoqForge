@@ -1913,3 +1913,74 @@ Section OppositePreStableCategory.
   Defined.
   
 End OppositePreStableCategory.
+
+Section OppositeInvolution.
+  Context (C : PreCategory).
+  
+  Definition double_opposite_functor : 
+    Functor (opposite_category (opposite_category C)) C.
+  Proof.
+    exact (Build_Functor
+      (opposite_category (opposite_category C)) C
+      (fun X => X)
+      (fun X Y f => f)
+      (fun X Y Z f g => idpath)
+      (fun X => idpath)).
+  Defined.
+  
+End OppositeInvolution.
+
+Section OppositeInvolutionReverse.
+  Context (C : PreCategory).
+  
+  Definition to_double_opposite_functor : 
+    Functor C (opposite_category (opposite_category C)).
+  Proof.
+    exact (Build_Functor
+      C (opposite_category (opposite_category C))
+      (fun X => X)
+      (fun X Y f => f)
+      (fun X Y Z f g => idpath)
+      (fun X => idpath)).
+  Defined.
+  
+End OppositeInvolutionReverse.
+
+Section OppositeInvolutionEquivalence.
+  Context (C : PreCategory).
+  
+  Lemma opposite_involution_objects : 
+    object (opposite_category (opposite_category C)) = object C.
+  Proof.
+    reflexivity.
+  Qed.
+  
+  Lemma opposite_involution_morphisms (X Y : object C) : 
+    morphism (opposite_category (opposite_category C)) X Y = morphism C X Y.
+  Proof.
+    reflexivity.
+  Qed.
+  
+End OppositeInvolutionEquivalence.
+
+Section MainTheorem.
+  
+  Theorem opposite_prestable_exists :
+    forall (PS : PreStableCategory),
+    exists (PS_op : PreStableCategory),
+      cat PS_op = opposite_additive_category PS.
+  Proof.
+    intro PS.
+    exists (opposite_prestable_category PS).
+    reflexivity.
+  Qed.
+  
+  Theorem opposite_morphisms_flip :
+    forall (PS : PreStableCategory) (X Y : object PS),
+    morphism (opposite_prestable_category PS) X Y = morphism PS Y X.
+  Proof.
+    intros.
+    reflexivity.
+  Qed.
+  
+End MainTheorem.
