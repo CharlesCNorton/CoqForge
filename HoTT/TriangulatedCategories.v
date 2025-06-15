@@ -1984,3 +1984,29 @@ Section MainTheorem.
   Qed.
   
 End MainTheorem.
+
+Section AlgorithmDemo.
+  Context {PS : PreStableCategory}.
+  
+  Variables (X Y Z : object PS).
+  Variables (f : morphism PS X Y) (g : morphism PS Y Z).
+  
+  Definition original_composition := (g o f)%morphism.
+  
+  Definition f_op : morphism (opposite_prestable_category PS) Y X := f.
+  
+  Definition g_op : morphism (opposite_prestable_category PS) Z Y := g.
+  
+  Definition opposite_composition := (f_op o g_op)%morphism.
+  
+  Theorem composition_reverses : 
+    opposite_composition = original_composition.
+  Proof.
+    unfold opposite_composition, f_op, g_op.
+    unfold original_composition.
+    simpl.
+
+    reflexivity.
+  Qed.
+  
+End AlgorithmDemo.
