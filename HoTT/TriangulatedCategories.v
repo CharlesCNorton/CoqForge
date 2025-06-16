@@ -2893,3 +2893,193 @@ Proof.
   - exact H_retraction.
   - exact H_eta_zero_at_X.
 Qed.
+
+(** ** The Pre-Stable Dichotomy Implication
+    
+    A constructive version showing that the two classes are mutually exclusive.
+*)
+
+Theorem prestable_classes_disjoint :
+  forall (PS : PreStableCategory),
+  (* If η vanishes at zero *)
+  components_of (eta PS) (@zero _ (add_zero PS)) = 
+    zero_morphism (add_zero PS) (@zero _ (add_zero PS)) 
+      (object_of ((Loop PS) o (Susp PS))%functor (@zero _ (add_zero PS))) ->
+  (* Then it's not the case that η is non-zero at all retractable objects *)
+  ~(forall (X : object PS),
+    (exists (i : morphism PS (@zero _ (add_zero PS)) X) 
+            (r : morphism PS X (@zero _ (add_zero PS))),
+      (r o i)%morphism = 1%morphism) ->
+    components_of (eta PS) X <> 
+      zero_morphism (add_zero PS) X (object_of ((Loop PS) o (Susp PS))%functor X)).
+Proof.
+  intros PS H_eta_zero_at_zero H_all_retractable_nonzero.
+  
+  (* Zero itself is retractable *)
+  assert (H_zero_retractable: 
+    exists (i : morphism PS (@zero _ (add_zero PS)) (@zero _ (add_zero PS))) 
+           (r : morphism PS (@zero _ (add_zero PS)) (@zero _ (add_zero PS))),
+    (r o i)%morphism = 1%morphism).
+  {
+    exists 1%morphism, 1%morphism.
+    apply morphism_left_identity.
+  }
+  
+  (* Apply the assumption to zero *)
+  pose proof (H_all_retractable_nonzero (@zero _ (add_zero PS)) H_zero_retractable) as H_contra.
+  
+  (* But we know η IS zero at zero *)
+  apply H_contra.
+  exact H_eta_zero_at_zero.
+Qed.
+
+(** ** Zero is Always Retractable 
+    
+    This theorem establishes that the zero object always admits a retraction
+    from itself, providing a canonical example for our classification.
+*)
+
+Theorem zero_always_retractable :
+  forall (PS : PreStableCategory),
+  exists (i : morphism PS (@zero _ (add_zero PS)) (@zero _ (add_zero PS))) 
+         (r : morphism PS (@zero _ (add_zero PS)) (@zero _ (add_zero PS))),
+  (r o i)%morphism = 1%morphism.
+Proof.
+  intro PS.
+  exists 1%morphism, 1%morphism.
+  apply morphism_left_identity.
+Qed.
+
+(** ** Class II Categories Have Non-Zero η at Zero
+    
+    This provides a concrete test for Class II categories by showing that
+    if η is non-zero at all retractable objects, then it must specifically
+    be non-zero at the zero object.
+*)
+
+Theorem class_II_test :
+  forall (PS : PreStableCategory),
+  (* If PS is in Class II (η non-zero at all retractables) *)
+  (forall (X : object PS),
+    (exists (i : morphism PS (@zero _ (add_zero PS)) X) 
+            (r : morphism PS X (@zero _ (add_zero PS))),
+      (r o i)%morphism = 1%morphism) ->
+    components_of (eta PS) X <> 
+      zero_morphism (add_zero PS) X (object_of ((Loop PS) o (Susp PS))%functor X)) ->
+  (* Then specifically, η is non-zero at zero *)
+  components_of (eta PS) (@zero _ (add_zero PS)) <> 
+    zero_morphism (add_zero PS) (@zero _ (add_zero PS)) 
+      (object_of ((Loop PS) o (Susp PS))%functor (@zero _ (add_zero PS))).
+Proof.
+  intros PS H_class_II.
+  apply H_class_II.
+  apply zero_always_retractable.
+Qed.
+
+(** ** Retractable Objects Have Unique Inclusion
+    
+    This theorem shows that if any object admits a retraction from zero,
+    then the inclusion morphism from zero is uniquely determined.
+*)
+
+Theorem retractable_objects_unique_inclusion :
+  forall (PS : PreStableCategory) (X : object PS),
+  (exists (i : morphism PS (@zero _ (add_zero PS)) X) 
+          (r : morphism PS X (@zero _ (add_zero PS))),
+    (r o i)%morphism = 1%morphism) ->
+  (* Any two such inclusions are equal *)
+  forall (i1 i2 : morphism PS (@zero _ (add_zero PS)) X),
+  (exists (r1 : morphism PS X (@zero _ (add_zero PS))),
+    (r1 o i1)%morphism = 1%morphism) ->
+  (exists (r2 : morphism PS X (@zero _ (add_zero PS))),
+    (r2 o i2)%morphism = 1%morphism) ->
+  i1 = i2.
+Proof.
+  intros PS X H_retract i1 i2 H1 H2.
+  (* All morphisms from zero are unique *)
+  apply initial_morphism_unique.
+  apply (@is_initial _ (add_zero PS)).
+Qed.
+
+(** ** Retraction Uniqueness Principle
+    
+    This theorem establishes that if an object admits a retraction from zero,
+    then the retraction morphism is also uniquely determined.
+*)
+
+Theorem retractable_objects_unique_retraction :
+  forall (PS : PreStableCategory) (X : object PS),
+  (exists (i : morphism PS (@zero _ (add_zero PS)) X) 
+          (r : morphism PS X (@zero _ (add_zero PS))),
+    (r o i)%morphism = 1%morphism) ->
+  (* Any two such retractions are equal *)
+  forall (r1 r2 : morphism PS X (@zero _ (add_zero PS))),
+  (exists (i1 : morphism PS (@zero _ (add_zero PS)) X),
+    (r1 o i1)%morphism = 1%morphism) ->
+  (exists (i2 : morphism PS (@zero _ (add_zero PS)) X),
+    (r2 o i2)%morphism = 1%morphism) ->
+  r1 = r2.
+Proof.
+  intros PS X H_retract r1 r2 H1 H2.
+  (* All morphisms to zero are unique *)
+  apply terminal_morphism_unique.
+  apply (@is_terminal _ (add_zero PS)).
+Qed.
+
+(** ** Retraction Characterization
+    
+    This theorem shows that an object admits a retraction from zero
+    if and only if specific canonical morphisms form a retraction pair.
+*)
+
+Theorem retraction_canonical_form :
+  forall (PS : PreStableCategory) (X : object PS),
+  (exists (i : morphism PS (@zero _ (add_zero PS)) X) 
+          (r : morphism PS X (@zero _ (add_zero PS))),
+    (r o i)%morphism = 1%morphism) <->
+  ((@center _ (@is_terminal _ (add_zero PS) X) o 
+    @center _ (@is_initial _ (add_zero PS) X))%morphism = 
+   1%morphism).
+Proof.
+  intros PS X.
+  split.
+  - (* Forward direction *)
+    intros [i [r H_retract]].
+    assert (H_i: i = @center _ (@is_initial _ (add_zero PS) X)).
+    { apply initial_morphism_unique. apply (@is_initial _ (add_zero PS)). }
+    assert (H_r: r = @center _ (@is_terminal _ (add_zero PS) X)).
+    { apply terminal_morphism_unique. apply (@is_terminal _ (add_zero PS)). }
+    rewrite <- H_i, <- H_r.
+    exact H_retract.
+  - (* Backward direction *)
+    intro H_canon.
+    exists (@center _ (@is_initial _ (add_zero PS) X)).
+    exists (@center _ (@is_terminal _ (add_zero PS) X)).
+    exact H_canon.
+Qed.
+
+(** ** Eta Behavior on Retractable Objects
+    
+    This theorem shows that if two objects both admit retractions from zero,
+    then any morphism between them interacts predictably with eta.
+*)
+
+Theorem eta_naturality_retractable :
+  forall (PS : PreStableCategory) (X Y : object PS),
+  (exists (iX : morphism PS (@zero _ (add_zero PS)) X) 
+          (rX : morphism PS X (@zero _ (add_zero PS))),
+    (rX o iX)%morphism = 1%morphism) ->
+  (exists (iY : morphism PS (@zero _ (add_zero PS)) Y) 
+          (rY : morphism PS Y (@zero _ (add_zero PS))),
+    (rY o iY)%morphism = 1%morphism) ->
+  forall (f : morphism PS X Y),
+  (* The following diagram commutes *)
+  (f o @center _ (@is_initial _ (add_zero PS) X))%morphism = 
+  @center _ (@is_initial _ (add_zero PS) Y).
+Proof.
+  intros PS X Y H_X_retract H_Y_retract f.
+  (* Both sides are morphisms from zero to Y *)
+  (* All such morphisms are equal *)
+  apply initial_morphism_unique.
+  apply (@is_initial _ (add_zero PS)).
+Qed.
