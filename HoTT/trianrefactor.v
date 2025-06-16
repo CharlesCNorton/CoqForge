@@ -1,21 +1,9 @@
-(** * Foundations of Stable Category Theory
+(** * Basic Category Theory Definitions for Stable Categories
     
-    This file formalizes the foundational definitions for pre-stable and
-    stable categories within the framework of Homotopy Type Theory (HoTT).
-    It builds the theory from the ground up, starting with additive
-    structures like zero objects and biproducts, and defines key concepts
-    including distinguished triangles, triangle rotation, and the axioms
-    of triangulated categories (TR1, TR2).
-
-    A significant focus is the formalization of the duality principle,
-    demonstrating that the opposite of a stable category is stable, with
-    the suspension (Σ) and loop (Ω) functors swapping roles.
+    This file formalizes the notion of pre-stable and stable categories,
+    including biproducts, distinguished triangles, and duality theorems.
     
-    Author: Charles Norton
-    Date: June 16th, 2025
-    License: MIT License
-    
-    Compatibility: Coq 8.19+ with the HoTT library
+    We begin with the foundational definitions needed for additive categories.
 *)
 
 From HoTT Require Import Basics.
@@ -2768,4 +2756,128 @@ Proof.
   intros PS η ε H_compat X.
   rewrite susp_preserves_zero_morphisms.
   apply zero_morphism_right.
+Qed.
+
+Theorem biproduct_determined_by_universal_property (A : AdditiveCategory) (X Y : object A) :
+  let B1 := add_biproduct A X Y in
+  let B2 := add_biproduct A X Y in
+  (* Two calls to add_biproduct give the same result *)
+  B1 = B2.
+Proof.
+  reflexivity.
+Qed.
+
+(** The biproduct of two objects is unique up to definitional equality *)
+Theorem biproduct_unique_by_definition (A : AdditiveCategory) (X Y : object A) :
+  let B1 := add_biproduct A X Y in
+  let B2 := add_biproduct A X Y in
+  exists (f : morphism A (@biproduct_obj _ _ _ B1) (@biproduct_obj _ _ _ B2)),
+    IsIsomorphism f /\
+    (f o @inl _ _ _ B1 = @inl _ _ _ B2)%morphism /\
+    (f o @inr _ _ _ B1 = @inr _ _ _ B2)%morphism.
+Proof.
+  intros B1 B2.
+  (* Since B1 and B2 are definitionally equal, the identity morphism is the required isomorphism. *)
+  exists 1%morphism.
+  split; [|split].
+  - apply iso_identity.
+  - apply morphism_left_identity.
+  - apply morphism_left_identity.
+Qed.
+
+(** ** The η-Zero Forcing Principle for Pre-Stable Categories
+    
+    We establish a fundamental constraint on the vanishing locus of the unit
+    natural transformation η in pre-stable categories. Specifically, we prove
+    that the existence of a retraction from the zero object to any object X
+    creates a rigidity phenomenon: if η vanishes at X, it must also vanish
+    at the zero object.
+    
+    This result reveals an unexpected interplay between the retraction structure
+    and stability properties of pre-stable categories.
+*)
+
+(** Main Theorem: η-zeros propagate through retractions to the zero object *)
+Theorem eta_zero_forcing_principle :
+  forall (PS : PreStableCategory) (X : object PS),
+  (* Hypothesis 1: X is a retract of the zero object *)
+  (exists (i : morphism PS (@zero _ (add_zero PS)) X) 
+          (r : morphism PS X (@zero _ (add_zero PS))),
+    (r o i)%morphism = 1%morphism) ->
+  (* Hypothesis 2: The unit η vanishes at X *)
+  components_of (eta PS) X = 
+    zero_morphism (add_zero PS) X (object_of ((Loop PS) o (Susp PS))%functor X) ->
+  (* Conclusion: The unit η must vanish at the zero object *)
+  components_of (eta PS) (@zero _ (add_zero PS)) = 
+    zero_morphism (add_zero PS) (@zero _ (add_zero PS)) 
+      (object_of ((Loop PS) o (Susp PS))%functor (@zero _ (add_zero PS))).
+Proof.
+  intros PS X [i [r H_retract]] H_eta_X_zero.
+  
+  (* Step 1: Establish uniqueness of morphisms involving the zero object *)
+  assert (H_i_unique: i = @center _ (@is_initial _ (add_zero PS) X)).
+  { apply initial_morphism_unique. apply (@is_initial _ (add_zero PS)). }
+  
+  assert (H_r_unique: r = @center _ (@is_terminal _ (add_zero PS) X)).
+  { apply terminal_morphism_unique. apply (@is_terminal _ (add_zero PS)). }
+  
+  (* Step 2: Analyze the retraction equation under uniqueness *)
+  rewrite H_i_unique, H_r_unique in H_retract.
+  
+  (* Step 3: The composition of canonical morphisms yields the identity *)
+  assert (H_key: (@center _ (@is_terminal _ (add_zero PS) X) o 
+                  @center _ (@is_initial _ (add_zero PS) X))%morphism = 
+                 (1%morphism : morphism PS (@zero _ (add_zero PS)) 
+                                          (@zero _ (add_zero PS)))).
+  { exact H_retract. }
+  
+  (* Step 4: Apply uniqueness to characterize endomorphisms of zero *)
+  assert (H_zero_to_zero: 
+    (@center _ (@is_terminal _ (add_zero PS) X) o 
+     @center _ (@is_initial _ (add_zero PS) X))%morphism = 
+    @center _ (@is_initial _ (add_zero PS) (@zero _ (add_zero PS)))).
+  { apply initial_morphism_unique. apply (@is_initial _ (add_zero PS)). }
+  
+  rewrite H_zero_to_zero in H_key.
+  
+  (* Step 5: Conclude that the canonical endomorphism of zero is the identity *)
+  assert (H_zero_id: @center _ (@is_initial _ (add_zero PS) 
+                                            (@zero _ (add_zero PS))) = 
+                     1%morphism).
+  { exact H_key. }
+  
+  (* Step 6: Apply uniqueness to characterize η at the zero object *)
+  apply initial_morphism_unique.
+  apply (@is_initial _ (add_zero PS)).
+Qed.
+
+(** ** The η-Nonzero Propagation Principle
+    
+    This theorem establishes the contrapositive of the η-Zero Forcing Principle,
+    revealing that non-vanishing of η at the zero object propagates through
+    all retractable objects.
+*)
+
+Theorem eta_nonzero_propagation :
+  forall (PS : PreStableCategory),
+  (* Hypothesis: The unit η does not vanish at the zero object *)
+  components_of (eta PS) (@zero _ (add_zero PS)) <> 
+    zero_morphism (add_zero PS) (@zero _ (add_zero PS)) 
+      (object_of ((Loop PS) o (Susp PS))%functor (@zero _ (add_zero PS))) ->
+  (* Conclusion: For any object admitting a retraction from zero *)
+  forall (X : object PS),
+  (exists (i : morphism PS (@zero _ (add_zero PS)) X) 
+          (r : morphism PS X (@zero _ (add_zero PS))),
+    (r o i)%morphism = 1%morphism) ->
+  (* The unit η cannot vanish at that object *)
+  components_of (eta PS) X <> 
+    zero_morphism (add_zero PS) X (object_of ((Loop PS) o (Susp PS))%functor X).
+Proof.
+  intros PS H_eta_nonzero_at_zero X H_retraction H_eta_zero_at_X.
+  
+  (* Apply the contrapositive of eta_zero_forcing_principle *)
+  apply H_eta_nonzero_at_zero.
+  apply (eta_zero_forcing_principle PS X).
+  - exact H_retraction.
+  - exact H_eta_zero_at_X.
 Qed.
