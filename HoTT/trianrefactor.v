@@ -1,9 +1,21 @@
-(** * Basic Category Theory Definitions for Stable Categories
+(** * Foundations of Stable Category Theory
     
-    This file formalizes the notion of pre-stable and stable categories,
-    including biproducts, distinguished triangles, and duality theorems.
+    This file formalizes the foundational definitions for pre-stable and
+    stable categories within the framework of Homotopy Type Theory (HoTT).
+    It builds the theory from the ground up, starting with additive
+    structures like zero objects and biproducts, and defines key concepts
+    including distinguished triangles, triangle rotation, and the axioms
+    of triangulated categories (TR1, TR2).
+
+    A significant focus is the formalization of the duality principle,
+    demonstrating that the opposite of a stable category is stable, with
+    the suspension (Σ) and loop (Ω) functors swapping roles.
     
-    We begin with the foundational definitions needed for additive categories.
+    Author: Charles Norton
+    Date: June 16th, 2025
+    License: MIT License
+    
+    Compatibility: Coq 8.19+ with the HoTT library
 *)
 
 From HoTT Require Import Basics.
