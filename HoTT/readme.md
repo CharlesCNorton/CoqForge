@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This repository contains a formalization of stable category theory within the framework of Homotopy Type Theory using the Coq proof assistant. The development provides a comprehensive treatment of pre-stable and stable categories through a univalent lens, culminating in a complete formalization of the duality principle that underlies stable homotopy theory. The formalization spans approximately 4,000 lines of Coq code and introduces several novel mathematical concepts that emerged during the formal development process.
+This repository contains a formalization of stable category theory within the framework of Homotopy Type Theory using the Coq proof assistant. The development provides a comprehensive treatment of pre-stable and stable categories through a univalent lens, culminating in a complete formalization of the duality principle that underlies stable homotopy theory. The formalization spans approximately 3,000 lines of Coq code and introduces several novel mathematical concepts that emerged during the formal development process.
 
 ## Context and Motivation
 
@@ -120,7 +120,7 @@ Looking forward, this work provides essential infrastructure for formalizing sta
 
 ## Technical Implementation
 
-The formalization comprises approximately 4,000 lines of Coq code organized into seven main modules. The development requires Coq 8.19 or later with a compatible version of the HoTT library. Building the complete formalization typically requires 8GB of RAM and takes approximately 10 minutes on modern hardware. The modular architecture enables independent development of components and facilitates extraction of subtheories for specific applications.
+The formalization comprises approximately 3,000 lines of Coq code organized into seven main modules. The development requires Coq 8.19 or later with a compatible version of the HoTT library. Building the complete formalization typically requires 8GB of RAM and takes approximately 10 minutes on modern hardware. The modular architecture enables independent development of components and facilitates extraction of subtheories for specific applications.
 
 ## Conclusion
 
