@@ -131,4 +131,4 @@ This formalization represents a significant advance in computer-verified mathema
 **Author**: Charles Norton  
 **Date**: June 16, 2025  
 **License**: MIT  
-**Citation**: Norton, C. (2025). Foundations of Stable Category Theory. Computer formalization in Coq-HoTT. Available at: [repository-url]
+**Citation**: Norton, C. (2025). Foundations of Stable Category Theory. Computer formalization in Coq-HoTT.
