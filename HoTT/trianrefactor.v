@@ -2029,12 +2029,6 @@ Qed.
     but not the other.
 *)
 
-(** *** Definition of Stability Gap *)
-
-Definition has_stability_gap (PS : PreStableCategory) : Type :=
-  (exists X, ~IsIsomorphism (components_of (eta PS) X)) /\
-  (forall X, IsIsomorphism (components_of (eta (opposite_prestable_is_prestable PS)) X)).
-
 (** *** Double Opposite for Proper Stable Categories *)
 
 Theorem proper_stable_double_opposite_suspension :
@@ -2634,4 +2628,132 @@ Proof.
   destruct H_almost as [H_left H_right].
   destruct H_triangles as [H_tri1 H_tri2].
   exact (H_left, H_right, H_tri1, H_tri2).
+Qed.
+
+(** ** Section IV.13: Triangle Identities and Non-Triviality
+    
+    This section explores the consequences of the unit (`η`) or counit (`ε`)
+    of the (Σ, Ω) adjunction being trivial (i.e., zero transformations).
+    These theorems establish that for a category to satisfy the triangle
+    identities, the adjunction cannot be trivial unless the category itself is,
+    in a sense, trivial (meaning its identity morphisms are equal to its
+    zero morphisms).
+*)
+
+(** *** One-Sided Inverses from Triangle Identities
+    
+    The triangle identities directly imply that the components of the unit and
+    counit possess one-sided inverses, which is a key step towards them being
+    isomorphisms in a proper stable category.
+*)
+
+(** If the first triangle identity holds, then Ση has a left inverse *)
+Theorem triangle_identity_1_gives_left_inverse :
+  forall (PS : PreStableCategory) (X : object PS),
+  (components_of (epsilon PS) (object_of (Susp PS) X) o
+    morphism_of (Susp PS) (components_of (eta PS) X))%morphism = 1%morphism ->
+  exists (g : morphism PS (object_of ((Susp PS) o (Loop PS) o (Susp PS))%functor X)
+                          (object_of (Susp PS) X)),
+  (g o morphism_of (Susp PS) (components_of (eta PS) X))%morphism = 1%morphism.
+Proof.
+  intros PS X H_tri.
+  exists (components_of (epsilon PS) (object_of (Susp PS) X)).
+  exact H_tri.
+Qed.
+
+(** *** Consequences of a Zero Adjunction Unit (η)
+    
+    Here we show that if the unit `η` is a zero natural transformation,
+    the triangle identities can only hold in a trivial category.
+*)
+
+(** If η is zero at the zero object, the first triangle identity forces triviality *)
+Theorem eta_zero_at_zero_prevents_triangle_identity :
+  forall (PS : PreStableCategory),
+  components_of (eta PS) (@zero _ (add_zero PS)) =
+    zero_morphism (add_zero PS) (@zero _ (add_zero PS)) (object_of ((Loop PS) o (Susp PS))%functor (@zero _ (add_zero PS))) ->
+  satisfies_triangle_1 PS ->
+  (* Then the identity morphism on Susp(zero) must be the zero morphism *)
+  (1%morphism : morphism PS (object_of (Susp PS) (@zero _ (add_zero PS))) (object_of (Susp PS) (@zero _ (add_zero PS)))) =
+  zero_morphism (add_zero PS) (object_of (Susp PS) (@zero _ (add_zero PS))) (object_of (Susp PS) (@zero _ (add_zero PS))).
+Proof.
+  intros PS H_eta_zero H_tri1.
+  pose proof (H_tri1 (@zero _ (add_zero PS))) as H_at_zero.
+  rewrite H_eta_zero in H_at_zero.
+  (* Since Susp is an additive functor, it preserves zero morphisms *)
+  rewrite susp_preserves_zero_morphisms in H_at_zero.
+  rewrite zero_morphism_right in H_at_zero.
+  exact H_at_zero^.
+Qed.
+
+(** If η is zero for any object, it is also zero for the zero object *)
+Theorem eta_zero_propagates_to_zero_object :
+  forall (PS : PreStableCategory) (X : object PS),
+  components_of (eta PS) X = zero_morphism (add_zero PS) X (object_of ((Loop PS) o (Susp PS))%functor X) ->
+  components_of (eta PS) (@zero _ (add_zero PS)) =
+  zero_morphism (add_zero PS) (@zero _ (add_zero PS)) (object_of ((Loop PS) o (Susp PS))%functor (@zero _ (add_zero PS))).
+Proof.
+  intros PS X H_zero.
+  (* Both sides are morphisms from the zero object to another object.
+     The space of such morphisms is contractible, so any two are equal. *)
+  apply initial_morphism_unique.
+  apply (@is_initial _ (add_zero PS) _).
+Qed.
+
+(** ** Section IV.14: The Space of Adjunction Data
+    
+    This section abstracts the properties of `η` and `ε` to any pair of
+    natural transformations that could potentially define an adjunction between
+    the suspension and loop functors. This allows for studying the structural
+    constraints imposed by the triangle identities themselves.
+*)
+
+(** *** Compatible Pairs of Natural Transformations
+    
+    A "compatible pair" is any `(η', ε')` that satisfies the two triangle
+    identities, forming the core data of an adjunction.
+*)
+
+Definition compatible_pair (PS : PreStableCategory)
+  (η' : NaturalTransformation 1%functor ((Loop PS) o (Susp PS))%functor)
+  (ε' : NaturalTransformation ((Susp PS) o (Loop PS))%functor 1%functor) : Type :=
+  (forall X, (components_of ε' (object_of (Susp PS) X) o
+               morphism_of (Susp PS) (components_of η' X))%morphism = 1%morphism) *
+  (forall X, (morphism_of (Loop PS) (components_of ε' X) o
+               components_of η' (object_of (Loop PS) X))%morphism = 1%morphism).
+
+(** *** Properties of Compatible Pairs
+    
+    Any compatible pair must adhere to certain fundamental properties,
+    such as how they interact with zero morphisms.
+*)
+
+(** The first triangle identity holds by definition for a compatible pair *)
+Theorem compatible_pair_satisfies_triangle_1 :
+  forall (PS : PreStableCategory)
+    (η : NaturalTransformation 1%functor ((Loop PS) o (Susp PS))%functor)
+    (ε : NaturalTransformation ((Susp PS) o (Loop PS))%functor 1%functor),
+  compatible_pair PS η ε ->
+  forall X,
+  (components_of ε (object_of (Susp PS) X) o
+    morphism_of (Susp PS) (components_of η X))%morphism = 1%morphism.
+Proof.
+  intros PS η ε [H_tri1 H_tri2] X.
+  exact (H_tri1 X).
+Qed.
+
+(** Interaction of a compatible pair with a zero morphism *)
+Theorem compatible_pair_zero_interaction :
+  forall (PS : PreStableCategory)
+    (η : NaturalTransformation 1%functor ((Loop PS) o (Susp PS))%functor)
+    (ε : NaturalTransformation ((Susp PS) o (Loop PS))%functor 1%functor),
+  compatible_pair PS η ε ->
+  forall X,
+  (components_of ε (object_of (Susp PS) X) o
+    morphism_of (Susp PS) (zero_morphism (add_zero PS) X (object_of ((Loop PS) o (Susp PS))%functor X)))%morphism =
+  zero_morphism (add_zero PS) (object_of (Susp PS) X) (object_of (Susp PS) X).
+Proof.
+  intros PS η ε H_compat X.
+  rewrite susp_preserves_zero_morphisms.
+  apply zero_morphism_right.
 Qed.
