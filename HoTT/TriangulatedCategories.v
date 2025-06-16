@@ -3141,19 +3141,27 @@ Proof.
   unfold is_suspension_fixed_point.
   
   (* The morphism from Σ(0) to 0 *)
-  exists (@center _ (@is_terminal _ (add_zero PS) (object_of (Susp PS) (@zero _ (add_zero PS))))).
+  pose (φ := @center _ (@is_terminal _ (add_zero PS) (object_of (Susp PS) (@zero _ (add_zero PS))))).
+  exists φ.
   
   (* Its inverse from 0 to Σ(0) *)
-  exists (@center _ (@is_initial _ (add_zero PS) (object_of (Susp PS) (@zero _ (add_zero PS))))).
+  pose (ψ := @center _ (@is_initial _ (add_zero PS) (object_of (Susp PS) (@zero _ (add_zero PS))))).
+  exists ψ.
   
   split.
-  - (* Left inverse: this is a morphism Σ(0) → Σ(0) *)
-    (* Use that any morphism from Σ(0) to Σ(0) is unique *)
+  - (* Left inverse: ψ ∘ φ = 1 on Σ(0) *)
+    (* Both sides are morphisms from Σ(0) to Σ(0), so they're unique *)
     apply initial_morphism_unique.
     apply susp_zero_is_initial.
     
-  - (* Right inverse: this is a morphism 0 → 0 *)
-    apply zero_to_zero_is_id.
+  - (* Right inverse: φ ∘ ψ = 1 on 0 *)
+    (* Both sides are morphisms from 0 to 0 *)
+    (* The composition of terminal after initial gives a morphism 0 → 0 *)
+    (* All morphisms 0 → 0 are equal by terminality *)
+    transitivity (@center _ (@is_terminal _ (add_zero PS) (@zero _ (add_zero PS)))).
+    + apply terminal_morphism_unique.
+      apply (@is_terminal _ (add_zero PS)).
+    + apply terminal_zero_to_zero_is_id.
 Qed.
 
 (** *** Consequences of Suspension Fixed Points *)
