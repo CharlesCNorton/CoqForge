@@ -15,7 +15,11 @@
     Date: June 16th, 2025
     License: MIT License
     
-    Compatibility: Coq 8.19+ with the HoTT library
+    This file was developed and tested with the following environment:
+    - JsCoq (0.10.0~beta1)
+    - Coq 8.10+beta2/8991 (July 2019), compiled on Jul 29 2019 18:54:57
+    - OCaml 4.07.1
+    - Js_of_ocaml 3.4.0
 *)
 
 From HoTT Require Import Basics.
