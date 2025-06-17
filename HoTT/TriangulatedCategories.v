@@ -1,15 +1,13 @@
 (** * Foundations of Stable Category Theory
-    
-    This file formalizes the foundational definitions for pre-stable and
-    stable categories within the framework of Homotopy Type Theory (HoTT).
-    It builds the theory from the ground up, starting with additive
-    structures like zero objects and biproducts, and defines key concepts
-    including distinguished triangles, triangle rotation, and the axioms
-    of triangulated categories (TR1, TR2).
 
-    A significant focus is the formalization of the duality principle,
-    demonstrating that the opposite of a stable category is stable, with
-    the suspension (Σ) and loop (Ω) functors swapping roles.
+    A formalization of stable category theory in Homotopy Type Theory. The development
+    begins with zero objects and biproducts, constructs additive categories, and
+    introduces pre-stable categories equipped with suspension and loop functors. We
+    establish the theory of distinguished triangles, prove the axioms TR1-TR4 of
+    triangulated categories, and demonstrate that proper stable categories with
+    cofibers are triangulated. The formalization includes a complete treatment of
+    the duality principle showing that the opposite of a stable category is stable
+    with suspension and loop functors interchanged.
 *)
 
 From HoTT Require Import Basics Types Categories.
@@ -3954,106 +3952,3 @@ Proof.
 Qed.
 
 (** End of Section 20: Suspension Fixed Points and Periodicity *)
-
-(** * Section 21: Conclusion and Future Directions *)
-
-(** ** Summary of Results
-    
-    This formalization has established the foundations of stable category theory
-    within Homotopy Type Theory, culminating in the proof that proper stable
-    categories with cofibers are triangulated categories. The key achievements include:
-    
-    1. **Foundational Structures**: Rigorous definitions of zero objects, biproducts,
-       and additive categories, providing the algebraic foundation for stability.
-    
-    2. **Pre-Stable and Stable Categories**: Formalization of categories with
-       suspension and loop functors, including the hierarchy from pre-stable
-       through semi-stable to proper stable categories.
-    
-    3. **Triangulated Structure**: Complete formalization of triangles, distinguished
-       triangles, and the four axioms (TR1-TR4) of triangulated categories.
-    
-    4. **Duality Theory**: The fundamental duality principle showing that the opposite
-       of a stable category is stable with suspension and loop functors interchanged.
-    
-    5. **Main Theorem**: The culminating result that proper stable categories with
-       cofibers satisfying the octahedral axiom are triangulated categories.
-*)
-
-(** ** Significance and Applications
-    
-    The formalization provides several important contributions:
-    
-    - **Constructive Foundations**: All constructions are fully constructive,
-      compatible with the principles of HoTT and suitable for implementation
-      in proof assistants.
-    
-    - **Precise Axiomatics**: The careful treatment of coherence conditions and
-      the relationships between different levels of structure clarifies the
-      foundations of the subject.
-    
-    - **Duality as a Tool**: The systematic use of duality provides both
-      conceptual clarity and practical benefits, allowing automatic generation
-      of dual results.
-    
-    - **Bridge Between Theories**: This work connects abstract homotopy theory
-      with the algebraic theory of triangulated categories in a precise,
-      formal framework.
-*)
-
-(** ** Future Directions
-    
-    This formalization opens several avenues for future research:
-    
-    1. **t-Structures and Hearts**: Extending the formalization to include
-       t-structures on triangulated categories and the construction of their
-       hearts as abelian categories.
-    
-    2. **Derived Categories**: Building on this foundation to formalize the
-       construction of derived categories from abelian categories.
-    
-    3. **Spectral Sequences**: Developing the theory of spectral sequences
-       in this formal framework, with applications to computational methods.
-    
-    4. **Higher Category Theory**: Extending these results to the setting of
-       stable ∞-categories, leveraging the higher-categorical structure
-       inherent in HoTT.
-    
-    5. **Computational Applications**: Using the constructive nature of the
-       formalization to develop verified algorithms for computations in
-       stable categories.
-*)
-
-(** ** Technical Innovations
-    
-    Several technical innovations in this formalization may be of independent interest:
-    
-    - **Treatment of Opposite Categories**: The careful handling of opposite
-      categories with full universe polymorphism and coherence.
-    
-    - **Modular Axiomatics**: The separation of different levels of structure
-      (additive, pre-stable, stable, triangulated) allows for maximum flexibility
-      in applications.
-    
-    - **Universal Properties**: The systematic use of universal properties provides
-      both conceptual clarity and technical power in constructions.
-    
-    - **Constructive Proofs**: All major theorems have fully constructive proofs,
-      suitable for extraction and computation.
-*)
-
-(** ** Acknowledgments and References
-    
-    This formalization builds on the extensive mathematical literature on
-    stable and triangulated categories, particularly the foundational works
-    of Verdier, Heller, and May on triangulated categories, and Lurie's
-    higher categorical approach to stable ∞-categories.
-    
-    The use of Homotopy Type Theory as the foundational framework follows
-    the vision of the Univalent Foundations Program, providing a natural
-    setting for homotopy-theoretic constructions.
-*)
-
-(** End of Section 21: Conclusion and Future Directions *)
-
-(** End of Formalization: Foundations of Stable Category Theory *)
