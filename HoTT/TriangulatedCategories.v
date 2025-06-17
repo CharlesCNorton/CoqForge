@@ -12,13 +12,13 @@
     the suspension (Σ) and loop (Ω) functors swapping roles.
 *)
 
-From HoTT Require Import Basics.
-From HoTT.Basics Require Import Overture PathGroupoids Contractible Equivalences.
-From HoTT.Types Require Import Forall Sigma Arrow Paths Sum Prod Unit Empty.
-From HoTT.Categories Require Import Category Functor NaturalTransformation.
-From HoTT.Categories Require Import InitialTerminalCategory.
-From HoTT.Categories.Functor Require Import Identity Composition.
-From HoTT.Spaces Require Import Int.
+Require Import HoTT.Basics.
+Require Import HoTT.Basics.Overture HoTT.Basics.PathGroupoids HoTT.Basics.Contractible HoTT.Basics.Equivalences.
+Require Import HoTT.Types.Forall HoTT.Types.Sigma HoTT.Types.Arrow HoTT.Types.Paths HoTT.Types.Sum HoTT.Types.Prod HoTT.Types.Unit HoTT.Types.Empty.
+Require Import HoTT.Categories.Category HoTT.Categories.Functor HoTT.Categories.NaturalTransformation.
+Require Import HoTT.Categories.InitialTerminalCategory.
+Require Import HoTT.Categories.Functor.Identity HoTT.Categories.Functor.Composition.
+Require Import HoTT.Spaces.Int.
 
 (** * Section 1: Zero Objects *)
 
