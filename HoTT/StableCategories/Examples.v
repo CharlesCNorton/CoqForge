@@ -1384,3 +1384,195 @@ Proof.
     apply path_forall. intro a.
     reflexivity.
 Defined.
+
+(* First, let's define the pairing map separately *)
+Definition PairingMap `{Funext} {C D W : ChainComplex} 
+  (f : ChainMap C W) (g : ChainMap D W) (n : nat)
+  : GroupHom (DirectSum (ob C n) (ob D n)) (ob W n).
+Proof.
+  refine (Build_GroupHom 
+    (DirectSum (ob C n) (ob D n))
+    (ob W n)
+    (fun p => match p with
+              | (a, b) => plus (group (ob W n))
+                            (hom_map _ _ (map_ob _ _ f n) a)
+                            (hom_map _ _ (map_ob _ _ g n) b)
+              end)
+    _ _).
+  - (* Preserves zero *)
+    simpl.
+    rewrite (hom_zero _ _ (map_ob _ _ f n)).
+    rewrite (hom_zero _ _ (map_ob _ _ g n)).
+    apply (plus_zero_l _ (laws (ob W n))).
+  - (* Preserves plus *)
+    intros [a1 b1] [a2 b2].
+    simpl.
+    rewrite (hom_plus _ _ (map_ob _ _ f n)).
+    rewrite (hom_plus _ _ (map_ob _ _ g n)).
+    
+    (* Goal: (a1 + a2) + (b1 + b2) = (a1 + b1) + (a2 + b2) *)
+    
+    (* First, let's introduce abbreviations *)
+    set (fa1 := hom_map _ _ (map_ob _ _ f n) a1).
+    set (fa2 := hom_map _ _ (map_ob _ _ f n) a2).
+    set (gb1 := hom_map _ _ (map_ob _ _ g n) b1).
+    set (gb2 := hom_map _ _ (map_ob _ _ g n) b2).
+    
+    (* Current: (fa1 + fa2) + (gb1 + gb2) *)
+    (* Target: (fa1 + gb1) + (fa2 + gb2) *)
+    
+    (* First move everything to the right *)
+    rewrite <- (plus_assoc (group (ob W n)) (laws (ob W n)) fa1 fa2 (plus (group (ob W n)) gb1 gb2)).
+    (* Now: fa1 + (fa2 + (gb1 + gb2)) *)
+    
+    (* We need to get gb1 next to fa1. Let's use commutativity and associativity *)
+    (* First, let's work with the inner part: fa2 + (gb1 + gb2) *)
+    
+    (* Use the fact that in an abelian group: a + (b + c) = b + (a + c) when we apply
+       associativity and commutativity correctly *)
+    
+    rewrite (plus_comm (group (ob W n)) (laws (ob W n)) fa2 (plus (group (ob W n)) gb1 gb2)).
+    (* Now: fa1 + ((gb1 + gb2) + fa2) *)
+    
+    rewrite <- (plus_assoc (group (ob W n)) (laws (ob W n)) gb1 gb2 fa2).
+    (* Now: fa1 + (gb1 + (gb2 + fa2)) *)
+    
+    rewrite (plus_comm (group (ob W n)) (laws (ob W n)) gb2 fa2).
+    (* Now: fa1 + (gb1 + (fa2 + gb2)) *)
+    
+    rewrite (plus_assoc (group (ob W n)) (laws (ob W n)) fa1 gb1 (plus (group (ob W n)) fa2 gb2)).
+    (* Now: (fa1 + gb1) + (fa2 + gb2) *)
+    
+    reflexivity.
+Defined.
+
+(* Define the product morphism separately *)
+Definition ProductMap `{Funext} {W C D : ChainComplex} 
+  (f : ChainMap W C) (g : ChainMap W D) (n : nat)
+  : GroupHom (ob W n) (DirectSum (ob C n) (ob D n)).
+Proof.
+  refine (Build_GroupHom 
+    (ob W n)
+    (DirectSum (ob C n) (ob D n))
+    (fun w => (hom_map _ _ (map_ob _ _ f n) w,
+               hom_map _ _ (map_ob _ _ g n) w))
+    _ _).
+  - (* Preserves zero *)
+    simpl.
+    f_ap.
+    + apply (hom_zero _ _ (map_ob _ _ f n)).
+    + apply (hom_zero _ _ (map_ob _ _ g n)).
+  - (* Preserves plus *)
+    intros w1 w2.
+    simpl.
+    f_ap.
+    + apply (hom_plus _ _ (map_ob _ _ f n)).
+    + apply (hom_plus _ _ (map_ob _ _ g n)).
+Defined.
+
+(* Prove that ProductMap gives a chain map *)
+Definition ProductChainMap `{Funext} {W C D : ChainComplex} 
+  (f : ChainMap W C) (g : ChainMap W D) 
+  : ChainMap W (DirectSumComplex C D).
+Proof.
+  refine (Build_ChainMap W (DirectSumComplex C D)
+    (ProductMap f g)
+    _).
+  (* Commutes with differential *)
+  intro n.
+  apply GroupHom_eq.
+  apply path_forall. intro w.
+  simpl.
+  unfold DirectSumDiff, ProductMap. simpl.
+  f_ap.
+  - exact (ap (fun h => hom_map _ _ h w) (map_commutes _ _ f n)).
+  - exact (ap (fun h => hom_map _ _ h w) (map_commutes _ _ g n)).
+Defined.
+
+(* Prove that PairingMap gives a chain map *)
+Definition PairingChainMap `{Funext} {C D W : ChainComplex} 
+  (f : ChainMap C W) (g : ChainMap D W) 
+  : ChainMap (DirectSumComplex C D) W.
+Proof.
+  refine (Build_ChainMap (DirectSumComplex C D) W
+    (PairingMap f g)
+    _).
+  (* Commutes with differential *)
+  intro n.
+  apply GroupHom_eq.
+  apply path_forall. intros [a b].
+  simpl.
+  unfold DirectSumDiff, PairingMap. simpl.
+  (* We need to show: PairingMap(d(a,b)) = d(PairingMap(a,b)) *)
+  (* LHS: PairingMap(diff C n a, diff D n b) = f(diff C n a) + g(diff D n b) *)
+  (* RHS: diff W n (f(a) + g(b)) = diff W n (f(a)) + diff W n (g(b)) *)
+  rewrite (hom_plus _ _ (diff W n)).
+  (* Now: diff W n (f(a)) + diff W n (g(b)) *)
+  f_ap.
+  - exact (ap (fun h => hom_map _ _ h a) (map_commutes _ _ f n)).
+  - exact (ap (fun h => hom_map _ _ h b) (map_commutes _ _ g n)).
+Defined.
+
+(* Coproduct universal property *)
+Definition DirectSumComplex_CoprodUniversal `{Funext} (C D : object ChainComplexCat)
+  : forall (W : object ChainComplexCat) 
+          (f : morphism ChainComplexCat C W) 
+          (g : morphism ChainComplexCat D W),
+    Contr {h : morphism ChainComplexCat (DirectSumComplex C D) W | 
+           (h o inj1_complex C D = f)%morphism /\ 
+           (h o inj2_complex C D = g)%morphism}.
+Proof.
+  intros W f g.
+  simple refine (Build_Contr _ _ _).
+  - (* Center: the pairing [f,g] *)
+    exists (PairingChainMap f g).
+    split.
+    + (* h ∘ inj1 = f *)
+      apply ChainMap_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intro a.
+      simpl.
+      unfold PairingMap. simpl.
+      rewrite (hom_zero _ _ (map_ob _ _ g n)).
+      rewrite (plus_zero_r _ (laws (ob W n))).
+      reflexivity.
+    + (* h ∘ inj2 = g *)
+      apply ChainMap_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intro b.
+      simpl.
+      unfold PairingMap. simpl.
+      rewrite (hom_zero _ _ (map_ob _ _ f n)).
+      rewrite (plus_zero_l _ (laws (ob W n))).
+      reflexivity.
+  - (* Contraction *)
+    intros [h [Hf Hg]].
+    apply path_sigma_uncurried.
+    (* First prove h = PairingChainMap f g *)
+    assert (Heq : h = PairingChainMap f g).
+    {
+      apply ChainMap_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intros [a b].
+      unfold PairingMap. simpl.
+      (* We need to show: h(a,b) = f(a) + g(b) *)
+      transitivity (plus (group (ob W n))
+        (hom_map _ _ (map_ob _ _ h n) (a, zero (group (ob D n))))
+        (hom_map _ _ (map_ob _ _ h n) (zero (group (ob C n)), b))).
+      - (* First show h(a,b) = h(a,0) + h(0,b) *)
+        rewrite <- (hom_plus _ _ (map_ob _ _ h n)).
+        f_ap.
+        simpl.
+        rewrite (plus_zero_r _ (laws (ob C n)) a).
+        rewrite (plus_zero_l _ (laws (ob D n)) b).
+        reflexivity.
+      - (* Then show h(a,0) + h(0,b) = f(a) + g(b) using Hf and Hg *)
+        rewrite <- Hf, <- Hg.
+        reflexivity.
+    }
+    exists Heq^.
+    apply path_ishprop.
+Defined.
