@@ -1576,3 +1576,82 @@ Proof.
     exists Heq^.
     apply path_ishprop.
 Defined.
+
+(* Product universal property *)
+Definition DirectSumComplex_ProdUniversal `{Funext} (C D : object ChainComplexCat)
+  : forall (W : object ChainComplexCat) 
+          (f : morphism ChainComplexCat W C) 
+          (g : morphism ChainComplexCat W D),
+    Contr {h : morphism ChainComplexCat W (DirectSumComplex C D) | 
+           (comp_chain_map (proj1_complex C D) h = f) /\ 
+           (comp_chain_map (proj2_complex C D) h = g)}.
+Proof.
+  intros W f g.
+  simple refine (Build_Contr _ _ _).
+  - (* Center: the pairing ⟨f,g⟩ *)
+    exists (ProductChainMap f g).
+    split.
+    + (* proj1 ∘ h = f *)
+      apply ChainMap_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intro w.
+      reflexivity.
+    + (* proj2 ∘ h = g *)
+      apply ChainMap_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intro w.
+      reflexivity.
+  - (* Contraction *)
+    intros [h [Hf Hg]].
+    apply path_sigma_uncurried.
+    assert (Heq : h = ProductChainMap f g).
+    {
+      apply ChainMap_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intro w.
+      apply path_prod.
+      - exact (ap (fun k => hom_map _ _ (map_ob _ _ k n) w) Hf).
+      - exact (ap (fun k => hom_map _ _ (map_ob _ _ k n) w) Hg).
+    }
+    exists Heq^.
+    apply path_ishprop.
+Defined.
+
+(* Complete biproduct universal property *)
+Definition DirectSumComplex_HasUniversal `{Funext} (C D : object ChainComplexCat)
+  : HasBiproductUniversal (DirectSumComplex_BiproductData C D).
+Proof.
+  refine (Build_HasBiproductUniversal _ _ _ (DirectSumComplex_BiproductData C D) _ _).
+  - (* Coproduct universal property *)
+    intros W f g.
+    pose (result := DirectSumComplex_CoprodUniversal C D W f g).
+    simpl in *.
+    exact result.
+  - (* Product universal property *)
+    intros W f g.
+    pose (result := DirectSumComplex_ProdUniversal C D W f g).
+    simpl in *.
+    exact result.
+Defined.
+
+(* Complete biproduct structure for chain complexes *)
+Definition ChainComplexBiproduct `{Funext} (C D : object (@ChainComplexCat H)) 
+  : Biproduct C D (@TrivialComplex_is_zero_complex H).
+Proof.
+  refine (Build_Biproduct (@ChainComplexCat H) C D (@TrivialComplex_is_zero_complex H)
+    (DirectSumComplex_BiproductData C D)
+    (DirectSumComplex_IsBiproduct C D)
+    (DirectSumComplex_HasUniversal C D)).
+Defined.
+
+(* ChainComplexCat is an additive category *)
+Definition ChainComplexCat_Additive `{Funext} : AdditiveCategory.
+Proof.
+  refine (Build_AdditiveCategory 
+    (@ChainComplexCat H)
+    (@TrivialComplex_is_zero_complex H)
+    ChainComplexBiproduct).
+Defined.
