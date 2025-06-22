@@ -1743,3 +1743,474 @@ Proof.
   simpl in *.
   f_ap; assumption.
 Qed.
+
+Definition ChainComplexBiproduct (C D : ChainComplex) : @Biproduct ChainComplexCat C D ZeroChainComplex_is_zero.
+Proof.
+  (* Biproduct data *)
+  pose (bdata := Build_BiproductData ChainComplexCat C D 
+    (DirectSumChainComplex C D)
+    (chain_inj1 C D)
+    (chain_inj2 C D)
+    (chain_proj1 C D)
+    (chain_proj2 C D)).
+    
+  (* Biproduct axioms *)
+  assert (bis : IsBiproduct bdata ZeroChainComplex_is_zero).
+  {
+    simple refine (Build_IsBiproduct _ _ _ _ _ _ _ _ _).
+    - apply chain_beta_l.
+    - apply chain_beta_r.
+    - rewrite <- zero_chain_map_is_zero_morphism. apply chain_mixed_l.
+    - rewrite <- zero_chain_map_is_zero_morphism. apply chain_mixed_r.
+  }
+  
+  (* Universal property *)
+  assert (buni : HasBiproductUniversal bdata).
+  {
+    simple refine (Build_HasBiproductUniversal _ _ _ _ _ _).
+    - (* Coproduct universal *)
+      intros W f g.
+      apply (Build_Contr _ (chain_coprod_mor C D W f g; (chain_coprod_beta_l C D W f g, chain_coprod_beta_r C D W f g))).
+      intros [h [Hl Hr]].
+      simpl.
+      apply path_sigma_uncurried.
+      simpl.
+      exists ((chain_coprod_unique C D W f g h Hl Hr)^).
+      apply path_ishprop.
+    - (* Product universal *)
+      intros W f g.
+      apply (Build_Contr _ (chain_prod_mor W C D f g; (chain_prod_beta_l W C D f g, chain_prod_beta_r W C D f g))).
+      intros [h [Hl Hr]].
+      simpl.
+      apply path_sigma_uncurried.
+      simpl.
+      exists ((chain_prod_unique W C D f g h Hl Hr)^).
+      apply path_ishprop.
+  }
+  
+  exact (Build_Biproduct _ _ _ _ bdata bis buni).
+Defined.
+
+Definition ChainComplexAdditive `{Funext} : AdditiveCategory.
+Proof.
+  exact (Build_AdditiveCategory 
+    ChainComplexCat
+    ZeroChainComplex_is_zero
+    ChainComplexBiproduct).
+Defined.
+
+Definition shift_zero_iso : ChainMap (ShiftComplex ZeroChainComplex) ZeroChainComplex.
+Proof.
+  simple refine (Build_ChainMap _ _ _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    exact (id_hom TrivialGroup).
+  - (* commutes *)
+    intro n.
+    simpl.
+    reflexivity.
+Defined.
+
+Definition shift_zero_iso_inv : ChainMap ZeroChainComplex (ShiftComplex ZeroChainComplex).
+Proof.
+  simple refine (Build_ChainMap _ _ _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    exact (id_hom TrivialGroup).
+  - (* commutes *)
+    intro n.
+    simpl.
+    reflexivity.
+Defined.
+
+Lemma ShiftFunctor_preserves_zero_iso : 
+  comp_chain_map shift_zero_iso shift_zero_iso_inv = id_chain_map ZeroChainComplex /\
+  comp_chain_map shift_zero_iso_inv shift_zero_iso = id_chain_map (ShiftComplex ZeroChainComplex).
+Proof.
+  split.
+  - apply ChainMap_eq. intro n. simpl. reflexivity.
+  - apply ChainMap_eq. intro n. simpl. reflexivity.
+Qed.
+
+Definition shift_biproduct_iso (C D : ChainComplex) : 
+  ChainMap (ShiftComplex (DirectSumChainComplex C D)) 
+           (DirectSumChainComplex (ShiftComplex C) (ShiftComplex D)).
+Proof.
+  simple refine (Build_ChainMap _ _ _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    exact (id_hom (DirectSum (ob C (S n)) (ob D (S n)))).
+  - (* commutes *)
+    intro n.
+    simpl.
+    reflexivity.
+Defined.
+
+Definition shift_biproduct_iso_inv (C D : ChainComplex) : 
+  ChainMap (DirectSumChainComplex (ShiftComplex C) (ShiftComplex D))
+           (ShiftComplex (DirectSumChainComplex C D)).
+Proof.
+  simple refine (Build_ChainMap _ _ _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    exact (id_hom (DirectSum (ob C (S n)) (ob D (S n)))).
+  - (* commutes *)
+    intro n.
+    simpl.
+    reflexivity.
+Defined.
+
+Lemma shift_biproduct_iso_is_iso (C D : ChainComplex) :
+  comp_chain_map (shift_biproduct_iso C D) (shift_biproduct_iso_inv C D) = 
+  id_chain_map (DirectSumChainComplex (ShiftComplex C) (ShiftComplex D)) /\
+  comp_chain_map (shift_biproduct_iso_inv C D) (shift_biproduct_iso C D) = 
+  id_chain_map (ShiftComplex (DirectSumChainComplex C D)).
+Proof.
+  split.
+  - apply ChainMap_eq. intro n. simpl. reflexivity.
+  - apply ChainMap_eq. intro n. simpl. reflexivity.
+Qed.
+
+
+(* Desusp preserves the zero object *)
+Definition desusp_zero_iso : ChainMap (DesuspComplex ZeroChainComplex) ZeroChainComplex.
+Proof.
+  simple refine (Build_ChainMap _ _ _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    destruct n as [|n'].
+    + (* n = 0: TrivialGroup → TrivialGroup *)
+      exact (id_hom TrivialGroup).
+    + (* n = S n': TrivialGroup → TrivialGroup *)
+      exact (id_hom TrivialGroup).
+  - (* commutes *)
+    intro n.
+    simpl.
+    destruct n as [|n'].
+    + (* n = 0 *)
+      simpl.
+      reflexivity.
+    + (* n = S n' *)
+      destruct n' as [|n''].
+      * (* n' = 0 *)
+        simpl.
+        reflexivity.
+      * (* n' = S n'' *)
+        simpl.
+        reflexivity.
+Defined.
+
+Definition desusp_zero_iso_inv : ChainMap ZeroChainComplex (DesuspComplex ZeroChainComplex).
+Proof.
+  simple refine (Build_ChainMap _ _ _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    destruct n as [|n'].
+    + (* n = 0: TrivialGroup → TrivialGroup *)
+      exact (id_hom TrivialGroup).
+    + (* n = S n': TrivialGroup → TrivialGroup *)
+      exact (id_hom TrivialGroup).
+  - (* commutes *)
+    intro n.
+    simpl.
+    destruct n as [|n'].
+    + (* n = 0 *)
+      simpl.
+      reflexivity.
+    + (* n = S n' *)
+      destruct n' as [|n''].
+      * (* n' = 0 *)
+        simpl.
+        reflexivity.
+      * (* n' = S n'' *)
+        simpl.
+        reflexivity.
+Defined.
+
+Lemma DesuspFunctor_preserves_zero_iso : 
+  comp_chain_map desusp_zero_iso desusp_zero_iso_inv = id_chain_map ZeroChainComplex /\
+  comp_chain_map desusp_zero_iso_inv desusp_zero_iso = id_chain_map (DesuspComplex ZeroChainComplex).
+Proof.
+  split.
+  - (* First part: desusp_zero_iso ∘ desusp_zero_iso_inv = id on ZeroChainComplex *)
+    apply ChainMap_eq. 
+    intro n.
+    destruct n; reflexivity.
+    
+  - (* Second part: desusp_zero_iso_inv ∘ desusp_zero_iso = id on DesuspComplex ZeroChainComplex *)
+    apply ChainMap_eq. 
+    intro n.
+    destruct n; reflexivity.
+Qed.
+
+(* Shift is an additive functor *)
+Definition ShiftAdditiveFunctor `{Funext} : AdditiveFunctor ChainComplexAdditive ChainComplexAdditive.
+Proof.
+  refine (Build_AdditiveFunctor 
+    ChainComplexAdditive ChainComplexAdditive
+    ShiftFunctor
+    _ _).
+  - (* preserves_zero *)
+    simpl.
+    (* ShiftComplex ZeroChainComplex = ZeroChainComplex up to isomorphism *)
+    reflexivity.
+  - (* preserves_biproduct *)
+    intros C D.
+    simpl.
+    (* ShiftComplex (DirectSumChainComplex C D) = 
+       DirectSumChainComplex (ShiftComplex C) (ShiftComplex D) *)
+    reflexivity.
+Defined.
+
+Lemma desusp_zero_objects_eq (n : nat) : 
+  ob (DesuspComplex ZeroChainComplex) n = ob ZeroChainComplex n.
+Proof.
+  destruct n; reflexivity.
+Qed.
+
+(* Helper lemma: the object function simplifies correctly *)
+Lemma desusp_zero_ob_eq : 
+  (fun n : nat => match n with | 0%nat => TrivialGroup | S _ => TrivialGroup end) = 
+  (fun n : nat => TrivialGroup).
+Proof.
+  apply path_forall. intro n.
+  destruct n; reflexivity.
+Qed.
+
+(* Helper lemma: the differential function simplifies correctly *)
+Lemma desusp_zero_diff_eq :
+  (fun n : nat => match n with 
+                  | 0%nat => zero_hom TrivialGroup TrivialGroup
+                  | S _ => zero_hom TrivialGroup TrivialGroup 
+                  end) =
+  (fun n : nat => zero_hom TrivialGroup TrivialGroup).
+Proof.
+  apply path_forall. intro n.
+  destruct n; reflexivity.
+Qed.
+
+Lemma ChainComplex_eq (C D : ChainComplex) 
+  (Hob : ob C = ob D)
+  (Hdiff : forall n, transport (fun ob_fun => GroupHom (ob_fun (S n)) (ob_fun n)) 
+                               Hob 
+                               (diff C n) = diff D n) :
+  C = D.
+Proof.
+  destruct C as [obC diffC sqC].
+  destruct D as [obD diffD sqD].
+  simpl in *.
+  destruct Hob.
+  simpl in Hdiff.
+  assert (Hd : diffC = diffD).
+  { apply path_forall. exact Hdiff. }
+  destruct Hd.
+  f_ap.
+  apply path_forall. intro n.
+  apply path_ishprop.
+Qed.
+
+Lemma desusp_zero_preserves : 
+  DesuspComplex ZeroChainComplex = ZeroChainComplex.
+Proof.
+  assert (ob_eq : ob (DesuspComplex ZeroChainComplex) = ob ZeroChainComplex).
+  { apply path_forall. intro n. destruct n; reflexivity. }
+  
+  assert (diff_eq : forall n, 
+    transport (fun f => GroupHom (f (S n)) (f n)) ob_eq 
+              (diff (DesuspComplex ZeroChainComplex) n) = 
+    diff ZeroChainComplex n).
+  {
+    intro n.
+    (* Key insight: there's only one homomorphism TrivialGroup → TrivialGroup *)
+    assert (unique_hom : forall (f g : GroupHom TrivialGroup TrivialGroup), f = g).
+    {
+      intros f g.
+      apply GroupHom_eq.
+      apply path_forall. intro x.
+      destruct x. 
+      destruct (hom_map _ _ f tt), (hom_map _ _ g tt).
+      reflexivity.
+    }
+    (* Apply this to our transported morphism *)
+    apply unique_hom.
+  }
+  
+  exact (ChainComplex_eq _ _ ob_eq diff_eq).
+Qed.
+
+Definition trivial_to_directsum_trivial : 
+  GroupHom TrivialGroup (DirectSum TrivialGroup TrivialGroup).
+Proof.
+  refine (Build_GroupHom TrivialGroup (DirectSum TrivialGroup TrivialGroup) 
+    (fun _ => (zero (group TrivialGroup), zero (group TrivialGroup))) _ _).
+  - (* hom_zero *)
+    reflexivity.
+  - (* hom_plus *)
+    intros x y. 
+    simpl.
+    destruct x, y.
+    reflexivity.
+Defined.
+
+Definition desusp_biproduct_iso (C D : ChainComplex) : 
+  ChainMap (DesuspComplex (DirectSumChainComplex C D))
+           (DirectSumChainComplex (DesuspComplex C) (DesuspComplex D)).
+Proof.
+  simple refine (Build_ChainMap _ _ _ _).
+  - (* map at each degree *)
+    intro n.
+    destruct n as [|n'].
+    + (* n = 0: TrivialGroup → DirectSum TrivialGroup TrivialGroup *)
+      exact trivial_to_directsum_trivial.
+    + (* n = S n': DirectSum (ob C n') (ob D n') → DirectSum (ob C n') (ob D n') *)
+      exact (id_hom _).
+  - (* commutes *)
+    intro n.
+    destruct n as [|n'].
+    + (* n = 0 *)
+      apply GroupHom_eq.
+      apply path_forall. intro x.
+      destruct x. reflexivity.
+    + (* n = S n' *)
+      destruct n' as [|n''].
+      * (* n' = 0: special case where codomain changes *)
+        simpl.
+        apply GroupHom_eq.
+        apply path_forall. intros [c d].
+        simpl.
+        reflexivity.
+      * (* n' = S n'' *)
+        simpl.
+        (* Both differentials are the same, and composing with identity gives identity *)
+        reflexivity.
+Defined.
+
+Definition desusp_biproduct_iso_inv (C D : ChainComplex) : 
+  ChainMap (DirectSumChainComplex (DesuspComplex C) (DesuspComplex D))
+           (DesuspComplex (DirectSumChainComplex C D)).
+Proof.
+  simple refine (Build_ChainMap _ _ _ _).
+  - (* map at each degree *)
+    intro n.
+    destruct n as [|n'].
+    + (* n = 0: DirectSum TrivialGroup TrivialGroup → TrivialGroup *)
+      exact (zero_hom _ _).
+    + (* n = S n': DirectSum (ob C n') (ob D n') → DirectSum (ob C n') (ob D n') *)
+      exact (id_hom _).
+  - (* commutes *)
+    intro n.
+    destruct n as [|n'].
+    + (* n = 0 *)
+      simpl.
+      rewrite comp_zero_hom_right.
+      rewrite comp_zero_hom_left.
+      reflexivity.
+    + (* n = S n' *)
+      destruct n' as [|n''].
+      * (* n' = 0 *)
+        simpl.
+        reflexivity.
+      * (* n' = S n'' *)
+        simpl.
+        reflexivity.
+Defined.
+
+Lemma desusp_biproduct_iso_is_iso (C D : ChainComplex) :
+  comp_chain_map (desusp_biproduct_iso C D) (desusp_biproduct_iso_inv C D) = 
+  id_chain_map (DirectSumChainComplex (DesuspComplex C) (DesuspComplex D)) /\
+  comp_chain_map (desusp_biproduct_iso_inv C D) (desusp_biproduct_iso C D) = 
+  id_chain_map (DesuspComplex (DirectSumChainComplex C D)).
+Proof.
+  split.
+  - (* First direction *)
+    apply ChainMap_eq.
+    intro n.
+    destruct n as [|n'].
+    + (* n = 0 *)
+      simpl.
+      apply GroupHom_eq.
+      apply path_forall. intros [t1 t2].
+      destruct t1, t2.
+      reflexivity.
+    + (* n = S n' *)
+      simpl.
+      reflexivity.
+  - (* Second direction *)
+    apply ChainMap_eq.
+    intro n.
+    destruct n as [|n'].
+    + (* n = 0 *)
+      simpl.
+      apply GroupHom_eq.
+      apply path_forall. intro t.
+      destruct t.
+      reflexivity.
+    + (* n = S n' *)
+      simpl.
+      reflexivity.
+Qed.
+
+(* Define Loop functor differently to ensure it preserves biproducts *)
+Definition LoopComplex (C : ChainComplex) : ChainComplex.
+Proof.
+  simple refine (Build_ChainComplex _ _ _).
+  - (* Objects: insert TrivialGroup at degree 0, shift everything else up *)
+    intro n.
+    exact (ob C (S n)).
+  - (* Differential *)
+    intro n.
+    exact (diff C (S n)).
+  - (* diff_squared *)
+    intro n.
+    exact (diff_squared C (S n)).
+Defined.
+
+(** * A trivial pre-stable structure on TwoAdditive *)
+
+Definition TrivialSuspLoop : AdditiveFunctor TwoCatAdditive.TwoAdditive TwoCatAdditive.TwoAdditive.
+Proof.
+  refine (Build_AdditiveFunctor 
+    TwoCatAdditive.TwoAdditive TwoCatAdditive.TwoAdditive
+    1%functor  (* identity functor *)
+    _ _).
+  - (* preserves_zero *)
+    reflexivity.
+  - (* preserves_biproduct *)
+    intros X Y.
+    reflexivity.
+Defined.
+
+Definition TrivialEta : NaturalTransformation 1%functor (TrivialSuspLoop o TrivialSuspLoop)%functor.
+Proof.
+  refine (Build_NaturalTransformation _ _ 
+    (fun X => 1%morphism) _).
+  intros X Y f.
+  simpl.
+  (* id ∘ f = f ∘ id in TwoCat *)
+  destruct X, Y; destruct f; reflexivity.
+Defined.
+
+Definition TrivialEpsilon : NaturalTransformation (TrivialSuspLoop o TrivialSuspLoop)%functor 1%functor.
+Proof.
+  refine (Build_NaturalTransformation _ _ 
+    (fun X => 1%morphism) _).
+  intros X Y f.
+  simpl.
+  destruct X, Y; destruct f; reflexivity.
+Defined.
+
+Definition TrivialPreStable : PreStableCategory.
+Proof.
+  exact (Build_PreStableCategory
+    TwoCatAdditive.TwoAdditive
+    TrivialSuspLoop
+    TrivialSuspLoop
+    TrivialEta
+    TrivialEpsilon).
+Defined.
