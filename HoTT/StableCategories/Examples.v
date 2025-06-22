@@ -1,8 +1,8 @@
   (** * Examples of Stable Category Theory Structures
 
-      This module provides concrete examples for the abstract structures
+      This module provides concrete trivial examples for the abstract structures
       defined in our formalization, built incrementally from the simplest
-      to more complex.
+      to more complex. The purpose of the trivial examples is to establish non-vacuity.
   *)
 
   From HoTT Require Import Basics Types Categories.
@@ -2214,3 +2214,96 @@ Proof.
     TrivialEta
     TrivialEpsilon).
 Defined.
+
+Lemma two_id_left_identity (X Y : SimpleBiproductCategory.TwoObj) 
+  (f : SimpleBiproductCategory.TwoMor X Y) :
+  SimpleBiproductCategory.two_comp (SimpleBiproductCategory.two_id Y) f = f.
+Proof.
+  destruct X, Y; destruct f; reflexivity.
+Qed.
+
+Lemma two_id_right_identity (X Y : SimpleBiproductCategory.TwoObj) 
+  (f : SimpleBiproductCategory.TwoMor X Y) :
+  SimpleBiproductCategory.two_comp f (SimpleBiproductCategory.two_id X) = f.
+Proof.
+  destruct X, Y; destruct f; reflexivity.
+Qed.
+
+Lemma two_id_is_identity (X : SimpleBiproductCategory.TwoObj) :
+  @SimpleBiproductCategory.two_id X = @Category.Core.identity SimpleBiproductCategory.TwoCat X.
+Proof.
+  destruct X; reflexivity.
+Qed.
+
+Definition id_morphism_is_iso (C : PreCategory) (X : C) :
+  IsIsomorphism (1%morphism : morphism C X X).
+Proof.
+  exact (Build_IsIsomorphism C X X 1%morphism 1%morphism 
+           (left_identity C X X 1%morphism)
+           (right_identity C X X 1%morphism)).
+Defined.
+
+Lemma TrivialEta_is_iso : forall X, IsIsomorphism (components_of TrivialEta X).
+Proof.
+  intro X.
+  simpl.
+  apply id_morphism_is_iso.
+Qed.
+
+Lemma TrivialEpsilon_is_iso : forall X, IsIsomorphism (components_of TrivialEpsilon X).
+Proof.
+  intro X.
+  simpl.
+  apply id_morphism_is_iso.
+Qed.
+
+Lemma TrivialTriangle1 : forall X,
+  (components_of TrivialEpsilon (object_of TrivialSuspLoop X) o 
+   morphism_of TrivialSuspLoop (components_of TrivialEta X))%morphism = 1%morphism.
+Proof.
+  intro X.
+  simpl.
+  apply two_id_left_identity.
+Qed.
+
+Lemma TrivialTriangle2 : forall X,
+  (morphism_of TrivialSuspLoop (components_of TrivialEpsilon X) o
+   components_of TrivialEta (object_of TrivialSuspLoop X))%morphism = 1%morphism.
+Proof.
+  intro X.
+  simpl.
+  apply two_id_left_identity.
+Qed.
+
+Require Import ProperStableCategories.
+
+Lemma TrivialEta_is_iso_proper : forall X, 
+  OppositeCategories.IsIsomorphism (components_of (eta TrivialPreStable) X).
+Proof.
+  intro X.
+  simpl.
+  exists 1%morphism.
+  split.
+  - apply two_id_left_identity.
+  - apply two_id_right_identity.
+Qed.
+
+Lemma TrivialEpsilon_is_iso_proper : forall X, 
+  OppositeCategories.IsIsomorphism (components_of (epsilon TrivialPreStable) X).
+Proof.
+  intro X.
+  simpl.
+  exists 1%morphism.
+  split.
+  - apply two_id_left_identity.
+  - apply two_id_right_identity.
+Qed.
+
+Lemma TrivialTriangle1_proper : forall X,
+  (components_of (epsilon TrivialPreStable) (object_of (Susp TrivialPreStable) X) o 
+   morphism_of (Susp TrivialPreStable) (components_of (eta TrivialPreStable) X))%morphism = 1%morphism.
+Proof.
+  intro X.
+  simpl.
+  apply two_id_left_identity.
+Qed.
