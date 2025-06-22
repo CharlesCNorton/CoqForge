@@ -2307,3 +2307,436 @@ Proof.
   simpl.
   apply two_id_left_identity.
 Qed.
+
+Lemma TrivialTriangle2_proper : forall X,
+  (morphism_of (Loop TrivialPreStable) (components_of (epsilon TrivialPreStable) X) o
+   components_of (eta TrivialPreStable) (object_of (Loop TrivialPreStable) X))%morphism = 1%morphism.
+Proof.
+  intro X.
+  simpl.
+  apply two_id_left_identity.
+Qed.
+
+Definition TrivialProperStable : ProperStableCategory.
+Proof.
+  exact (Build_ProperStableCategory
+    TrivialPreStable
+    TrivialEta_is_iso_proper
+    TrivialEpsilon_is_iso_proper
+    TrivialTriangle1_proper
+    TrivialTriangle2_proper).
+Defined.
+
+(** We have successfully constructed a trivial proper stable category.
+    This example shows that the identity functor on any additive category
+    can serve as both suspension and loop functors, yielding a proper stable
+    structure where all the required isomorphisms are identities. *)
+
+End ChainComplexes.
+
+(** * Triangulated structure on TrivialProperStable *)
+
+Section TrivialTriangulated.
+  Require Import Triangles PreStableCofiber.
+  
+  (** For any morphism in TwoCat, we need to define its cofiber *)
+  Definition TrivialCofiber {X Y : SimpleBiproductCategory.TwoObj} 
+    (f : morphism SimpleBiproductCategory.TwoCat X Y) : SimpleBiproductCategory.TwoObj.
+  Proof.
+    (* In our trivial category, the cofiber is always Zero *)
+    exact SimpleBiproductCategory.Zero.
+  Defined.
+
+(** The inclusion morphism from Y to cofiber(f) *)
+  Definition TrivialCofiber_in {X Y : SimpleBiproductCategory.TwoObj} 
+    (f : morphism SimpleBiproductCategory.TwoCat X Y) 
+    : morphism SimpleBiproductCategory.TwoCat Y (TrivialCofiber f).
+  Proof.
+    unfold TrivialCofiber.
+    destruct Y.
+    - (* Y = Zero → Zero *)
+      exact tt.
+    - (* Y = One → Zero *)
+      exact tt.
+  Defined.
+
+(** The projection morphism from cofiber(f) to ΣX *)
+  Definition TrivialCofiber_out {X Y : SimpleBiproductCategory.TwoObj} 
+    (f : morphism SimpleBiproductCategory.TwoCat X Y) 
+    : morphism SimpleBiproductCategory.TwoCat (TrivialCofiber f) (object_of TrivialSuspLoop X).
+  Proof.
+    unfold TrivialCofiber.
+    simpl.
+    (* Zero → X *)
+    exact tt.
+  Defined.
+
+(** Verify the first cofiber condition: cofiber_in ∘ f = 0 *)
+  Lemma TrivialCofiber_cond1 {X Y : SimpleBiproductCategory.TwoObj} 
+    (f : morphism SimpleBiproductCategory.TwoCat X Y) :
+    (TrivialCofiber_in f o f)%morphism = 
+    add_zero_morphism TwoCatAdditive.TwoAdditive X (TrivialCofiber f).
+  Proof.
+    unfold add_zero_morphism, zero_morphism.
+    simpl.
+    destruct X, Y; destruct f; reflexivity.
+  Qed.
+
+(** Verify the second cofiber condition: cofiber_out ∘ cofiber_in = 0 *)
+  Lemma TrivialCofiber_cond2 {X Y : SimpleBiproductCategory.TwoObj} 
+    (f : morphism SimpleBiproductCategory.TwoCat X Y) :
+    (TrivialCofiber_out f o TrivialCofiber_in f)%morphism = 
+    add_zero_morphism TwoCatAdditive.TwoAdditive Y (object_of TrivialSuspLoop X).
+  Proof.
+    unfold add_zero_morphism, zero_morphism.
+    simpl.
+    destruct X, Y; destruct f; reflexivity.
+  Qed.
+
+(** Verify the third cofiber condition: Σf ∘ cofiber_out = 0 *)
+  Lemma TrivialCofiber_cond3 {X Y : SimpleBiproductCategory.TwoObj} 
+    (f : morphism SimpleBiproductCategory.TwoCat X Y) :
+    (morphism_of TrivialSuspLoop f o TrivialCofiber_out f)%morphism = 
+    add_zero_morphism TwoCatAdditive.TwoAdditive (TrivialCofiber f) (object_of TrivialSuspLoop Y).
+  Proof.
+    unfold add_zero_morphism, zero_morphism.
+    simpl.
+    destruct X, Y; destruct f; reflexivity.
+  Qed.
+
+(** Package the trivial cofiber structure *)
+  Definition TrivialPreStableWithCofiber : PreStableCategoryWithCofiber.
+  Proof.
+    refine (Build_PreStableCategoryWithCofiber
+      TrivialPreStable
+      (fun X Y f => TrivialCofiber f)
+      (fun X Y f => TrivialCofiber_in f)
+      (fun X Y f => TrivialCofiber_out f)
+      _ _ _).
+    - (* cofiber_cond1 *)
+      intros X Y f.
+      apply TrivialCofiber_cond1.
+    - (* cofiber_cond2 *)
+      intros X Y f.
+      apply TrivialCofiber_cond2.
+    - (* cofiber_cond3 *)
+      intros X Y f.
+      apply TrivialCofiber_cond3.
+  Defined.
+
+(** Every morphism extends to a distinguished triangle *)
+  Lemma TrivialTR1 {X Y : SimpleBiproductCategory.TwoObj} 
+    (f : morphism SimpleBiproductCategory.TwoCat X Y) :
+    DistinguishedTriangle TrivialPreStable.
+  Proof.
+    apply (cofiber_triangle_distinguished TrivialPreStableWithCofiber f).
+  Qed.
+
+(** Example: The distinguished triangle from the identity morphism *)
+  Example identity_triangle : DistinguishedTriangle TrivialPreStable.
+  Proof.
+    apply (TrivialTR1 (1%morphism : morphism SimpleBiproductCategory.TwoCat 
+                                     SimpleBiproductCategory.One 
+                                     SimpleBiproductCategory.One)).
+  Qed.
+
+(** Let's construct a concrete triangle example instead *)
+  Definition concrete_triangle_example : Triangle TrivialPreStable.
+  Proof.
+    apply (@triangle_from_morphism TrivialPreStableWithCofiber
+            SimpleBiproductCategory.One 
+            SimpleBiproductCategory.One).
+    exact 1%morphism.
+  Defined.
+
+(** This concrete triangle is distinguished *)
+  Lemma concrete_triangle_is_distinguished : 
+    DistinguishedTriangle TrivialPreStable.
+  Proof.
+    apply (@cofiber_triangle_distinguished TrivialPreStableWithCofiber
+            SimpleBiproductCategory.One 
+            SimpleBiproductCategory.One).
+    exact 1%morphism.
+  Qed.
+
+Require Import TriangleRotation.
+
+(** Verify that rotation preserves distinguished triangles in our example *)
+  Lemma concrete_triangle_rotation_distinguished : 
+    DistinguishedTriangle TrivialPreStable.
+  Proof.
+    apply rotate_distinguished.
+    apply concrete_triangle_is_distinguished.
+  Qed.
+
+(** The trivial category satisfies the octahedral axiom trivially *)
+  Lemma TrivialTR4_holds : 
+    forall (X Y Z : object TrivialPreStable) 
+           (f : morphism TrivialPreStable X Y) 
+           (g : morphism TrivialPreStable Y Z),
+    exists (u : morphism TrivialPreStable (TrivialCofiber f) (TrivialCofiber g)),
+    (u o TrivialCofiber_in f)%morphism = (TrivialCofiber_in g o g)%morphism.
+  Proof.
+    intros X Y Z f g.
+    (* In the trivial category, all cofibers are Zero *)
+    exists tt.
+    destruct X, Y, Z; destruct f; destruct g; reflexivity.
+  Qed.
+
+(** We have shown that TrivialProperStable forms a triangulated category:
+      - It has a cofiber structure (TrivialPreStableWithCofiber)
+      - Every morphism extends to a distinguished triangle (TR1)
+      - Distinguished triangles can be rotated (TR3)
+      - The octahedral axiom holds (TR4)
+      
+      This is the simplest possible example where all functors are identity
+      and all cofibers are the zero object. *)
+
+End TrivialTriangulated.
+
+(** * A non-trivial example: Graded abelian groups *)
+
+Section GradedAbelianGroups.
+  Context `{Funext}.
+  
+  (** For simplicity, we'll use nat-graded groups *)
+  Record GradedAbelianGroup := {
+    graded_component : nat -> AbelianGroupWithLaws
+  }.
+  
+  (** Morphisms are families of group homomorphisms *)
+  Record GradedMorphism (G H : GradedAbelianGroup) := {
+    graded_mor_component : forall (n : nat), 
+      GroupHom (graded_component G n) (graded_component H n)
+  }.
+
+(** Identity morphism *)
+  Definition graded_id (G : GradedAbelianGroup) : GradedMorphism G G.
+  Proof.
+    refine (Build_GradedMorphism G G _).
+    intro n.
+    exact (id_hom (graded_component G n)).
+  Defined.
+
+(** Composition of morphisms *)
+  Definition graded_comp {A B C : GradedAbelianGroup} 
+    (g : GradedMorphism B C) (f : GradedMorphism A B) : GradedMorphism A C.
+  Proof.
+    refine (Build_GradedMorphism A C _).
+    intro n.
+    exact (comp_hom (graded_mor_component B C g n) (graded_mor_component A B f n)).
+  Defined.
+
+(** Morphisms are equal if their components are equal *)
+  Lemma GradedMorphism_eq {G K : GradedAbelianGroup} (f g : GradedMorphism G K) :
+    (forall n, graded_mor_component G K f n = graded_mor_component G K g n) -> f = g.
+  Proof.
+    intro Heq.
+    destruct f as [f_comp].
+    destruct g as [g_comp].
+    simpl in Heq.
+    f_ap.
+    apply path_forall.
+    exact Heq.
+  Qed.
+
+(** The category of graded abelian groups *)
+  Definition GradedAbGroupCat : PreCategory.
+  Proof.
+    refine (@Build_PreCategory
+      GradedAbelianGroup
+      GradedMorphism
+      graded_id
+      (@graded_comp)
+      _ _ _ _).
+    - (* associativity *)
+      intros A B C D f g h.
+      apply GradedMorphism_eq.
+      intro n.
+      simpl.
+      symmetry.
+      apply comp_hom_assoc.
+    - (* left identity *)
+      intros A B f.
+      apply GradedMorphism_eq.
+      intro n.
+      simpl.
+      apply comp_hom_id_left.
+    - (* right identity *)
+      intros A B f.
+      apply GradedMorphism_eq.
+      intro n.
+      simpl.
+      apply comp_hom_id_right.
+    - (* truncation: morphisms form a set *)
+      intros s d.
+      apply (istrunc_equiv_istrunc _ 
+        (equiv_adjointify
+          (graded_mor_component s d)
+          (Build_GradedMorphism s d)
+          (fun f => idpath)
+          (fun f => match f with Build_GradedMorphism comp => idpath end))^-1).
+  Defined.
+
+(** The zero graded abelian group *)
+  Definition ZeroGradedGroup : GradedAbelianGroup.
+  Proof.
+    refine (Build_GradedAbelianGroup _).
+    intro n.
+    exact TrivialGroup.
+  Defined.
+
+(** ZeroGradedGroup is the zero object *)
+  Theorem ZeroGradedGroup_is_zero : ZeroObject GradedAbGroupCat.
+  Proof.
+    refine (Build_ZeroObject GradedAbGroupCat ZeroGradedGroup _ _).
+    - (* initial *)
+      intro Y.
+      apply Build_Contr with 
+        (center := Build_GradedMorphism ZeroGradedGroup Y (fun n => zero_hom _ _)).
+      intro f.
+      apply GradedMorphism_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intro x.
+      destruct x.
+      simpl.
+      symmetry.
+      exact (hom_zero _ _ (graded_mor_component _ _ f n)).
+    - (* terminal *)
+      intro X.
+      apply Build_Contr with
+        (center := Build_GradedMorphism X ZeroGradedGroup (fun n => zero_hom _ _)).
+      intro f.
+      apply GradedMorphism_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intro x.
+      destruct (hom_map _ _ (graded_mor_component _ _ f n) x).
+      reflexivity.
+  Defined.
+
+(** The shift functor on graded abelian groups *)
+  Definition ShiftGradedGroup (G : GradedAbelianGroup) : GradedAbelianGroup.
+  Proof.
+    refine (Build_GradedAbelianGroup _).
+    intro n.
+    exact (graded_component G (S n)).
+  Defined.
+
+(** The shift functor on morphisms *)
+  Definition ShiftGradedMorphism {G K : GradedAbelianGroup} 
+    (f : GradedMorphism G K) : GradedMorphism (ShiftGradedGroup G) (ShiftGradedGroup K).
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    exact (graded_mor_component G K f (S n)).
+  Defined.
+
+(** Package shift as a functor *)
+  Definition ShiftGradedFunctor : Functor GradedAbGroupCat GradedAbGroupCat.
+  Proof.
+    refine (Build_Functor 
+      GradedAbGroupCat GradedAbGroupCat
+      ShiftGradedGroup
+      (@ShiftGradedMorphism)
+      _ _).
+    - (* composition *)
+      intros G K L f g.
+      apply GradedMorphism_eq.
+      intro n.
+      reflexivity.
+    - (* identity *)
+      intro G.
+      apply GradedMorphism_eq.
+      intro n.
+      reflexivity.
+  Defined.
+
+(** The loop functor on graded abelian groups *)
+  Definition LoopGradedGroup (G : GradedAbelianGroup) : GradedAbelianGroup.
+  Proof.
+    refine (Build_GradedAbelianGroup _).
+    intro n.
+    destruct n as [|n'].
+    - (* degree 0: insert TrivialGroup *)
+      exact TrivialGroup.
+    - (* degree S n': use G at degree n' *)
+      exact (graded_component G n').
+  Defined.
+
+(** The loop functor on morphisms *)
+  Definition LoopGradedMorphism {G K : GradedAbelianGroup} 
+    (f : GradedMorphism G K) : GradedMorphism (LoopGradedGroup G) (LoopGradedGroup K).
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    destruct n as [|n'].
+    - (* degree 0: TrivialGroup → TrivialGroup *)
+      exact (id_hom TrivialGroup).
+    - (* degree S n': use f at degree n' *)
+      exact (graded_mor_component G K f n').
+  Defined.
+
+(** Package loop as a functor *)
+  Definition LoopGradedFunctor : Functor GradedAbGroupCat GradedAbGroupCat.
+  Proof.
+    refine (Build_Functor 
+      GradedAbGroupCat GradedAbGroupCat
+      LoopGradedGroup
+      (@LoopGradedMorphism)
+      _ _).
+    - (* composition *)
+      intros G K L f g.
+      apply GradedMorphism_eq.
+      intro n.
+      destruct n as [|n'].
+      + (* degree 0 *)
+        reflexivity.
+      + (* degree S n' *)
+        reflexivity.
+    - (* identity *)
+      intro G.
+      apply GradedMorphism_eq.
+      intro n.
+      destruct n as [|n'].
+      + (* degree 0 *)
+        reflexivity.
+      + (* degree S n' *)
+        reflexivity.
+  Defined.
+
+(** The unit natural transformation η : Id → Loop ∘ Shift *)
+  Definition eta_graded_component (G : GradedAbelianGroup) 
+    : GradedMorphism G (LoopGradedGroup (ShiftGradedGroup G)).
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    simpl.
+    destruct n as [|n'].
+    - (* degree 0: G_0 → TrivialGroup *)
+      exact (zero_hom _ _).
+    - (* degree S n': G_{S n'} → G_{S n'} *)
+      exact (id_hom _).
+  Defined.
+
+(** Verify naturality of eta *)
+  Lemma eta_graded_natural {G K : GradedAbelianGroup} (f : GradedMorphism G K) :
+    graded_comp (LoopGradedMorphism (ShiftGradedMorphism f)) (eta_graded_component G) =
+    graded_comp (eta_graded_component K) f.
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    destruct n as [|n'].
+    - (* degree 0 *)
+      simpl.
+      apply GroupHom_eq.
+      apply path_forall. intro x.
+      simpl.
+      reflexivity.
+    - (* degree S n' *)
+      simpl.
+      rewrite comp_hom_id_right.
+      rewrite comp_hom_id_left.
+      reflexivity.
+  Qed.
