@@ -1011,121 +1011,218 @@ Proof.
   apply (hom_zero B C f).
 Qed.
 
-(* Let's redefine DesuspComplex to shift indices down properly *)
+(* Replace the existing DesuspComplex definition *)
 Definition DesuspComplex (C : ChainComplex) : ChainComplex.
 Proof.
   simple refine (Build_ChainComplex _ _ _).
   - (* Objects: shift indices down by 1, with TrivialGroup at degree 0 *)
     intro n.
-    exact (ob C (S n)).
+    destruct n as [|n'].
+    + (* n = 0: We need something at degree 0 *)
+      exact TrivialGroup.
+    + (* n = S n': Use C at degree n' *)
+      exact (ob C n').
   - (* Differential *)
     intro n.
-    exact (diff C (S n)).
+    destruct n as [|n'].
+    + (* d_0 : (DesuspComplex C)_1 → (DesuspComplex C)_0 
+         That is: C_0 → TrivialGroup *)
+      simpl.
+      exact (zero_hom (ob C 0) TrivialGroup).
+    + (* d_{n'+1} : C_{n'} → (previous degree) *)
+      destruct n' as [|n''].
+      * (* n' = 0, so we have d_1 : C_1 → C_0 *)
+        simpl.
+        exact (diff C 0).
+      * (* n' = S n'', so we have d_{S(S n'')} : C_{S n''} → C_{n''} *)
+        simpl.
+        exact (diff C (S n'')).
   - (* Proof of diff_squared *)
     intro n.
-    simpl.
-    apply (diff_squared C (S n)).
-Defined.
-
-(* First, define the trivial chain complex *)
-Definition TrivialComplex : ChainComplex.
-Proof.
-  refine (Build_ChainComplex
-    (fun n => TrivialGroup)
-    (fun n => zero_hom TrivialGroup TrivialGroup)
-    _).
-  intro n.
-  simpl.
-  apply comp_zero_hom_left.
-Defined.
-
-(* Theorem: TrivialComplex is the zero object in ChainComplexCat *)
-Theorem TrivialComplex_is_zero_complex `{Funext} : ZeroObject ChainComplexCat.
-Proof.
-  refine (Build_ZeroObject ChainComplexCat TrivialComplex _ _).
-  - (* initial *)
-    intro C.
-    simple refine (Build_Contr _ _ _).
-    + (* center: unique chain map from TrivialComplex to C *)
-      simple refine (Build_ChainMap TrivialComplex C _ _).
-      * (* map at each degree *)
-        intro n.
-        exact (zero_hom TrivialGroup (ob C n)).
-      * (* commutes with differential *)
-        intro n.
-        simpl.
-        rewrite comp_zero_hom_right.
-        rewrite comp_zero_hom_right.
-        reflexivity.
-    + (* all maps are equal *)
-      intro f.
-      apply ChainMap_eq.
-      intro n.
-      apply GroupHom_eq.
-      apply path_forall. intro x.
-      destruct x.
+    destruct n as [|n'].
+    + (* n = 0: d_0 ∘ d_1 : C_1 → TrivialGroup *)
       simpl.
-      symmetry.
-      exact (hom_zero TrivialGroup (ob C n) (map_ob TrivialComplex C f n)).
-  - (* terminal *)
-    intro C.
-    simple refine (Build_Contr _ _ _).
-    + (* center: unique chain map from C to TrivialComplex *)
-      simple refine (Build_ChainMap C TrivialComplex _ _).
-      * (* map at each degree *)
-        intro n.
-        exact (zero_hom (ob C n) TrivialGroup).
-      * (* commutes with differential *)
-        intro n.
+      (* d_0 is zero_hom, so composition with it is zero *)
+      apply comp_zero_hom_left.
+    + (* n = S n' *)
+      destruct n' as [|n''].
+      * (* n' = 0: d_1 ∘ d_2 *)
         simpl.
-        rewrite comp_zero_hom_left.
-        rewrite comp_zero_hom_left.
-        reflexivity.
-    + (* all maps are equal *)
-      intro f.
-      apply ChainMap_eq.
-      intro n.
-      apply GroupHom_eq.
-      apply path_forall. intro x.
-      destruct (hom_map (ob C n) TrivialGroup (map_ob C TrivialComplex f n) x).
-      reflexivity.
+        apply (diff_squared C 0).
+      * (* n' = S n'' *)
+        simpl.
+        apply (diff_squared C (S n'')).
 Defined.
 
-(* Make Shift into a functor on ChainComplexCat *)
-Definition ShiftFunctor `{Funext} : Functor ChainComplexCat ChainComplexCat.
-Proof.
-  refine (Build_Functor 
-    ChainComplexCat ChainComplexCat
-    ShiftComplex
-    (fun C D => ShiftMap)
-    _ _).
-  - (* Functoriality: F(g ∘ f) = F(g) ∘ F(f) *)
-    intros C D E f g.
-    apply ChainMap_eq.
-    intro n.
-    reflexivity.
-  - (* Preserves identity *)
-    intro C.
-    apply ChainMap_eq.
-    intro n.
-    reflexivity.
-Defined.
-
-(* Redefine the desuspension functor on chain maps *)
+(* Replace the existing DesuspMap definition *)
 Definition DesuspMap {C D : ChainComplex} (f : ChainMap C D) : ChainMap (DesuspComplex C) (DesuspComplex D).
 Proof.
   simple refine (Build_ChainMap (DesuspComplex C) (DesuspComplex D) _ _).
   - (* map at each degree *)
     intro n.
+    destruct n as [|n'].
+    + (* n = 0: TrivialGroup → TrivialGroup *)
+      simpl.
+      exact (id_hom TrivialGroup).
+    + (* n = S n': C_{n'} → D_{n'} *)
+      simpl.
+      exact (map_ob C D f n').
+  - (* commutes with differential *)
+    intro n.
+    destruct n as [|n'].
+    + (* n = 0: need to show 
+         id ∘ zero_hom (ob C 0) TrivialGroup = zero_hom (ob D 0) TrivialGroup ∘ f_0 *)
+      simpl.
+      rewrite comp_hom_id_left.
+      symmetry.
+      apply comp_zero_hom_left.
+    + (* n = S n' *)
+      destruct n' as [|n''].
+      * (* n' = 0 *)
+        simpl.
+        apply (map_commutes C D f 0).
+      * (* n' = S n'' *)
+        simpl.
+        apply (map_commutes C D f (S n'')).
+Defined.
+
+(* Replace the existing epsilon_component definition *)
+Definition epsilon_component (C : ChainComplex) : ChainMap ((ShiftComplex o DesuspComplex) C) C.
+Proof.
+  simpl.
+  simple refine (Build_ChainMap (ShiftComplex (DesuspComplex C)) C _ _).
+  - (* map at each degree *)
+    intro n.
     simpl.
-    exact (map_ob C D f (S n)).
+    (* (Shift(Desusp(C)))_n = (Desusp(C))_{S n} = C_n *)
+    exact (id_hom (ob C n)).
   - (* commutes with differential *)
     intro n.
     simpl.
-    apply (map_commutes C D f (S n)).
+    destruct n as [|n'].
+    + (* n = 0 *)
+      simpl.
+      rewrite comp_hom_id_left.
+      rewrite comp_hom_id_right.
+      reflexivity.
+    + (* n = S n' *)
+      simpl.
+      rewrite comp_hom_id_left.
+      rewrite comp_hom_id_right.
+      reflexivity.
 Defined.
 
+(* Replace the existing eta_component definition *)
+Definition eta_component (C : ChainComplex) : ChainMap C ((DesuspComplex o ShiftComplex) C).
+Proof.
+  simpl.
+  simple refine (Build_ChainMap C (DesuspComplex (ShiftComplex C)) _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    destruct n as [|n'].
+    + (* n = 0: C_0 → TrivialGroup *)
+      exact (zero_hom (ob C 0) TrivialGroup).
+    + (* n = S n': C_{S n'} → (ShiftComplex C)_{n'} = C_{n'+1} = C_{S n'} *)
+      exact (id_hom (ob C (S n'))).
+  - (* commutes with differential *)
+    intro n.
+    destruct n as [|n'].
+    + (* n = 0: need to show diff ∘ zero = zero ∘ diff *)
+      simpl.
+      rewrite comp_zero_hom_left.
+      symmetry.
+      rewrite comp_hom_id_right.
+      reflexivity.
+    + (* n = S n' *)
+      destruct n' as [|n''].
+      * (* n' = 0 *)
+        simpl.
+        rewrite comp_hom_id_left.
+        rewrite comp_hom_id_right.
+        reflexivity.
+      * (* n' = S n'' *)
+        simpl.
+        rewrite comp_hom_id_left.
+        rewrite comp_hom_id_right.
+        reflexivity.
+Defined.
 
+(* Replace the existing eta_natural lemma *)
+Lemma eta_natural {C D : ChainComplex} (f : ChainMap C D) :
+  comp_chain_map (DesuspMap (ShiftMap f)) (eta_component C) = 
+  comp_chain_map (eta_component D) f.
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  destruct n as [|n'].
+  - (* n = 0 *)
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro a.
+    simpl.
+    (* Both sides are tt in TrivialGroup *)
+    reflexivity.
+  - (* n = S n' *)
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro a.
+    simpl.
+    reflexivity.
+Qed.
+
+(* Replace the existing epsilon_natural lemma *)
+Lemma epsilon_natural {C D : ChainComplex} (f : ChainMap C D) :
+  comp_chain_map f (epsilon_component C) = 
+  comp_chain_map (epsilon_component D) (ShiftMap (DesuspMap f)).
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  simpl.
+  destruct n as [|n'].
+  - (* n = 0 *)
+    simpl.
+    reflexivity.
+  - (* n = S n' *)
+    simpl.
+    reflexivity.
+Qed.
+
+(* Triangle identity 1: ε(Shift C) ∘ Shift(η C) = id on Shift C *)
+Lemma triangle_identity_1 (C : ChainComplex) :
+  comp_chain_map (epsilon_component (ShiftComplex C)) (ShiftMap (eta_component C)) = 
+  id_chain_map (ShiftComplex C).
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  simpl.
+  apply GroupHom_eq.
+  apply path_forall. intro a.
+  simpl.
+  reflexivity.
+Qed.
+
+(* Triangle identity 2: Desusp(ε C) ∘ η(Desusp C) = id on Desusp C *)
+Lemma triangle_identity_2 (C : ChainComplex) :
+  comp_chain_map (DesuspMap (epsilon_component C)) (eta_component (DesuspComplex C)) = 
+  id_chain_map (DesuspComplex C).
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  destruct n as [|n'].
+  - (* n = 0 *)
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro a.
+    destruct a. (* a : Unit *)
+    reflexivity.
+  - (* n = S n' *)
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro a.
+    simpl.
+    reflexivity.
+Qed.
 
 (* Make Desusp into a functor on ChainComplexCat *)
 Definition DesuspFunctor `{Funext} : Functor ChainComplexCat ChainComplexCat.
@@ -1159,499 +1256,490 @@ Proof.
       reflexivity.
 Defined.
 
-(* Checkpoint theorem: Shift preserves the zero object *)
-Theorem ShiftPreservesZero `{Funext} : 
-  ShiftComplex TrivialComplex = TrivialComplex.
+(* Make Shift into a functor on ChainComplexCat *)
+Definition ShiftFunctor `{Funext} : Functor ChainComplexCat ChainComplexCat.
 Proof.
-  unfold ShiftComplex, TrivialComplex.
-  f_ap.
-Qed.
-
-(* Now let's build the unit natural transformation η : Id → Desusp ∘ Shift *)
-Definition eta_component (C : ChainComplex) : ChainMap C ((DesuspComplex o ShiftComplex) C).
-Proof.
-  simpl.
-  simple refine (Build_ChainMap C (DesuspComplex (ShiftComplex C)) _ _).
-  - (* map at each degree *)
-    intro n.
-    simpl.
-    (* We need: C_n -> (DesuspComplex (ShiftComplex C))_n = C_{n+2} *)
-    exact (zero_hom (ob C n) (ob C (S (S n)))).
-  - (* commutes with differential *)
-    intro n.
-    simpl.
-    rewrite comp_zero_hom_left.
-    rewrite comp_zero_hom_right.
-    reflexivity.
-Defined.
-
-(* Now let's build the counit natural transformation ε : Shift ∘ Desusp → Id *)
-Definition epsilon_component (C : ChainComplex) : ChainMap ((ShiftComplex o DesuspComplex) C) C.
-Proof.
-  simpl.
-  simple refine (Build_ChainMap (ShiftComplex (DesuspComplex C)) C _ _).
-  - (* map at each degree *)
-    intro n.
-    simpl.
-    (* We have: (ShiftComplex (DesuspComplex C))_n = C_{n+2} *)
-    (* We need: C_{n+2} -> C_n *)
-    exact (zero_hom (ob C (S (S n))) (ob C n)).
-  - (* commutes with differential *)
-    intro n.
-    simpl.
-    rewrite comp_zero_hom_left.
-    rewrite comp_zero_hom_right.
-    reflexivity.
-Defined.
-
-(* Verify that eta is natural *)
-Lemma eta_natural {C D : ChainComplex} (f : ChainMap C D) :
-  comp_chain_map (DesuspMap (ShiftMap f)) (eta_component C) = 
-  comp_chain_map (eta_component D) f.
-Proof.
-  apply ChainMap_eq.
-  intro n.
-  simpl.
-  rewrite comp_zero_hom_left.
-  rewrite comp_zero_hom_right.
-  reflexivity.
-Qed.
-
-(* Verify that epsilon is natural *)
-Lemma epsilon_natural {C D : ChainComplex} (f : ChainMap C D) :
-  comp_chain_map f (epsilon_component C) = 
-  comp_chain_map (epsilon_component D) (ShiftMap (DesuspMap f)).
-Proof.
-  apply ChainMap_eq.
-  intro n.
-  simpl.
-  rewrite comp_zero_hom_left.
-  rewrite comp_zero_hom_right.
-  reflexivity.
-Qed.
-
-(* First, let's define the differential separately *)
-Definition DirectSumDiff (C D : ChainComplex) (n : nat) 
-  : GroupHom (DirectSum (ob C (S n)) (ob D (S n))) 
-             (DirectSum (ob C n) (ob D n)).
-Proof.
-  refine (Build_GroupHom 
-    (DirectSum (ob C (S n)) (ob D (S n)))
-    (DirectSum (ob C n) (ob D n))
-    (fun p : carrier (group (ob C (S n))) * carrier (group (ob D (S n))) => 
-      ((hom_map _ _ (diff C n) (fst p) : carrier (group (ob C n))), 
-       (hom_map _ _ (diff D n) (snd p) : carrier (group (ob D n)))))
+  refine (Build_Functor 
+    ChainComplexCat ChainComplexCat
+    ShiftComplex
+    (fun C D => ShiftMap)
     _ _).
-  - (* Preserves zero *)
-    simpl.
-    f_ap.
-    + apply (hom_zero _ _ (diff C n)).
-    + apply (hom_zero _ _ (diff D n)).
-  - (* Preserves addition *)
-    intros [a1 b1] [a2 b2].
-    simpl.
-    f_ap.
-    + apply (hom_plus _ _ (diff C n)).
-    + apply (hom_plus _ _ (diff D n)).
+  - (* Functoriality: F(g ∘ f) = F(g) ∘ F(f) *)
+    intros C D E f g.
+    apply ChainMap_eq.
+    intro n.
+    reflexivity.
+  - (* Preserves identity *)
+    intro C.
+    apply ChainMap_eq.
+    intro n.
+    reflexivity.
 Defined.
 
-(* Now define DirectSumComplex using the differential we just created *)
-Definition DirectSumComplex (C D : ChainComplex) : ChainComplex.
+(* Create the unit natural transformation η : Id → Desusp ∘ Shift *)
+Definition eta_chain `{Funext} : NaturalTransformation 
+  (1%functor : Functor ChainComplexCat ChainComplexCat)
+  ((DesuspFunctor o ShiftFunctor)%functor).
+Proof.
+  refine (Build_NaturalTransformation _ _ 
+    (fun C => eta_component C : morphism ChainComplexCat 
+                                  (object_of 1%functor C)
+                                  (object_of (DesuspFunctor o ShiftFunctor)%functor C)) _).
+  intros C D f.
+  simpl.
+  symmetry.
+  exact (eta_natural f).
+Defined.
+
+(* Create the counit natural transformation ε : Shift ∘ Desusp → Id *)
+Definition epsilon_chain `{Funext} : NaturalTransformation 
+  ((ShiftFunctor o DesuspFunctor)%functor)
+  (1%functor : Functor ChainComplexCat ChainComplexCat).
+Proof.
+  refine (Build_NaturalTransformation _ _ 
+    (fun C => epsilon_component C : morphism ChainComplexCat 
+                                      (object_of (ShiftFunctor o DesuspFunctor)%functor C)
+                                      (object_of 1%functor C)) _).
+  intros C D f.
+  simpl.
+  symmetry.
+  exact (epsilon_natural f).
+Defined.
+
+Definition ZeroChainComplex : ChainComplex.
 Proof.
   refine (Build_ChainComplex
+    (fun n => TrivialGroup)
+    (fun n => zero_hom TrivialGroup TrivialGroup)
+    _).
+  intro n.
+  apply comp_zero_hom_left.
+Defined.
+
+Definition DirectSumChainComplex (C D : ChainComplex) : ChainComplex.
+Proof.
+  simple refine (Build_ChainComplex
     (fun n => DirectSum (ob C n) (ob D n))
-    (DirectSumDiff C D)
-    _).
-  (* Prove d² = 0 *)
-  intro n.
-  apply GroupHom_eq.
-  apply path_forall. intros [a b].
-  simpl.
-  unfold DirectSumDiff. simpl.
-  pose proof (diff_squared C n) as HC.
-  pose proof (diff_squared D n) as HD.
-  pose proof (ap (fun f => hom_map _ _ f a) HC) as Ha.
-  pose proof (ap (fun f => hom_map _ _ f b) HD) as Hb.
-  simpl in Ha, Hb.
-  rewrite Ha, Hb.
-  reflexivity.
-Defined.
-
-(* First injection into direct sum complex *)
-Definition inj1_complex (C D : ChainComplex) : ChainMap C (DirectSumComplex C D).
-Proof.
-  refine (Build_ChainMap C (DirectSumComplex C D)
-    (fun n => inj1 (ob C n) (ob D n))
-    _).
-  (* Commutes with differential *)
-  intro n.
-  apply GroupHom_eq.
-  apply path_forall. intro a.
-  (* Need to show: inj1 (diff C n a) = DirectSumDiff (inj1 a) *)
-  simpl.
-  unfold DirectSumDiff, inj1. simpl.
-  (* LHS: (diff C n a, 0) *)
-  (* RHS: (diff C n a, diff D n 0) *)
-  f_ap.
-  symmetry.
-  apply (hom_zero _ _ (diff D n)).
-Defined.
-
-(* Second injection into direct sum complex *)
-Definition inj2_complex (C D : ChainComplex) : ChainMap D (DirectSumComplex C D).
-Proof.
-  refine (Build_ChainMap D (DirectSumComplex C D)
-    (fun n => inj2 (ob C n) (ob D n))
-    _).
-  (* Commutes with differential *)
-  intro n.
-  apply GroupHom_eq.
-  apply path_forall. intro b.
-  simpl.
-  unfold DirectSumDiff, inj2. simpl.
-  (* LHS: (0, diff D n b) *)
-  (* RHS: (diff C n 0, diff D n b) *)
-  f_ap.
-  symmetry.
-  apply (hom_zero _ _ (diff C n)).
-Defined.
-
-(* First projection from direct sum complex *)
-Definition proj1_complex (C D : ChainComplex) : ChainMap (DirectSumComplex C D) C.
-Proof.
-  refine (Build_ChainMap (DirectSumComplex C D) C
-    (fun n => proj1 (ob C n) (ob D n))
-    _).
-  (* Commutes with differential *)
-  intro n.
-  apply GroupHom_eq.
-  apply path_forall. intros [a b].
-  reflexivity.
-Defined.
-
-(* Second projection from direct sum complex *)
-Definition proj2_complex (C D : ChainComplex) : ChainMap (DirectSumComplex C D) D.
-Proof.
-  refine (Build_ChainMap (DirectSumComplex C D) D
-    (fun n => proj2 (ob C n) (ob D n))
-    _).
-  (* Commutes with differential *)
-  intro n.
-  apply GroupHom_eq.
-  apply path_forall. intros [a b].
-  reflexivity.
-Defined.
-
-(* Build the biproduct data *)
-Definition DirectSumComplex_BiproductData (C D : object ChainComplexCat) 
-  : BiproductData C D.
-Proof.
-  refine (Build_BiproductData ChainComplexCat C D
-    (DirectSumComplex C D)
-    (inj1_complex C D)
-    (inj2_complex C D)
-    (proj1_complex C D)
-    (proj2_complex C D)).
-Defined.
-
-(* Prove it satisfies the biproduct axioms *)
-Definition DirectSumComplex_IsBiproduct `{Funext} (C D : object ChainComplexCat)
-  : IsBiproduct (DirectSumComplex_BiproductData C D) TrivialComplex_is_zero_complex.
-Proof.
-  refine (Build_IsBiproduct _ _ _ _ _ _ _ _ _).
-  - (* proj1 ∘ inj1 = id *)
-    apply ChainMap_eq.
-    intro n.
-    apply GroupHom_eq.
-    apply path_forall. intro a.
-    reflexivity.
-  - (* proj2 ∘ inj2 = id *)
-    apply ChainMap_eq.
-    intro n.
-    apply GroupHom_eq.
-    apply path_forall. intro b.
-    reflexivity.
-  - (* proj1 ∘ inj2 = 0 *)
-    apply ChainMap_eq.
-    intro n.
-    apply GroupHom_eq.
-    apply path_forall. intro b.
-    reflexivity.
-  - (* proj2 ∘ inj1 = 0 *)
-    apply ChainMap_eq.
-    intro n.
-    apply GroupHom_eq.
-    apply path_forall. intro a.
-    reflexivity.
-Defined.
-
-(* First, let's define the pairing map separately *)
-Definition PairingMap `{Funext} {C D W : ChainComplex} 
-  (f : ChainMap C W) (g : ChainMap D W) (n : nat)
-  : GroupHom (DirectSum (ob C n) (ob D n)) (ob W n).
-Proof.
-  refine (Build_GroupHom 
-    (DirectSum (ob C n) (ob D n))
-    (ob W n)
-    (fun p => match p with
-              | (a, b) => plus (group (ob W n))
-                            (hom_map _ _ (map_ob _ _ f n) a)
-                            (hom_map _ _ (map_ob _ _ g n) b)
-              end)
     _ _).
-  - (* Preserves zero *)
+  - (* differential *)
+    intro n.
+    simple refine (Build_GroupHom _ _ _ _ _).
+    + (* map *)
+      exact (fun p => (hom_map _ _ (diff C n) (fst p), 
+                       hom_map _ _ (diff D n) (snd p))).
+    + (* hom_zero *)
+      simpl.
+      f_ap.
+      * apply (hom_zero _ _ (diff C n)).
+      * apply (hom_zero _ _ (diff D n)).
+    + (* hom_plus *)
+      intros [c1 d1] [c2 d2].
+      simpl.
+      f_ap.
+      * apply (hom_plus _ _ (diff C n)).
+      * apply (hom_plus _ _ (diff D n)).
+  - (* diff_squared *)
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intro p.
+    destruct p as [c d].
     simpl.
-    rewrite (hom_zero _ _ (map_ob _ _ f n)).
-    rewrite (hom_zero _ _ (map_ob _ _ g n)).
-    apply (plus_zero_l _ (laws (ob W n))).
-  - (* Preserves plus *)
-    intros [a1 b1] [a2 b2].
-    simpl.
-    rewrite (hom_plus _ _ (map_ob _ _ f n)).
-    rewrite (hom_plus _ _ (map_ob _ _ g n)).
-    
-    (* Goal: (a1 + a2) + (b1 + b2) = (a1 + b1) + (a2 + b2) *)
-    
-    (* First, let's introduce abbreviations *)
-    set (fa1 := hom_map _ _ (map_ob _ _ f n) a1).
-    set (fa2 := hom_map _ _ (map_ob _ _ f n) a2).
-    set (gb1 := hom_map _ _ (map_ob _ _ g n) b1).
-    set (gb2 := hom_map _ _ (map_ob _ _ g n) b2).
-    
-    (* Current: (fa1 + fa2) + (gb1 + gb2) *)
-    (* Target: (fa1 + gb1) + (fa2 + gb2) *)
-    
-    (* First move everything to the right *)
-    rewrite <- (plus_assoc (group (ob W n)) (laws (ob W n)) fa1 fa2 (plus (group (ob W n)) gb1 gb2)).
-    (* Now: fa1 + (fa2 + (gb1 + gb2)) *)
-    
-    (* We need to get gb1 next to fa1. Let's use commutativity and associativity *)
-    (* First, let's work with the inner part: fa2 + (gb1 + gb2) *)
-    
-    (* Use the fact that in an abelian group: a + (b + c) = b + (a + c) when we apply
-       associativity and commutativity correctly *)
-    
-    rewrite (plus_comm (group (ob W n)) (laws (ob W n)) fa2 (plus (group (ob W n)) gb1 gb2)).
-    (* Now: fa1 + ((gb1 + gb2) + fa2) *)
-    
-    rewrite <- (plus_assoc (group (ob W n)) (laws (ob W n)) gb1 gb2 fa2).
-    (* Now: fa1 + (gb1 + (gb2 + fa2)) *)
-    
-    rewrite (plus_comm (group (ob W n)) (laws (ob W n)) gb2 fa2).
-    (* Now: fa1 + (gb1 + (fa2 + gb2)) *)
-    
-    rewrite (plus_assoc (group (ob W n)) (laws (ob W n)) fa1 gb1 (plus (group (ob W n)) fa2 gb2)).
-    (* Now: (fa1 + gb1) + (fa2 + gb2) *)
-    
-    reflexivity.
+    pose proof (diff_squared C n) as HC.
+    pose proof (diff_squared D n) as HD.
+    pose proof (ap (fun h => hom_map _ _ h c) HC) as Hc.
+    pose proof (ap (fun h => hom_map _ _ h d) HD) as Hd.
+    simpl in Hc, Hd.
+    f_ap; assumption.
 Defined.
 
-(* Define the product morphism separately *)
-Definition ProductMap `{Funext} {W C D : ChainComplex} 
-  (f : ChainMap W C) (g : ChainMap W D) (n : nat)
-  : GroupHom (ob W n) (DirectSum (ob C n) (ob D n)).
+Theorem ZeroChainComplex_is_zero : ZeroObject ChainComplexCat.
 Proof.
-  refine (Build_GroupHom 
-    (ob W n)
-    (DirectSum (ob C n) (ob D n))
-    (fun w => (hom_map _ _ (map_ob _ _ f n) w,
-               hom_map _ _ (map_ob _ _ g n) w))
-    _ _).
-  - (* Preserves zero *)
+  refine (Build_ZeroObject ChainComplexCat ZeroChainComplex _ _).
+  - (* initial *)
+    intro C.
+    simple refine (Build_Contr _ _ _).
+    + (* center: the zero chain map *)
+      simple refine (Build_ChainMap ZeroChainComplex C _ _).
+      * (* map at each degree *)
+        intro n.
+        apply zero_hom.
+      * (* commutes *)
+        intro n.
+        simpl.
+        rewrite comp_zero_hom_left.
+        rewrite comp_zero_hom_right.
+        reflexivity.
+    + (* contr *)
+      intro f.
+      apply ChainMap_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intro x.
+      destruct x.
+      simpl.
+      symmetry.
+      exact (hom_zero _ _ (map_ob _ _ f n)).
+  - (* terminal *)
+    intro C.
+    simple refine (Build_Contr _ _ _).
+    + (* center *)
+      simple refine (Build_ChainMap C ZeroChainComplex _ _).
+      * (* map at each degree *)
+        intro n.
+        apply zero_hom.
+      * (* commutes *)
+        intro n.
+        simpl.
+        rewrite comp_zero_hom_left.
+        rewrite comp_zero_hom_right.
+        reflexivity.
+    + (* contr *)
+      intro f.
+      apply ChainMap_eq.
+      intro n.
+      apply GroupHom_eq.
+      apply path_forall. intro x.
+      destruct (hom_map _ _ (map_ob _ _ f n) x).
+      reflexivity.
+Defined.
+
+Definition chain_inj1 (C D : ChainComplex) : ChainMap C (DirectSumChainComplex C D).
+Proof.
+  simple refine (Build_ChainMap C (DirectSumChainComplex C D) _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    exact (inj1 (ob C n) (ob D n)).
+  - (* commutes *)
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intro c.
     simpl.
     f_ap.
-    + apply (hom_zero _ _ (map_ob _ _ f n)).
-    + apply (hom_zero _ _ (map_ob _ _ g n)).
-  - (* Preserves plus *)
-    intros w1 w2.
-    simpl.
-    f_ap.
-    + apply (hom_plus _ _ (map_ob _ _ f n)).
-    + apply (hom_plus _ _ (map_ob _ _ g n)).
+    symmetry.
+    apply (hom_zero _ _ (diff D n)).
 Defined.
 
-(* Prove that ProductMap gives a chain map *)
-Definition ProductChainMap `{Funext} {W C D : ChainComplex} 
-  (f : ChainMap W C) (g : ChainMap W D) 
-  : ChainMap W (DirectSumComplex C D).
+Definition chain_inj2 (C D : ChainComplex) : ChainMap D (DirectSumChainComplex C D).
 Proof.
-  refine (Build_ChainMap W (DirectSumComplex C D)
-    (ProductMap f g)
-    _).
-  (* Commutes with differential *)
+  simple refine (Build_ChainMap D (DirectSumChainComplex C D) _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    exact (inj2 (ob C n) (ob D n)).
+  - (* commutes *)
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intro d.
+    simpl.
+    f_ap.
+    symmetry.
+    apply (hom_zero _ _ (diff C n)).
+Defined.
+
+Definition chain_proj1 (C D : ChainComplex) : ChainMap (DirectSumChainComplex C D) C.
+Proof.
+  simple refine (Build_ChainMap (DirectSumChainComplex C D) C _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    exact (proj1 (ob C n) (ob D n)).
+  - (* commutes *)
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intros [c d].
+    reflexivity.
+Defined.
+
+Definition chain_proj2 (C D : ChainComplex) : ChainMap (DirectSumChainComplex C D) D.
+Proof.
+  simple refine (Build_ChainMap (DirectSumChainComplex C D) D _ _).
+  - (* map at each degree *)
+    intro n.
+    simpl.
+    exact (proj2 (ob C n) (ob D n)).
+  - (* commutes *)
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intros [c d].
+    reflexivity.
+Defined.
+
+Lemma chain_beta_l (C D : ChainComplex) : 
+  comp_chain_map (chain_proj1 C D) (chain_inj1 C D) = id_chain_map C.
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  simpl.
+  apply GroupHom_eq.
+  apply path_forall. intro c.
+  reflexivity.
+Qed.
+
+Lemma chain_beta_r (C D : ChainComplex) : 
+  comp_chain_map (chain_proj2 C D) (chain_inj2 C D) = id_chain_map D.
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  simpl.
+  apply GroupHom_eq.
+  apply path_forall. intro d.
+  reflexivity.
+Qed.
+
+Definition zero_chain_map (C D : ChainComplex) : ChainMap C D.
+Proof.
+  simple refine (Build_ChainMap C D _ _).
+  - (* map at each degree *)
+    intro n.
+    apply zero_hom.
+  - (* commutes *)
+    intro n.
+    rewrite comp_zero_hom_left.
+    rewrite comp_zero_hom_right.
+    reflexivity.
+Defined.
+
+Lemma chain_mixed_l (C D : ChainComplex) : 
+  comp_chain_map (chain_proj1 C D) (chain_inj2 C D) = zero_chain_map D C.
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  simpl.
+  apply GroupHom_eq.
+  apply path_forall. intro d.
+  reflexivity.
+Qed.
+
+Lemma chain_mixed_r (C D : ChainComplex) : 
+  comp_chain_map (chain_proj2 C D) (chain_inj1 C D) = zero_chain_map C D.
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  simpl.
+  apply GroupHom_eq.
+  apply path_forall. intro c.
+  reflexivity.
+Qed.
+
+Lemma zero_chain_map_is_zero_morphism (C D : ChainComplex) :
+  zero_chain_map C D = zero_morphism ZeroChainComplex_is_zero C D.
+Proof.
+  unfold zero_morphism.
+  simpl.
+  apply ChainMap_eq.
+  intro n.
+  apply GroupHom_eq.
+  apply path_forall. intro c.
+  simpl.
+  reflexivity.
+Qed.
+
+Definition chain_coprod_mor (C D W : ChainComplex) 
+  (f : ChainMap C W) (g : ChainMap D W) : ChainMap (DirectSumChainComplex C D) W.
+Proof.
+  simple refine (Build_ChainMap (DirectSumChainComplex C D) W _ _).
+  - (* map at each degree *)
+    intro n.
+    simple refine (Build_GroupHom _ _ _ _ _).
+    + (* map *)
+      intros [c d].
+      exact (plus (group (ob W n))
+        (hom_map _ _ (map_ob C W f n) c)
+        (hom_map _ _ (map_ob D W g n) d)).
+    + (* hom_zero *)
+      simpl.
+      rewrite (hom_zero _ _ (map_ob C W f n)).
+      rewrite (hom_zero _ _ (map_ob D W g n)).
+      apply (plus_zero_l _ (laws (ob W n))).
+    + (* hom_plus *)
+      intros [c1 d1] [c2 d2].
+      simpl.
+      rewrite (hom_plus _ _ (map_ob C W f n)).
+      rewrite (hom_plus _ _ (map_ob D W g n)).
+      (* Goal: (f c1 + g d1) + (f c2 + g d2) = (f c1 + f c2) + (g d1 + g d2) *)
+      set (fc1 := hom_map _ _ (map_ob C W f n) c1).
+      set (fc2 := hom_map _ _ (map_ob C W f n) c2).
+      set (gd1 := hom_map _ _ (map_ob D W g n) d1).
+      set (gd2 := hom_map _ _ (map_ob D W g n) d2).
+      (* Apply associativity and commutativity *)
+      rewrite <- (plus_assoc _ (laws (ob W n)) fc1 gd1 _).
+      rewrite (plus_assoc _ (laws (ob W n)) gd1 fc2 gd2).
+      rewrite (plus_comm _ (laws (ob W n)) gd1 fc2).
+      rewrite <- (plus_assoc _ (laws (ob W n)) fc2 gd1 gd2).
+      rewrite (plus_assoc _ (laws (ob W n)) fc1 fc2 _).
+      reflexivity.
+  - (* commutes *)
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intros [c d].
+    simpl.
+    pose proof (map_commutes C W f n) as Hf.
+    pose proof (map_commutes D W g n) as Hg.
+    apply (ap (fun h => hom_map _ _ h c)) in Hf.
+    apply (ap (fun h => hom_map _ _ h d)) in Hg.
+    simpl in Hf, Hg.
+    rewrite Hf, Hg.
+    symmetry.
+    apply (hom_plus _ _ (diff W n)).
+Defined.
+
+Lemma chain_coprod_beta_l (C D W : ChainComplex) 
+  (f : ChainMap C W) (g : ChainMap D W) :
+  comp_chain_map (chain_coprod_mor C D W f g) (chain_inj1 C D) = f.
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  simpl.
+  apply GroupHom_eq.
+  apply path_forall. intro c.
+  simpl.
+  rewrite (hom_zero _ _ (map_ob D W g n)).
+  apply (plus_zero_r _ (laws (ob W n))).
+Qed.
+
+Lemma chain_coprod_beta_r (C D W : ChainComplex) 
+  (f : ChainMap C W) (g : ChainMap D W) :
+  comp_chain_map (chain_coprod_mor C D W f g) (chain_inj2 C D) = g.
+Proof.
+  apply ChainMap_eq.
+  intro n.
+  simpl.
+  apply GroupHom_eq.
+  apply path_forall. intro d.
+  simpl.
+  rewrite (hom_zero _ _ (map_ob C W f n)).
+  apply (plus_zero_l _ (laws (ob W n))).
+Qed.
+
+Lemma chain_coprod_unique (C D W : ChainComplex) 
+  (f : ChainMap C W) (g : ChainMap D W)
+  (h : ChainMap (DirectSumChainComplex C D) W) :
+  comp_chain_map h (chain_inj1 C D) = f ->
+  comp_chain_map h (chain_inj2 C D) = g ->
+  h = chain_coprod_mor C D W f g.
+Proof.
+  intros Hf Hg.
+  apply ChainMap_eq.
+  intro n.
+  apply GroupHom_eq.
+  apply path_forall. intros [c d].
+  (* Express (c,d) as a sum in DirectSum *)
+  assert (Heq : (c, d) = plus (group (DirectSum (ob C n) (ob D n)))
+                               (c, zero (group (ob D n))) 
+                               (zero (group (ob C n)), d)).
+  {
+    simpl.
+    f_ap.
+    - symmetry. apply (plus_zero_r _ (laws (ob C n))).
+    - symmetry. apply (plus_zero_l _ (laws (ob D n))).
+  }
+  rewrite Heq.
+  rewrite (hom_plus _ _ (map_ob _ _ h n)).
+  (* Use the fact that h ∘ inj1 = f at degree n *)
+  assert (Hfc : hom_map _ _ (map_ob _ _ h n) (c, zero (group (ob D n))) = 
+                hom_map _ _ (map_ob C W f n) c).
+  {
+    change (hom_map _ _ (map_ob _ _ h n) (hom_map _ _ (inj1 _ _) c) = 
+            hom_map _ _ (map_ob C W f n) c).
+    unfold comp_hom.
+    pose proof (ap (fun k => map_ob _ _ k n) Hf) as Hf_n.
+    exact (ap (fun k => hom_map _ _ k c) Hf_n).
+  }
+  (* Use the fact that h ∘ inj2 = g at degree n *)
+  assert (Hgd : hom_map _ _ (map_ob _ _ h n) (zero (group (ob C n)), d) = 
+                hom_map _ _ (map_ob D W g n) d).
+  {
+    change (hom_map _ _ (map_ob _ _ h n) (hom_map _ _ (inj2 _ _) d) = 
+            hom_map _ _ (map_ob D W g n) d).
+    unfold comp_hom.
+    pose proof (ap (fun k => map_ob _ _ k n) Hg) as Hg_n.
+    exact (ap (fun k => hom_map _ _ k d) Hg_n).
+  }
+  rewrite Hfc, Hgd.
+  (* Now simplify the goal *)
+  simpl.
+  (* Need to handle the extra plus terms *)
+  rewrite (plus_zero_r _ (laws (ob C n))).
+  rewrite (plus_zero_l _ (laws (ob D n))).
+  reflexivity.
+Qed.
+
+Definition chain_prod_mor (W C D : ChainComplex) 
+  (f : ChainMap W C) (g : ChainMap W D) : ChainMap W (DirectSumChainComplex C D).
+Proof.
+  simple refine (Build_ChainMap W (DirectSumChainComplex C D) _ _).
+  - (* map at each degree *)
+    intro n.
+    simple refine (Build_GroupHom _ _ _ _ _).
+    + (* map *)
+      intro w.
+      exact (hom_map _ _ (map_ob W C f n) w,
+             hom_map _ _ (map_ob W D g n) w).
+    + (* hom_zero *)
+      simpl.
+      f_ap.
+      * apply (hom_zero _ _ (map_ob W C f n)).
+      * apply (hom_zero _ _ (map_ob W D g n)).
+    + (* hom_plus *)
+      intros w1 w2.
+      simpl.
+      f_ap.
+      * apply (hom_plus _ _ (map_ob W C f n)).
+      * apply (hom_plus _ _ (map_ob W D g n)).
+  - (* commutes *)
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intro w.
+    simpl.
+    pose proof (map_commutes W C f n) as Hf.
+    pose proof (map_commutes W D g n) as Hg.
+    apply (ap (fun h => hom_map _ _ h w)) in Hf.
+    apply (ap (fun h => hom_map _ _ h w)) in Hg.
+    simpl in Hf, Hg.
+    f_ap; assumption.
+Defined.
+
+Lemma chain_prod_beta_l (W C D : ChainComplex) 
+  (f : ChainMap W C) (g : ChainMap W D) :
+  comp_chain_map (chain_proj1 C D) (chain_prod_mor W C D f g) = f.
+Proof.
+  apply ChainMap_eq.
   intro n.
   apply GroupHom_eq.
   apply path_forall. intro w.
-  simpl.
-  unfold DirectSumDiff, ProductMap. simpl.
-  f_ap.
-  - exact (ap (fun h => hom_map _ _ h w) (map_commutes _ _ f n)).
-  - exact (ap (fun h => hom_map _ _ h w) (map_commutes _ _ g n)).
-Defined.
+  reflexivity.
+Qed.
 
-(* Prove that PairingMap gives a chain map *)
-Definition PairingChainMap `{Funext} {C D W : ChainComplex} 
-  (f : ChainMap C W) (g : ChainMap D W) 
-  : ChainMap (DirectSumComplex C D) W.
+Lemma chain_prod_beta_r (W C D : ChainComplex) 
+  (f : ChainMap W C) (g : ChainMap W D) :
+  comp_chain_map (chain_proj2 C D) (chain_prod_mor W C D f g) = g.
 Proof.
-  refine (Build_ChainMap (DirectSumComplex C D) W
-    (PairingMap f g)
-    _).
-  (* Commutes with differential *)
+  apply ChainMap_eq.
   intro n.
   apply GroupHom_eq.
-  apply path_forall. intros [a b].
-  simpl.
-  unfold DirectSumDiff, PairingMap. simpl.
-  (* We need to show: PairingMap(d(a,b)) = d(PairingMap(a,b)) *)
-  (* LHS: PairingMap(diff C n a, diff D n b) = f(diff C n a) + g(diff D n b) *)
-  (* RHS: diff W n (f(a) + g(b)) = diff W n (f(a)) + diff W n (g(b)) *)
-  rewrite (hom_plus _ _ (diff W n)).
-  (* Now: diff W n (f(a)) + diff W n (g(b)) *)
-  f_ap.
-  - exact (ap (fun h => hom_map _ _ h a) (map_commutes _ _ f n)).
-  - exact (ap (fun h => hom_map _ _ h b) (map_commutes _ _ g n)).
-Defined.
+  apply path_forall. intro w.
+  reflexivity.
+Qed.
 
-(* Coproduct universal property *)
-Definition DirectSumComplex_CoprodUniversal `{Funext} (C D : object ChainComplexCat)
-  : forall (W : object ChainComplexCat) 
-          (f : morphism ChainComplexCat C W) 
-          (g : morphism ChainComplexCat D W),
-    Contr {h : morphism ChainComplexCat (DirectSumComplex C D) W | 
-           (h o inj1_complex C D = f)%morphism /\ 
-           (h o inj2_complex C D = g)%morphism}.
+Lemma chain_prod_unique (W C D : ChainComplex) 
+  (f : ChainMap W C) (g : ChainMap W D)
+  (h : ChainMap W (DirectSumChainComplex C D)) :
+  comp_chain_map (chain_proj1 C D) h = f ->
+  comp_chain_map (chain_proj2 C D) h = g ->
+  h = chain_prod_mor W C D f g.
 Proof.
-  intros W f g.
-  simple refine (Build_Contr _ _ _).
-  - (* Center: the pairing [f,g] *)
-    exists (PairingChainMap f g).
-    split.
-    + (* h ∘ inj1 = f *)
-      apply ChainMap_eq.
-      intro n.
-      apply GroupHom_eq.
-      apply path_forall. intro a.
-      simpl.
-      unfold PairingMap. simpl.
-      rewrite (hom_zero _ _ (map_ob _ _ g n)).
-      rewrite (plus_zero_r _ (laws (ob W n))).
-      reflexivity.
-    + (* h ∘ inj2 = g *)
-      apply ChainMap_eq.
-      intro n.
-      apply GroupHom_eq.
-      apply path_forall. intro b.
-      simpl.
-      unfold PairingMap. simpl.
-      rewrite (hom_zero _ _ (map_ob _ _ f n)).
-      rewrite (plus_zero_l _ (laws (ob W n))).
-      reflexivity.
-  - (* Contraction *)
-    intros [h [Hf Hg]].
-    apply path_sigma_uncurried.
-    (* First prove h = PairingChainMap f g *)
-    assert (Heq : h = PairingChainMap f g).
-    {
-      apply ChainMap_eq.
-      intro n.
-      apply GroupHom_eq.
-      apply path_forall. intros [a b].
-      unfold PairingMap. simpl.
-      (* We need to show: h(a,b) = f(a) + g(b) *)
-      transitivity (plus (group (ob W n))
-        (hom_map _ _ (map_ob _ _ h n) (a, zero (group (ob D n))))
-        (hom_map _ _ (map_ob _ _ h n) (zero (group (ob C n)), b))).
-      - (* First show h(a,b) = h(a,0) + h(0,b) *)
-        rewrite <- (hom_plus _ _ (map_ob _ _ h n)).
-        f_ap.
-        simpl.
-        rewrite (plus_zero_r _ (laws (ob C n)) a).
-        rewrite (plus_zero_l _ (laws (ob D n)) b).
-        reflexivity.
-      - (* Then show h(a,0) + h(0,b) = f(a) + g(b) using Hf and Hg *)
-        rewrite <- Hf, <- Hg.
-        reflexivity.
-    }
-    exists Heq^.
-    apply path_ishprop.
-Defined.
-
-(* Product universal property *)
-Definition DirectSumComplex_ProdUniversal `{Funext} (C D : object ChainComplexCat)
-  : forall (W : object ChainComplexCat) 
-          (f : morphism ChainComplexCat W C) 
-          (g : morphism ChainComplexCat W D),
-    Contr {h : morphism ChainComplexCat W (DirectSumComplex C D) | 
-           (comp_chain_map (proj1_complex C D) h = f) /\ 
-           (comp_chain_map (proj2_complex C D) h = g)}.
-Proof.
-  intros W f g.
-  simple refine (Build_Contr _ _ _).
-  - (* Center: the pairing ⟨f,g⟩ *)
-    exists (ProductChainMap f g).
-    split.
-    + (* proj1 ∘ h = f *)
-      apply ChainMap_eq.
-      intro n.
-      apply GroupHom_eq.
-      apply path_forall. intro w.
-      reflexivity.
-    + (* proj2 ∘ h = g *)
-      apply ChainMap_eq.
-      intro n.
-      apply GroupHom_eq.
-      apply path_forall. intro w.
-      reflexivity.
-  - (* Contraction *)
-    intros [h [Hf Hg]].
-    apply path_sigma_uncurried.
-    assert (Heq : h = ProductChainMap f g).
-    {
-      apply ChainMap_eq.
-      intro n.
-      apply GroupHom_eq.
-      apply path_forall. intro w.
-      apply path_prod.
-      - exact (ap (fun k => hom_map _ _ (map_ob _ _ k n) w) Hf).
-      - exact (ap (fun k => hom_map _ _ (map_ob _ _ k n) w) Hg).
-    }
-    exists Heq^.
-    apply path_ishprop.
-Defined.
-
-(* Complete biproduct universal property *)
-Definition DirectSumComplex_HasUniversal `{Funext} (C D : object ChainComplexCat)
-  : HasBiproductUniversal (DirectSumComplex_BiproductData C D).
-Proof.
-  refine (Build_HasBiproductUniversal _ _ _ (DirectSumComplex_BiproductData C D) _ _).
-  - (* Coproduct universal property *)
-    intros W f g.
-    pose (result := DirectSumComplex_CoprodUniversal C D W f g).
-    simpl in *.
-    exact result.
-  - (* Product universal property *)
-    intros W f g.
-    pose (result := DirectSumComplex_ProdUniversal C D W f g).
-    simpl in *.
-    exact result.
-Defined.
-
-(* Complete biproduct structure for chain complexes *)
-Definition ChainComplexBiproduct `{Funext} (C D : object (@ChainComplexCat H)) 
-  : Biproduct C D (@TrivialComplex_is_zero_complex H).
-Proof.
-  refine (Build_Biproduct (@ChainComplexCat H) C D (@TrivialComplex_is_zero_complex H)
-    (DirectSumComplex_BiproductData C D)
-    (DirectSumComplex_IsBiproduct C D)
-    (DirectSumComplex_HasUniversal C D)).
-Defined.
-
-(* ChainComplexCat is an additive category *)
-Definition ChainComplexCat_Additive `{Funext} : AdditiveCategory.
-Proof.
-  refine (Build_AdditiveCategory 
-    (@ChainComplexCat H)
-    (@TrivialComplex_is_zero_complex H)
-    ChainComplexBiproduct).
-Defined.
+  intros Hf Hg.
+  apply ChainMap_eq.
+  intro n.
+  apply GroupHom_eq.
+  apply path_forall. intro w.
+  pose proof (ap (fun k => map_ob _ _ k n) Hf) as Hf_n.
+  pose proof (ap (fun k => map_ob _ _ k n) Hg) as Hg_n.
+  pose proof (ap (fun k => hom_map _ _ k w) Hf_n) as Hc.
+  pose proof (ap (fun k => hom_map _ _ k w) Hg_n) as Hd.
+  simpl in Hc, Hd.
+  destruct (hom_map _ _ (map_ob _ _ h n) w) as [c d].
+  simpl in *.
+  f_ap; assumption.
+Qed.
