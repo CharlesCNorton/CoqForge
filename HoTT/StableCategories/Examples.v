@@ -2740,3 +2740,117 @@ Section GradedAbelianGroups.
       rewrite comp_hom_id_left.
       reflexivity.
   Qed.
+
+(** Package eta as a natural transformation *)
+  Definition eta_graded : NaturalTransformation 
+    (1%functor : Functor GradedAbGroupCat GradedAbGroupCat)
+    ((LoopGradedFunctor o ShiftGradedFunctor)%functor).
+  Proof.
+    refine (Build_NaturalTransformation 
+      (1%functor : Functor GradedAbGroupCat GradedAbGroupCat)
+      ((LoopGradedFunctor o ShiftGradedFunctor)%functor)
+      (fun G : object GradedAbGroupCat => eta_graded_component G) _).
+    intros G K f.
+    simpl.
+    symmetry.
+    apply eta_graded_natural.
+  Defined.
+
+(** The counit natural transformation ε : Shift ∘ Loop → Id *)
+  Definition epsilon_graded_component (G : GradedAbelianGroup) 
+    : GradedMorphism (ShiftGradedGroup (LoopGradedGroup G)) G.
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    simpl.
+    (* (Shift(Loop(G)))_n = (Loop(G))_{S n} = G_n *)
+    exact (id_hom _).
+  Defined.
+
+(** Verify naturality of epsilon *)
+  Lemma epsilon_graded_natural {G K : GradedAbelianGroup} (f : GradedMorphism G K) :
+    graded_comp f (epsilon_graded_component G) =
+    graded_comp (epsilon_graded_component K) (ShiftGradedMorphism (LoopGradedMorphism f)).
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    simpl.
+    rewrite comp_hom_id_left.
+    rewrite comp_hom_id_right.
+    reflexivity.
+  Qed.
+
+(** Package epsilon as a natural transformation *)
+  Definition epsilon_graded : NaturalTransformation 
+    ((ShiftGradedFunctor o LoopGradedFunctor)%functor)
+    (1%functor : Functor GradedAbGroupCat GradedAbGroupCat).
+  Proof.
+    refine (Build_NaturalTransformation 
+      ((ShiftGradedFunctor o LoopGradedFunctor)%functor)
+      (1%functor : Functor GradedAbGroupCat GradedAbGroupCat)
+      (fun G : object GradedAbGroupCat => epsilon_graded_component G) _).
+    intros G K f.
+    simpl.
+    symmetry.
+    apply epsilon_graded_natural.
+  Defined.
+
+(** Shift preserves the zero object *)
+  Lemma shift_preserves_zero : 
+    ShiftGradedGroup ZeroGradedGroup = ZeroGradedGroup.
+  Proof.
+    unfold ShiftGradedGroup, ZeroGradedGroup.
+    f_ap.
+  Qed.
+
+(** Loop preserves the zero object *)
+  Lemma loop_preserves_zero : 
+    LoopGradedGroup ZeroGradedGroup = ZeroGradedGroup.
+  Proof.
+    unfold LoopGradedGroup, ZeroGradedGroup.
+    f_ap.
+    apply path_forall.
+    intro n.
+    destruct n; reflexivity.
+  Qed.
+
+(** Direct sum of graded abelian groups *)
+  Definition DirectSumGraded (G K : GradedAbelianGroup) : GradedAbelianGroup.
+  Proof.
+    refine (Build_GradedAbelianGroup _).
+    intro n.
+    exact (DirectSum (graded_component G n) (graded_component K n)).
+  Defined.
+
+(** Injections into direct sum *)
+  Definition graded_inj1 (G K : GradedAbelianGroup) : GradedMorphism G (DirectSumGraded G K).
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    exact (inj1 (graded_component G n) (graded_component K n)).
+  Defined.
+
+(** Second injection into direct sum *)
+  Definition graded_inj2 (G K : GradedAbelianGroup) : GradedMorphism K (DirectSumGraded G K).
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    exact (inj2 (graded_component G n) (graded_component K n)).
+  Defined.
+
+(** Projections from direct sum *)
+  Definition graded_proj1 (G K : GradedAbelianGroup) : GradedMorphism (DirectSumGraded G K) G.
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    exact (proj1 (graded_component G n) (graded_component K n)).
+  Defined.
+
+(** Second projection from direct sum *)
+  Definition graded_proj2 (G K : GradedAbelianGroup) : GradedMorphism (DirectSumGraded G K) K.
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    exact (proj2 (graded_component G n) (graded_component K n)).
+  Defined.
+       
