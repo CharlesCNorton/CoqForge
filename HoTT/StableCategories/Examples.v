@@ -3136,3 +3136,92 @@ Lemma graded_coprod_beta_l (G K W : GradedAbelianGroup)
       GradedBiproduct).
   Defined.
 
+Lemma loop_graded_preserves_zero : 
+    LoopGradedGroup ZeroGradedGroup = ZeroGradedGroup.
+  Proof.
+    unfold LoopGradedGroup, ZeroGradedGroup.
+    f_ap.
+    apply path_forall. intro n.
+    destruct n; reflexivity.
+  Qed.
+
+Definition LoopGradedAdditiveFunctor `{Funext} : AdditiveFunctor GradedAdditive GradedAdditive.
+  Proof.
+    refine (Build_AdditiveFunctor 
+      GradedAdditive GradedAdditive
+      LoopGradedFunctor
+      _ _).
+    - (* preserves_zero *)
+      exact loop_graded_preserves_zero.
+    - (* preserves_biproduct *)
+      exact loop_graded_preserves_biproduct.
+  Defined.
+
+Lemma shift_graded_preserves_zero : 
+    ShiftGradedGroup ZeroGradedGroup = ZeroGradedGroup.
+  Proof.
+    unfold ShiftGradedGroup, ZeroGradedGroup.
+    f_ap.
+  Qed.
+
+Lemma shift_graded_preserves_biproduct (G K : GradedAbelianGroup) :
+    ShiftGradedGroup (DirectSumGraded G K) = 
+    DirectSumGraded (ShiftGradedGroup G) (ShiftGradedGroup K).
+  Proof.
+    unfold ShiftGradedGroup, DirectSumGraded.
+    f_ap.
+  Qed.
+
+Definition ShiftGradedAdditiveFunctor `{Funext} : AdditiveFunctor GradedAdditive GradedAdditive.
+  Proof.
+    refine (Build_AdditiveFunctor 
+      GradedAdditive GradedAdditive
+      ShiftGradedFunctor
+      _ _).
+    - (* preserves_zero *)
+      exact shift_graded_preserves_zero.
+    - (* preserves_biproduct *)
+      exact shift_graded_preserves_biproduct.
+  Defined.
+
+Definition GradedPreStable `{Funext} : PreStableCategory.
+  Proof.
+    exact (Build_PreStableCategory
+      GradedAdditive
+      ShiftGradedAdditiveFunctor
+      LoopGradedAdditiveFunctor
+      eta_graded
+      epsilon_graded).
+  Defined.
+
+Lemma graded_triangle_1 : forall G,
+    graded_comp (epsilon_graded_component (ShiftGradedGroup G)) 
+                (ShiftGradedMorphism (eta_graded_component G)) = 
+    graded_id (ShiftGradedGroup G).
+  Proof.
+    intro G.
+    apply GradedMorphism_eq.
+    intro n.
+    simpl.
+    destruct n as [|n'].
+    - (* degree 0: id ∘ id = id *)
+      rewrite comp_hom_id_left.
+      reflexivity.
+    - (* degree S n': id ∘ id = id *)
+      rewrite comp_hom_id_left.
+      reflexivity.
+  Qed.
+
+Theorem graded_is_prestable `{Funext} : PreStableCategory.
+  Proof.
+    exact GradedPreStable.
+  Qed.
+
+Theorem shift_loop_compose_id `{Funext} (G : GradedAbelianGroup) :
+    ShiftGradedGroup (LoopGradedGroup G) = G.
+  Proof.
+    unfold ShiftGradedGroup, LoopGradedGroup.
+    destruct G as [g].
+    simpl.
+    f_ap.
+  Qed.
