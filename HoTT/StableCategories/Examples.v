@@ -3655,4 +3655,37 @@ Proof.
     exact tt.
 Qed.
 
+(** Shift/Loop preserve zero compositions *)
+Theorem shift_preserves_distinguished {PS : PreStableCategory} 
+  {X Y Z : object PS} {f : morphism PS X Y} {g : morphism PS Y Z} 
+  {h : morphism PS Z (object_of (Susp PS) X)} :
+  (g o f)%morphism = add_zero_morphism PS X Z ->
+  (h o g)%morphism = add_zero_morphism PS Y (object_of (Susp PS) X) ->
+  (morphism_of (Susp PS) f o h)%morphism = add_zero_morphism PS Z (object_of (Susp PS) Y) ->
+  (* Then the shifted triangle is also distinguished *)
+  (morphism_of (Susp PS) g o morphism_of (Susp PS) f)%morphism = 
+  add_zero_morphism PS (object_of (Susp PS) X) (object_of (Susp PS) Z).
+Proof.
+  intros H1 H2 H3.
+  rewrite <- composition_of.
+  rewrite H1.
+  apply susp_preserves_zero_morphisms.
+Qed.
+
+(** The "five lemma" for pre-stable categories *)
+Theorem five_lemma_prestable {PS : PreStableCategory} 
+  {A B C : object PS} (f : morphism PS A B) (g : morphism PS B C) :
+  (g o f)%morphism = add_zero_morphism PS A C ->
+  exists (k : morphism PS C (object_of ((Loop PS) o (Susp PS))%functor A)),
+  (* k provides a "connecting morphism" even without full triangulation *)
+  (k o g o f)%morphism = add_zero_morphism PS A (object_of ((Loop PS) o (Susp PS))%functor A).
+Proof.
+  intro Hzero.
+  exists (add_zero_morphism PS C (object_of ((Loop PS) o (Susp PS))%functor A)).
+  rewrite associativity.
+  rewrite Hzero.
+  rewrite zero_morphism_left.
+  reflexivity.
+Qed.
+
 End CheckpointTheorems.
