@@ -2853,4 +2853,40 @@ Section GradedAbelianGroups.
     intro n.
     exact (proj2 (graded_component G n) (graded_component K n)).
   Defined.
-       
+
+(** Verify biproduct axioms *)
+  Lemma graded_beta_l (G K : GradedAbelianGroup) : 
+    graded_comp (graded_proj1 G K) (graded_inj1 G K) = graded_id G.
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro x.
+    reflexivity.
+  Qed.
+
+(** Second beta reduction *)
+  Lemma graded_beta_r (G K : GradedAbelianGroup) : 
+    graded_comp (graded_proj2 G K) (graded_inj2 G K) = graded_id K.
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro x.
+    reflexivity.
+  Qed.
+
+(** Mixed terms are zero *)
+  Lemma graded_mixed_l (G K : GradedAbelianGroup) : 
+    graded_comp (graded_proj1 G K) (graded_inj2 G K) = 
+    Build_GradedMorphism K G (fun n => zero_hom _ _).
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro x.
+    reflexivity.
+  Qed.
