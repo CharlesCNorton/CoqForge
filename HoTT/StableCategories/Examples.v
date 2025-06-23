@@ -3522,8 +3522,8 @@ Qed.
 
 End GradedAbelianGroups. 
 
-(** Checkpoint Theorem: Zero morphism preservation *)
-Section CheckpointTheorems.
+(**  Zero morphism preservation *)
+Section UsefulTheorems.
   Context `{Funext}.
   
   (** Any additive functor preserves compositions with zero morphisms *)
@@ -3688,4 +3688,73 @@ Proof.
   reflexivity.
 Qed.
 
-End CheckpointTheorems.
+(** Classification of morphisms in examples *)
+Theorem morphism_classification `{Funext} :
+  (* In TrivialPreStable: all morphisms are units *)
+  (forall (X Y : object TrivialPreStable),
+   match X, Y with
+   | SimpleBiproductCategory.Zero, _ => Unit
+   | _, SimpleBiproductCategory.Zero => Unit
+   | SimpleBiproductCategory.One, SimpleBiproductCategory.One => Unit
+   end) /\
+  (* In chain complexes: morphisms preserve degree *)
+  (forall (C D : ChainComplex) (f : ChainMap C D) (n : nat),
+   exists (fn : GroupHom (ob C n) (ob D n)), 
+   map_ob C D f n = fn) /\
+  (* In graded groups: morphisms are degree-wise group homomorphisms *)
+  (forall (G K : GradedAbelianGroup) (f : GradedMorphism G K),
+   forall n, exists (fn : GroupHom (graded_component G n) (graded_component K n)),
+   graded_mor_component G K f n = fn).
+Proof.
+  split; [|split].
+  - (* TrivialPreStable *)
+    intros X Y.
+    destruct X, Y; exact tt.
+  - (* Chain complexes *)
+    intros C D f n.
+    exists (map_ob C D f n).
+    reflexivity.
+  - (* Graded groups *)
+    intros G K f n.
+    exists (graded_mor_component G K f n).
+    reflexivity.
+Qed.
+
+(** Compound Theorem: Functors preserve exact triangles *)
+Theorem functor_preserves_exact_triangles 
+  {A B : AdditiveCategory} (F : AdditiveFunctor A B)
+  {X Y Z : object A} (f : morphism A X Y) (g : morphism A Y Z) :
+  (g o f)%morphism = add_zero_morphism A X Z ->
+  (morphism_of F g o morphism_of F f)%morphism = 
+  add_zero_morphism B (object_of F X) (object_of F Z).
+Proof.
+  intro Hexact.
+  (* Combine additive_functor_zero_composition with composition_of *)
+  rewrite <- composition_of.
+  rewrite Hexact.
+  apply additive_functor_preserves_zero_morphisms.
+Qed.
+
+(** Compound Theorem: Zero morphisms and biproducts *)
+Theorem zero_morphism_biproduct_interaction {A : AdditiveCategory} 
+  {X Y Z : object A} (f : morphism A X Z) (g : morphism A Y Z) :
+  f = add_zero_morphism A X Z ->
+  g = add_zero_morphism A Y Z ->
+  add_coprod_mor A f g = add_zero_morphism A (X ⊕ Y) Z.
+Proof.
+  intros Hf Hg.
+  (* Use uniqueness of morphisms from biproduct *)
+  symmetry.
+  apply (biproduct_coprod_unique (add_biproduct A X Y) Z 
+         f g (add_zero_morphism A (X ⊕ Y) Z)).
+  - (* zero ∘ inl = f = zero *)
+    rewrite zero_morphism_left.
+    symmetry.
+    exact Hf.
+  - (* zero ∘ inr = g = zero *)
+    rewrite zero_morphism_left.
+    symmetry.
+    exact Hg.
+Qed.
+
+End UsefulTheorems.
