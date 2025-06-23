@@ -3757,4 +3757,20 @@ Proof.
     exact Hg.
 Qed.
 
+(** Compound Theorem: Composition of zero morphisms through biproducts *)
+Theorem zero_through_biproduct {A : AdditiveCategory} 
+  {W X Y Z : object A} (f : morphism A W X) (g : morphism A Y Z) :
+  f = add_zero_morphism A W X ->
+  (g o @add_outr A X Y o add_prod_mor A f (add_zero_morphism A W Y))%morphism = 
+  add_zero_morphism A W Z.
+Proof.
+  intro Hf.
+  (* Rewrite using associativity to group properly *)
+  rewrite (associativity A W (X ⊕ Y) Y Z).
+  (* Now we have g ∘ (outr ∘ prod_mor) *)
+  rewrite add_prod_beta_r.
+  (* Now we have g ∘ zero *)
+  apply zero_morphism_right.
+Qed.
+
 End UsefulTheorems.
