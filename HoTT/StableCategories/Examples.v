@@ -3314,3 +3314,91 @@ Theorem shift_morphism_is_iso_implies_components_iso `{Funext}
       simpl in Hright.
       exact Hright.
   Defined.
+
+Theorem graded_triangle_identity_1 `{Funext} (G : GradedAbelianGroup) :
+    graded_comp (epsilon_graded_component (ShiftGradedGroup G)) 
+                (ShiftGradedMorphism (eta_graded_component G)) = 
+    graded_id (ShiftGradedGroup G).
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    simpl.
+    destruct n as [|n'].
+    - rewrite comp_hom_id_left.
+      reflexivity.
+    - rewrite comp_hom_id_left.
+      reflexivity.
+  Qed.
+
+Lemma graded_triangle_2_degree_0_check `{Funext} (G : GradedAbelianGroup) :
+    graded_mor_component _ _ 
+      (graded_comp (LoopGradedMorphism (epsilon_graded_component G))
+                   (eta_graded_component (LoopGradedGroup G))) 0 =
+    zero_hom (graded_component (LoopGradedGroup G) 0) 
+             (graded_component (LoopGradedGroup G) 0).
+  Proof.
+    simpl.
+    unfold comp_hom.
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro x.
+    reflexivity.
+  Qed.
+
+Theorem graded_eta_is_iso_positive_degrees `{Funext} (G : GradedAbelianGroup) (n : nat) :
+    OppositeCategories.IsIsomorphism 
+      (graded_mor_component _ _ (eta_graded_component G) (S n) : morphism AbGroupCat _ _).
+  Proof.
+    simpl.
+    exists (id_hom _ : morphism AbGroupCat _ _).
+    split; apply comp_hom_id_left.
+  Defined.
+
+Theorem graded_example_summary `{Funext} :
+    PreStableCategory.
+  Proof.
+    exact GradedPreStable.
+  Defined.
+
+(* Define the image of a group homomorphism *)
+  Definition HomImage {G H : AbelianGroupWithLaws} (f : GroupHom G H) : Type :=
+    {y : carrier (group H) & {x : carrier (group G) & hom_map G H f x = y}}.
+
+  (* Define the equivalence relation for the cokernel *)
+  Definition cokernel_rel {G H : AbelianGroupWithLaws} (f : GroupHom G H) 
+    (y1 y2 : carrier (group H)) : Type :=
+    {x : carrier (group G) & 
+     plus (group H) y1 (hom_map G H f x) = y2}.
+
+Lemma cokernel_rel_refl {A B : AbelianGroupWithLaws} (f : GroupHom A B) 
+    (y : carrier (group B)) : cokernel_rel f y y.
+  Proof.
+    exists (zero (group A)).
+    rewrite hom_zero.
+    apply plus_zero_r.
+    apply laws.
+  Qed.
+
+(* If a + b = 0 in an abelian group, then b = -a *)
+  Lemma plus_eq_zero_implies_neg {G : AbelianGroupWithLaws} (a b : carrier (group G)) :
+    plus (group G) a b = zero (group G) -> b = neg (group G) a.
+  Proof.
+    intro Hab.
+    (* Add -a to both sides on the left *)
+    pose proof (ap (plus (group G) (neg (group G) a)) Hab) as Heq.
+    rewrite plus_assoc in Heq; [|apply laws].
+    rewrite plus_neg_l in Heq; [|apply laws].
+    rewrite plus_zero_l in Heq; [|apply laws].
+    rewrite plus_zero_r in Heq; [|apply laws].
+    exact Heq.
+  Qed.
+
+(* Group homomorphisms preserve negation *)
+  Lemma hom_neg {A B : AbelianGroupWithLaws} (f : GroupHom A B) (x : carrier (group A)) :
+    hom_map A B f (neg (group A) x) = neg (group B) (hom_map A B f x).
+  Proof.
+    apply plus_eq_zero_implies_neg.
+    rewrite <- hom_plus.
+    rewrite plus_neg_r; [|apply laws].
+    apply hom_zero.
+  Qed.
