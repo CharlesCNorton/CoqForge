@@ -3402,3 +3402,60 @@ Lemma cokernel_rel_refl {A B : AbelianGroupWithLaws} (f : GroupHom A B)
     rewrite plus_neg_r; [|apply laws].
     apply hom_zero.
   Qed.
+
+Lemma cokernel_rel_symm {A B : AbelianGroupWithLaws} (f : GroupHom A B) 
+    (y1 y2 : carrier (group B)) : cokernel_rel f y1 y2 -> cokernel_rel f y2 y1.
+  Proof.
+    intros [x Hx].
+    exists (neg (group A) x).
+    rewrite hom_neg.
+    rewrite <- Hx.
+    rewrite <- plus_assoc; [|apply laws].
+    rewrite plus_neg_r; [|apply laws].
+    rewrite plus_zero_r; [|apply laws].
+    reflexivity.
+  Qed.
+
+Lemma cokernel_rel_trans {A B : AbelianGroupWithLaws} (f : GroupHom A B) 
+    (y1 y2 y3 : carrier (group B)) : 
+    cokernel_rel f y1 y2 -> cokernel_rel f y2 y3 -> cokernel_rel f y1 y3.
+  Proof.
+    intros [x1 Hx1] [x2 Hx2].
+    exists (plus (group A) x1 x2).
+    rewrite hom_plus.
+    rewrite <- Hx2.
+    rewrite <- Hx1.
+    rewrite <- plus_assoc; [|apply laws].
+    reflexivity.
+  Qed.
+
+  Definition GradedCofiber{G K : GradedAbelianGroup} (f : GradedMorphism G K) : GradedAbelianGroup.
+  Proof.
+    refine (Build_GradedAbelianGroup _).
+    intro n.
+    destruct n as [|n'].
+    - exact (graded_component K 0).
+    - exact (DirectSum (graded_component K (S n')) (graded_component G n')).
+  Defined.
+
+Definition GradedCofiber_in {G K : GradedAbelianGroup} (f : GradedMorphism G K) 
+    : GradedMorphism K (GradedCofiber f).
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    destruct n as [|n'].
+    - exact (id_hom (graded_component K 0)).
+    - exact (inj1 (graded_component K (S n')) (graded_component G n')).
+  Defined.
+
+Definition GradedCofiber_out {G K : GradedAbelianGroup} (f : GradedMorphism G K) 
+    : GradedMorphism (GradedCofiber f) (ShiftGradedGroup G).
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    simpl.
+    destruct n as [|n'].
+    - exact (zero_hom (graded_component K 0) (graded_component G 1)).
+    - exact (zero_hom (DirectSum (graded_component K (S n')) (graded_component G n'))
+                      (graded_component G (S (S n')))).
+  Defined.
