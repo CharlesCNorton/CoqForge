@@ -3225,3 +3225,72 @@ Theorem shift_loop_compose_id `{Funext} (G : GradedAbelianGroup) :
     simpl.
     f_ap.
   Qed.
+
+Theorem eta_at_degree_zero_is_zero `{Funext} (G : GradedAbelianGroup) :
+    hom_map _ _ (graded_mor_component _ _ (eta_graded_component G) 0) 
+            (zero (group (graded_component G 0))) = 
+    zero (group (graded_component G 1)).
+  Proof.
+    simpl. reflexivity.
+  Qed.
+
+Theorem epsilon_left_inverse `{Funext} (G : GradedAbelianGroup) :
+    graded_comp (Build_GradedMorphism G (ShiftGradedGroup (LoopGradedGroup G)) (fun n => id_hom _))
+                (epsilon_graded_component G) = 
+    graded_id (ShiftGradedGroup (LoopGradedGroup G)).
+  Proof.
+    apply GradedMorphism_eq. 
+    intro n. 
+    simpl. 
+    apply comp_hom_id_left.
+  Qed.
+
+Theorem epsilon_right_inverse `{Funext} (G : GradedAbelianGroup) :
+    graded_comp (epsilon_graded_component G)
+                (Build_GradedMorphism G (ShiftGradedGroup (LoopGradedGroup G)) (fun n => id_hom _)) = 
+    graded_id G.
+  Proof.
+    apply GradedMorphism_eq. 
+    intro n. 
+    simpl. 
+    apply comp_hom_id_left.
+  Qed.
+
+Theorem epsilon_component_is_iso `{Funext} (G : GradedAbelianGroup) :
+    IsIsomorphism (epsilon_graded_component G : morphism GradedAbGroupCat _ _).
+  Proof.
+    exists (Build_GradedMorphism G (ShiftGradedGroup (LoopGradedGroup G)) (fun n => id_hom _)).
+    - exact (epsilon_left_inverse G).
+    - exact (epsilon_right_inverse G).
+  Defined.
+
+Require Import SemiStableCategories.
+
+  Lemma graded_comp_is_morphism_comp {A B C : GradedAbelianGroup} 
+    (g : morphism GradedAbGroupCat B C) (f : morphism GradedAbGroupCat A B) :
+    graded_comp g f = (g o f)%morphism.
+  Proof.
+    reflexivity.
+  Qed.
+
+  Lemma graded_id_is_identity (G : GradedAbelianGroup) :
+    graded_id G = (1 : morphism GradedAbGroupCat G G)%morphism.
+  Proof.
+    reflexivity.
+  Qed.
+
+(* Now we can complete the proof *)
+  Theorem graded_epsilon_is_iso_opposite `{Funext} (G : GradedAbelianGroup) :
+    OppositeCategories.IsIsomorphism (epsilon_graded_component G : morphism GradedAbGroupCat _ _).
+  Proof.
+    exists (Build_GradedMorphism G (ShiftGradedGroup (LoopGradedGroup G)) (fun n => id_hom _)).
+    split.
+    - (* First direction *)
+      rewrite <- graded_comp_is_morphism_comp.
+      rewrite <- graded_id_is_identity.
+      exact (epsilon_left_inverse G).
+    - (* Second direction *)
+      rewrite <- graded_comp_is_morphism_comp.
+      rewrite <- graded_id_is_identity.
+      exact (epsilon_right_inverse G).
+  Defined.
