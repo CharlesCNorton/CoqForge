@@ -3279,7 +3279,6 @@ Require Import SemiStableCategories.
     reflexivity.
   Qed.
 
-(* Now we can complete the proof *)
   Theorem graded_epsilon_is_iso_opposite `{Funext} (G : GradedAbelianGroup) :
     OppositeCategories.IsIsomorphism (epsilon_graded_component G : morphism GradedAbGroupCat _ _).
   Proof.
@@ -3293,4 +3292,25 @@ Require Import SemiStableCategories.
       rewrite <- graded_comp_is_morphism_comp.
       rewrite <- graded_id_is_identity.
       exact (epsilon_right_inverse G).
+  Defined.
+
+Theorem shift_morphism_is_iso_implies_components_iso `{Funext} 
+    {G K : GradedAbelianGroup} (f : GradedMorphism G K) :
+    OppositeCategories.IsIsomorphism (ShiftGradedMorphism f : morphism GradedAbGroupCat _ _) ->
+    forall n, OppositeCategories.IsIsomorphism 
+              (graded_mor_component G K f (S n) : morphism AbGroupCat _ _).
+  Proof.
+    intros [g [Hgf Hfg]] n.
+    exists (graded_mor_component _ _ g n : morphism AbGroupCat _ _).
+    split.
+    - pose proof (ap (fun h => graded_mor_component _ _ h n) Hgf) as Hleft.
+      simpl in Hleft.
+      unfold ShiftGradedMorphism in Hleft.
+      simpl in Hleft.
+      exact Hleft.
+    - pose proof (ap (fun h => graded_mor_component _ _ h n) Hfg) as Hright.
+      simpl in Hright.
+      unfold ShiftGradedMorphism in Hright.
+      simpl in Hright.
+      exact Hright.
   Defined.
