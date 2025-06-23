@@ -3774,3 +3774,242 @@ Proof.
 Qed.
 
 End UsefulTheorems.
+
+Section SemiStableExamples.
+  Context `{Funext}.
+  
+  Require Import SemiStableCategories.
+  
+  (** * Example 1: Graded groups are right semi-stable but not left semi-stable *)
+  
+  (** We already proved epsilon is an isomorphism *)
+  Theorem graded_is_right_semi_stable : 
+    is_right_semi_stable GradedPreStable.
+  Proof.
+    intro G.
+    unfold is_right_semi_stable.
+    (* We need to show IsIsomorphism (components_of (epsilon GradedPreStable) G) *)
+    (* We already have graded_epsilon_is_iso_opposite which shows 
+       OppositeCategories.IsIsomorphism *)
+    apply graded_epsilon_is_iso_opposite.
+  Qed.
+
+(** Zero morphisms are not isomorphisms between non-trivial groups *)
+  Lemma zero_hom_not_iso_nontrivial (A B : AbelianGroupWithLaws) :
+    (exists a : carrier (group A), a <> zero (group A)) ->
+    ~ OppositeCategories.IsIsomorphism (zero_hom A B : morphism AbGroupCat A B).
+  Proof.
+    intros [a Ha] [g [Hgf Hfg]].
+    pose proof (ap10 (ap (fun h => hom_map _ _ h) Hgf) a) as Happ.
+    unfold comp_hom in Happ.
+    simpl in Happ.
+    assert (H1 : hom_map B A g (zero (group B)) = a).
+    { exact Happ. }
+    assert (H2 : hom_map B A g (zero (group B)) = zero (group A)).
+    { apply hom_zero. }
+    rewrite H2 in H1.
+    exact (Ha H1^).
+  Qed.
+
+(** The key insight: eta at degree 0 is definitionally zero *)
+  Lemma eta_degree_zero_is_zero (G : GradedAbelianGroup) :
+    graded_mor_component _ _ (eta_graded_component G) O = 
+    zero_hom (graded_component G O) (graded_component G 1).
+  Proof.
+    reflexivity.
+  Qed.
+
+Definition xorb (b1 b2 : Bool) : Bool :=
+  match b1, b2 with
+  | true, true => false
+  | true, false => true
+  | false, true => true
+  | false, false => false
+  end.
+
+Definition bool_neg (b : Bool) : Bool := b.
+
+Definition BoolGroup : AbelianGroupWithLaws.
+Proof.
+  refine (Build_AbelianGroupWithLaws
+    (Build_AbelianGroup Bool false xorb bool_neg)
+    _ _).
+  - (* laws: AbelianGroup_laws *)
+    refine (Build_AbelianGroup_laws _ _ _ _ _ _ _).
+    + (* plus_assoc *)
+      intros x y z.
+      destruct x, y, z; reflexivity.
+    + (* plus_zero_l *)
+      intros x.
+      destruct x; reflexivity.
+    + (* plus_zero_r *)
+      intros x.
+      destruct x; reflexivity.
+    + (* plus_neg_l *)
+      intros x.
+      destruct x; reflexivity.
+    + (* plus_neg_r *)
+      intros x.
+      destruct x; reflexivity.
+    + (* plus_comm *)
+      intros x y.
+      destruct x, y; reflexivity.
+Defined.
+
+Lemma bool_true_nonzero : true <> zero (group BoolGroup).
+Proof.
+  simpl.
+  intro Heq.
+  discriminate.
+Qed.
+
+Definition BoolGradedGroup : GradedAbelianGroup.
+Proof.
+  refine (Build_GradedAbelianGroup _).
+  intro n.
+  destruct n as [|n'].
+  - (* degree 0: use BoolGroup *)
+    exact BoolGroup.
+  - (* other degrees: use TrivialGroup *)
+    exact TrivialGroup.
+Defined.
+
+Theorem graded_not_left_semi_stable : 
+  ~ is_left_semi_stable GradedPreStable.
+Proof.
+  unfold is_left_semi_stable.
+  intro H_all_iso.
+  
+  (* Get the supposed isomorphism for BoolGradedGroup *)
+  pose proof (H_all_iso BoolGradedGroup) as H_iso.
+  destruct H_iso as [g [Hgf Hfg]].
+  
+  (* Extract what happens at degree 0 *)
+  pose proof (ap (fun h => graded_mor_component _ _ h 0) Hgf) as Hgf_0.
+  
+  (* We know eta at degree 0 is zero *)
+  assert (H_eta_zero : graded_mor_component _ _ (components_of (eta GradedPreStable) BoolGradedGroup) 0 = 
+                       zero_hom (graded_component BoolGradedGroup 0) 
+                               (graded_component (object_of ((Loop GradedPreStable) o (Susp GradedPreStable))%functor BoolGradedGroup) 0)).
+  {
+    reflexivity.
+  }
+  
+  (* Now we can analyze what Hgf_0 says *)
+  simpl in Hgf_0.
+  unfold graded_comp in Hgf_0.
+  simpl in Hgf_0.
+  
+  (* Apply the equation to the element true *)
+  pose proof (ap10 (ap (fun h => hom_map _ _ h) Hgf_0) true) as H_true.
+  simpl in H_true.
+  
+  (* The composition g ∘ zero must give identity, but that's impossible *)
+  assert (H_absurd : hom_map _ _ (graded_mor_component _ _ g 0) tt = true).
+  {
+    rewrite <- H_true.
+    unfold comp_hom.
+    simpl.
+    reflexivity.
+  }
+  
+  (* But g must preserve zero *)
+  assert (H_zero : hom_map _ _ (graded_mor_component _ _ g 0) tt = false).
+  {
+    exact (hom_zero _ _ (graded_mor_component _ _ g 0)).
+  }
+  
+  (* Contradiction *)
+  rewrite H_zero in H_absurd.
+  discriminate.
+Qed.
+
+Require Import PreStableCofiber.
+
+(** * The Universal Property of Cofibers *)
+
+Section CofiberUniversalProperty.
+  Context (PSC : PreStableCategoryWithCofiber).
+
+  (** The universal property states that morphisms from Y that vanish 
+      when precomposed with f factor uniquely through the cofiber *)
+  
+  (** First, let's state what we want to prove *)
+  Definition has_universal_property : Type :=
+    forall (X Y : object PSC) (f : morphism PSC X Y) (W : object PSC)
+           (h : morphism PSC Y W),
+    (h o f)%morphism = add_zero_morphism PSC X W ->
+    { k : morphism PSC (@cofiber PSC X Y f) W |
+      (k o @cofiber_in PSC X Y f)%morphism = h /\
+      forall k' : morphism PSC (@cofiber PSC X Y f) W,
+      (k' o @cofiber_in PSC X Y f)%morphism = h -> k' = k }.
+
+Lemma cofiber_in_kills_f {X Y : object PSC} (f : morphism PSC X Y) :
+    (@cofiber_in PSC X Y f o f)%morphism = 
+    add_zero_morphism PSC X (@cofiber PSC X Y f).
+  Proof.
+    exact (@cofiber_cond1 PSC X Y f).
+  Qed.
+
+  Lemma cofiber_out_kills_in {X Y : object PSC} (f : morphism PSC X Y) :
+    (@cofiber_out PSC X Y f o @cofiber_in PSC X Y f)%morphism = 
+    add_zero_morphism PSC Y (object_of (Susp PSC) X).
+  Proof.
+    exact (@cofiber_cond2 PSC X Y f).
+  Qed.
+
+Lemma susp_f_kills_out {X Y : object PSC} (f : morphism PSC X Y) :
+    (morphism_of (Susp PSC) f o @cofiber_out PSC X Y f)%morphism = 
+    add_zero_morphism PSC (@cofiber PSC X Y f) (object_of (Susp PSC) Y).
+  Proof.
+    exact (@cofiber_cond3 PSC X Y f).
+  Qed.
+
+  (** The key insight: we need to extend PreStableCategoryWithCofiber 
+      to include the factorization property *)
+  Definition needs_factorization_property : Type :=
+    forall {X Y W : object PSC} (f : morphism PSC X Y) (h : morphism PSC Y W),
+    (h o f)%morphism = add_zero_morphism PSC X W ->
+    morphism PSC (@cofiber PSC X Y f) W.
+
+End CofiberUniversalProperty.
+
+(** * Extended Pre-Stable Categories with Cofiber Universal Property *)
+
+Record PreStableCategoryWithCofiberUniversal := {
+  base_cofiber :> PreStableCategoryWithCofiber;
+  
+  cofiber_factor : forall {X Y W : object base_cofiber} 
+    (f : morphism base_cofiber X Y) (h : morphism base_cofiber Y W),
+    (h o f)%morphism = add_zero_morphism base_cofiber X W ->
+    morphism base_cofiber (@cofiber base_cofiber X Y f) W;
+    
+  cofiber_factor_commutes : forall {X Y W : object base_cofiber} 
+    (f : morphism base_cofiber X Y) (h : morphism base_cofiber Y W)
+    (H_zero : (h o f)%morphism = add_zero_morphism base_cofiber X W),
+    (cofiber_factor f h H_zero o @cofiber_in base_cofiber X Y f)%morphism = h;
+    
+  cofiber_factor_unique : forall {X Y W : object base_cofiber} 
+    (f : morphism base_cofiber X Y) (h : morphism base_cofiber Y W)
+    (H_zero : (h o f)%morphism = add_zero_morphism base_cofiber X W)
+    (k' : morphism base_cofiber (@cofiber base_cofiber X Y f) W),
+    (k' o @cofiber_in base_cofiber X Y f)%morphism = h -> 
+    k' = cofiber_factor f h H_zero
+}.
+
+(** * Proof that the extended structure satisfies the universal property *)
+
+Require Import OctahedralLemmas.
+
+Theorem cofiber_has_universal_property 
+  (S : PreStableCategoryWithCofiberUniversal) 
+  : cofiber_universal_property S.
+Proof.
+  unfold cofiber_universal_property.
+  intros X Y f W h H_zero.
+  exists (cofiber_factor S f h H_zero).
+  split.
+  - exact (cofiber_factor_commutes S f h H_zero).
+  - intros k' H_k'.
+    exact (cofiber_factor_unique S f h H_zero k' H_k').
+Qed.
