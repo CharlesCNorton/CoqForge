@@ -2890,3 +2890,145 @@ Section GradedAbelianGroups.
     apply path_forall. intro x.
     reflexivity.
   Qed.
+
+(** Second mixed term is zero *)
+  Lemma graded_mixed_r (G K : GradedAbelianGroup) : 
+    graded_comp (graded_proj2 G K) (graded_inj1 G K) = 
+    Build_GradedMorphism G K (fun n => zero_hom _ _).
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro x.
+    reflexivity.
+  Qed.
+
+(** Coproduct morphism *)
+  Definition graded_coprod_mor (G K W : GradedAbelianGroup) 
+    (f : GradedMorphism G W) (g : GradedMorphism K W) 
+    : GradedMorphism (DirectSumGraded G K) W.
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    set (fn := graded_mor_component G W f n).
+    set (gn := graded_mor_component K W g n).
+    refine (Build_GroupHom (DirectSum (graded_component G n) (graded_component K n))
+                          (graded_component W n)
+                          (fun p => plus (group (graded_component W n))
+                                        (hom_map _ _ fn (fst p))
+                                        (hom_map _ _ gn (snd p))) _ _).
+    - (* hom_zero *)
+      simpl.
+      rewrite (hom_zero _ _ fn).
+      rewrite (hom_zero _ _ gn).
+      apply (plus_zero_l _ (laws (graded_component W n))).
+    - (* hom_plus *)
+      intros p1 p2.
+      simpl.
+      rewrite (hom_plus _ _ fn).
+      rewrite (hom_plus _ _ gn).
+      (* Rearrange using associativity and commutativity *)
+      set (fx1 := hom_map _ _ fn (fst p1)).
+      set (fx2 := hom_map _ _ fn (fst p2)).
+      set (gy1 := hom_map _ _ gn (snd p1)).
+      set (gy2 := hom_map _ _ gn (snd p2)).
+      rewrite <- (plus_assoc _ (laws (graded_component W n)) fx1 gy1 _).
+      rewrite (plus_assoc _ (laws (graded_component W n)) gy1 fx2 gy2).
+      rewrite (plus_comm _ (laws (graded_component W n)) gy1 fx2).
+      rewrite <- (plus_assoc _ (laws (graded_component W n)) fx2 gy1 gy2).
+      rewrite (plus_assoc _ (laws (graded_component W n)) fx1 fx2 _).
+      reflexivity.
+  Defined.
+
+(** Coproduct beta reduction - left *)
+  Lemma graded_coprod_beta_l (G K W : GradedAbelianGroup) 
+    (f : GradedMorphism G W) (g : GradedMorphism K W) :
+    graded_comp (graded_coprod_mor G K W f g) (graded_inj1 G K) = f.
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro x.
+    simpl.
+    rewrite (hom_zero _ _ (graded_mor_component K W g n)).
+    apply (plus_zero_r _ (laws (graded_component W n))).
+  Qed.
+
+(** Coproduct beta reduction - right *)
+  Lemma graded_coprod_beta_r (G K W : GradedAbelianGroup) 
+    (f : GradedMorphism G W) (g : GradedMorphism K W) :
+    graded_comp (graded_coprod_mor G K W f g) (graded_inj2 G K) = g.
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    simpl.
+    apply GroupHom_eq.
+    apply path_forall. intro x.
+    simpl.
+    rewrite (hom_zero _ _ (graded_mor_component G W f n)).
+    apply (plus_zero_l _ (laws (graded_component W n))).
+  Qed.
+
+(** Product morphism *)
+  Definition graded_prod_mor (W G K : GradedAbelianGroup) 
+    (f : GradedMorphism W G) (g : GradedMorphism W K) 
+    : GradedMorphism W (DirectSumGraded G K).
+  Proof.
+    refine (Build_GradedMorphism _ _ _).
+    intro n.
+    refine (Build_GroupHom (graded_component W n)
+                          (DirectSum (graded_component G n) (graded_component K n))
+                          (fun w => (hom_map _ _ (graded_mor_component W G f n) w,
+                                    hom_map _ _ (graded_mor_component W K g n) w)) _ _).
+    - (* hom_zero *)
+      simpl.
+      f_ap.
+      * apply (hom_zero _ _ (graded_mor_component W G f n)).
+      * apply (hom_zero _ _ (graded_mor_component W K g n)).
+    - (* hom_plus *)
+      intros w1 w2.
+      simpl.
+      f_ap.
+      * apply (hom_plus _ _ (graded_mor_component W G f n)).
+      * apply (hom_plus _ _ (graded_mor_component W K g n)).
+  Defined.
+
+(** Product beta reduction - left *)
+  Lemma graded_prod_beta_l (W G K : GradedAbelianGroup) 
+    (f : GradedMorphism W G) (g : GradedMorphism W K) :
+    graded_comp (graded_proj1 G K) (graded_prod_mor W G K f g) = f.
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intro w.
+    reflexivity.
+  Qed.
+
+(** Product beta reduction - right *)
+  Lemma graded_prod_beta_r (W G K : GradedAbelianGroup) 
+    (f : GradedMorphism W G) (g : GradedMorphism W K) :
+    graded_comp (graded_proj2 G K) (graded_prod_mor W G K f g) = g.
+  Proof.
+    apply GradedMorphism_eq.
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intro w.
+    reflexivity.
+  Qed.
+
+(** The zero morphism in GradedAbGroupCat *)
+  Lemma graded_zero_morphism_eq (G K : GradedAbelianGroup) :
+    zero_morphism ZeroGradedGroup_is_zero G K = 
+    Build_GradedMorphism G K (fun n => zero_hom _ _).
+  Proof.
+    unfold zero_morphism.
+    simpl.
+    apply GradedMorphism_eq.
+    intro n.
+    apply GroupHom_eq.
+    apply path_forall. intro x.
+    reflexivity.
+  Qed.
