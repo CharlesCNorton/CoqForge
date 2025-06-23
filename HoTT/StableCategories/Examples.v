@@ -3032,3 +3032,188 @@ Section GradedAbelianGroups.
     apply path_forall. intro x.
     reflexivity.
   Qed.
+
+(** GradedMorphism forms an HSet *)
+Global Instance GradedMorphism_IsHSet `{Funext} (G K : GradedAbelianGroup) 
+  : IsHSet (GradedMorphism G K).
+Proof.
+  (* GradedMorphism is equivalent to the product of GroupHoms at each degree *)
+  assert (equiv_to_prod : GradedMorphism G K <~> 
+    forall n, GroupHom (graded_component G n) (graded_component K n)).
+  {
+    apply (equiv_adjointify
+      (graded_mor_component G K)
+      (Build_GradedMorphism G K)).
+    - (* Section *)
+      intro f.
+      apply path_forall. intro n.
+      reflexivity.
+    - (* Retraction *)
+      intros [comp].
+      reflexivity.
+  }
+  (* Use the equivalence *)
+  apply (istrunc_equiv_istrunc _ equiv_to_prod^-1).
+Qed.
+
+(** Helper: Product of HProps is HProp *)
+Lemma prod_is_hprop (A B : Type) (HA : IsHProp A) (HB : IsHProp B) : IsHProp (A * B).
+Proof.
+  apply istrunc_prod; assumption.
+Qed.
+
+(** The key uniqueness lemma for coproduct *)
+Lemma graded_coprod_unique (G K W : GradedAbelianGroup) 
+  (f : GradedMorphism G W) (g : GradedMorphism K W)
+  (h : GradedMorphism (DirectSumGraded G K) W) :
+  graded_comp h (graded_inj1 G K) = f ->
+  graded_comp h (graded_inj2 G K) = g ->
+  h = graded_coprod_mor G K W f g.
+Proof.
+  intros Hl Hr.
+  apply GradedMorphism_eq.
+  intro n.
+  apply GroupHom_eq.
+  apply path_forall. intros [x y].
+  
+  (* Key insight: (x,y) = (x,0) + (0,y) in the direct sum *)
+  assert (Hxy_decomp : (x, y) = 
+    plus (group (DirectSum (graded_component G n) (graded_component K n)))
+         (x, zero (group (graded_component K n)))
+         (zero (group (graded_component G n)), y)).
+  {
+    simpl.
+    f_ap.
+    - symmetry. apply (plus_zero_r _ (laws (graded_component G n))).
+    - symmetry. apply (plus_zero_l _ (laws (graded_component K n))).
+  }
+  
+  (* Now use that h is a homomorphism *)
+  rewrite Hxy_decomp.
+  rewrite (hom_plus _ _ (graded_mor_component _ _ h n)).
+  
+  (* Apply our knowledge from Hl and Hr *)
+  pose proof (ap (fun k => graded_mor_component _ _ k n) Hl) as Hl_n.
+  pose proof (ap (fun k => graded_mor_component _ _ k n) Hr) as Hr_n.
+  simpl in *.
+  
+  assert (Hlx : hom_map _ _ (graded_mor_component _ _ h n) 
+                        (x, zero (group (graded_component K n))) =
+                hom_map _ _ (graded_mor_component G W f n) x).
+  {
+    change (hom_map _ _ (graded_mor_component _ _ h n) 
+                   (hom_map _ _ (inj1 _ _) x) =
+            hom_map _ _ (graded_mor_component G W f n) x).
+    unfold comp_hom in Hl_n.
+    exact (ap (fun k => hom_map _ _ k x) Hl_n).
+  }
+  
+  assert (Hry : hom_map _ _ (graded_mor_component _ _ h n) 
+                        (zero (group (graded_component G n)), y) =
+                hom_map _ _ (graded_mor_component K W g n) y).
+  {
+    change (hom_map _ _ (graded_mor_component _ _ h n) 
+                   (hom_map _ _ (inj2 _ _) y) =
+            hom_map _ _ (graded_mor_component K W g n) y).
+    unfold comp_hom in Hr_n.
+    exact (ap (fun k => hom_map _ _ k y) Hr_n).
+  }
+  
+  rewrite Hlx, Hry.
+  
+  (* Now simplify using x + 0 = x and 0 + y = y *)
+  simpl.
+  f_ap.
+  - (* For f(x + 0) = f(x) *)
+    rewrite (plus_zero_r _ (laws (graded_component G n))).
+    reflexivity.
+  - (* For g(0 + y) = g(y) *)
+    rewrite (plus_zero_l _ (laws (graded_component K n))).
+    reflexivity.
+Qed.
+
+(** The key uniqueness lemma for product *)
+Lemma graded_prod_unique (W G K : GradedAbelianGroup) 
+  (f : GradedMorphism W G) (g : GradedMorphism W K)
+  (h : GradedMorphism W (DirectSumGraded G K)) :
+  graded_comp (graded_proj1 G K) h = f ->
+  graded_comp (graded_proj2 G K) h = g ->
+  h = graded_prod_mor W G K f g.
+Proof.
+  intros Hl Hr.
+  apply GradedMorphism_eq.
+  intro n.
+  apply GroupHom_eq.
+  apply path_forall. intro w.
+  
+  (* Apply our knowledge from Hl and Hr *)
+  pose proof (ap (fun k => graded_mor_component _ _ k n) Hl) as Hl_n.
+  pose proof (ap (fun k => graded_mor_component _ _ k n) Hr) as Hr_n.
+  simpl in *.
+  pose proof (ap (fun k => hom_map _ _ k w) Hl_n) as Hlw.
+  pose proof (ap (fun k => hom_map _ _ k w) Hr_n) as Hrw.
+  simpl in *.
+  
+  (* Decompose h(w) as a pair *)
+  destruct (hom_map _ _ (graded_mor_component _ _ h n) w) as [a b].
+  simpl in *.
+  
+  (* Now Hlw : a = f(w) and Hrw : b = g(w) *)
+  f_ap; assumption.
+Qed.
+
+(** Verify DirectSumGraded is a biproduct *)
+Definition GradedBiproduct (G K : GradedAbelianGroup) 
+  : @Biproduct GradedAbGroupCat G K ZeroGradedGroup_is_zero.
+Proof.
+  (* Biproduct data *)
+  pose (bdata := Build_BiproductData GradedAbGroupCat G K 
+    (DirectSumGraded G K)
+    (graded_inj1 G K)
+    (graded_inj2 G K)
+    (graded_proj1 G K)
+    (graded_proj2 G K)).
+  
+  (* Biproduct axioms *)
+  assert (bis : IsBiproduct bdata ZeroGradedGroup_is_zero).
+  {
+    simple refine (Build_IsBiproduct _ _ _ _ _ _ _ _ _).
+    - apply graded_beta_l.
+    - apply graded_beta_r.
+    - simpl. rewrite graded_mixed_l. symmetry. apply graded_zero_morphism_eq.
+    - simpl. rewrite graded_mixed_r. symmetry. apply graded_zero_morphism_eq.
+  }
+  
+  (* Universal property *)
+  assert (buni : HasBiproductUniversal bdata).
+  {
+    simple refine (Build_HasBiproductUniversal _ _ _ _ _ _).
+    - (* Coproduct universal *)
+      intros W f g.
+      apply (Build_Contr _ (graded_coprod_mor G K W f g; 
+                           (graded_coprod_beta_l G K W f g, 
+                            graded_coprod_beta_r G K W f g))).
+      intros [h [Hl Hr]].
+      apply path_sigma_uncurried.
+      simpl.
+      exists ((graded_coprod_unique G K W f g h Hl Hr)^).
+      apply path_ishprop.
+      
+    - (* Product universal *)
+      intros W f g.
+      apply (Build_Contr _ (graded_prod_mor W G K f g; 
+                           (graded_prod_beta_l W G K f g, 
+                            graded_prod_beta_r W G K f g))).
+      intros [h [Hl Hr]].
+      apply path_sigma_uncurried.
+      simpl.
+      exists ((graded_prod_unique W G K f g h Hl Hr)^).
+      apply path_ishprop.
+  }
+  
+  exact (Build_Biproduct _ _ _ _ bdata bis buni).
+Defined.
+
+
+
+
