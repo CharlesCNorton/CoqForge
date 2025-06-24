@@ -4013,3 +4013,118 @@ Proof.
   - intros k' H_k'.
     exact (cofiber_factor_unique S f h H_zero k' H_k').
 Qed.
+
+(** The universal property requirement explains why graded groups 
+    cannot form a triangulated category *)
+
+Lemma graded_lacks_cofibers_for_nonzero `{Funext} :
+  exists (G K : GradedAbelianGroup) (f : GradedMorphism G K),
+  f <> Build_GradedMorphism G K (fun n => zero_hom _ _) /\
+  forall (C : GradedAbelianGroup) (i : GradedMorphism K C),
+  graded_comp i f = Build_GradedMorphism G C (fun n => zero_hom _ _) ->
+  i = Build_GradedMorphism K C (fun n => zero_hom _ _).
+Proof.
+  exists BoolGradedGroup, BoolGradedGroup, (graded_id BoolGradedGroup).
+  split.
+  - (* id is not zero *)
+    intro H_eq.
+    pose proof (ap (fun g => graded_mor_component _ _ g 0) H_eq) as H_at_zero.
+    simpl in H_at_zero.
+    pose proof (ap10 (ap (fun h => hom_map _ _ h) H_at_zero) true) as Htrue.
+    simpl in Htrue.
+    discriminate.
+  - (* If i ∘ id = 0, then i = 0 *)
+    intros C i Hi.
+    apply GradedMorphism_eq.
+    intro n.
+    pose proof (ap (fun g => graded_mor_component _ _ g n) Hi) as Hin.
+    simpl in Hin.
+    rewrite comp_hom_id_right in Hin.
+    exact Hin.
+Qed.
+
+(** * Helper lemmas for the non-triangulated proof *)
+
+Lemma graded_comp_id_id (G : GradedAbelianGroup) :
+  graded_comp (graded_id G) (graded_id G) = graded_id G.
+Proof.
+  apply GradedMorphism_eq.
+  intro n.
+  simpl.
+  apply comp_hom_id_left.
+Qed.
+
+Lemma graded_id_not_zero (G : GradedAbelianGroup) :
+  (exists n : nat, exists x : carrier (group (graded_component G n)), 
+   x <> zero (group (graded_component G n))) ->
+  graded_id G <> Build_GradedMorphism G G (fun n => zero_hom _ _).
+Proof.
+  intros [n [x Hx]] Heq.
+  pose proof (ap (fun g => graded_mor_component _ _ g n) Heq) as Hn.
+  simpl in Hn.
+  pose proof (ap10 (ap (fun h => hom_map _ _ h) Hn) x) as Happ.
+  simpl in Happ.
+  exact (Hx Happ).
+Qed.
+
+Lemma BoolGradedGroup_degree_zero_is_BoolGroup :
+  graded_component BoolGradedGroup 0 = BoolGroup.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma BoolGroup_zero_is_false :
+  zero (group BoolGroup) = false.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma BoolGradedGroup_has_nonzero :
+  exists n : nat, exists x : carrier (group (graded_component BoolGradedGroup n)), 
+  x <> zero (group (graded_component BoolGradedGroup n)).
+Proof.
+  exists O.
+  simpl.  
+  exists true.
+  simpl. 
+  discriminate.
+Qed.
+
+Lemma graded_comp_with_zero_right (G K : GradedAbelianGroup) (f : GradedMorphism G K) :
+  graded_comp f (Build_GradedMorphism G G (fun n => zero_hom _ _)) = 
+  Build_GradedMorphism G K (fun n => zero_hom _ _).
+Proof.
+  apply GradedMorphism_eq.
+  intro n.
+  simpl.
+  apply comp_zero_hom_right.
+Qed.
+
+Lemma graded_comp_id_right (G K : GradedAbelianGroup) (f : GradedMorphism G K) :
+  graded_comp f (graded_id G) = f.
+Proof.
+  apply GradedMorphism_eq.
+  intro n.
+  simpl.
+  apply comp_hom_id_right.
+Qed.
+
+(** * Alternative: Direct proof that graded groups lack non-trivial cofibers *)
+
+Theorem graded_lacks_nontrivial_cofibers `{Funext} :
+  forall (f : GradedMorphism BoolGradedGroup BoolGradedGroup),
+  f = graded_id BoolGradedGroup ->
+  forall (C : GradedAbelianGroup) 
+         (i : GradedMorphism BoolGradedGroup C)
+         (p : GradedMorphism C (ShiftGradedGroup BoolGradedGroup)),
+  graded_comp i f = Build_GradedMorphism BoolGradedGroup C (fun n => zero_hom _ _) ->
+  graded_comp p i = Build_GradedMorphism BoolGradedGroup (ShiftGradedGroup BoolGradedGroup) (fun n => zero_hom _ _) ->
+  graded_comp (ShiftGradedMorphism f) p = Build_GradedMorphism C (ShiftGradedGroup BoolGradedGroup) (fun n => zero_hom _ _) ->
+  (* Then i must be zero, which means there's no proper cofiber *)
+  i = Build_GradedMorphism BoolGradedGroup C (fun n => zero_hom _ _).
+Proof.
+  intros f Hf C i p Hc1 Hc2 Hc3.
+  rewrite Hf in Hc1.
+  rewrite graded_comp_id_right in Hc1.
+  exact Hc1.
+Qed.
