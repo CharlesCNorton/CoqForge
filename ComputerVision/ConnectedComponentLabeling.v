@@ -1,0 +1,170 @@
+(** * Connected Component Labeling in Coq
+
+    This formalization develops a verified implementation of connected component
+    labeling (CCL), a fundamental algorithm in computer vision and image processing.
+    
+    ** Overview
+    
+    Connected component labeling assigns unique labels to connected regions of 
+    foreground pixels in a binary image. Two pixels belong to the same component
+    if and only if there exists a path of foreground pixels connecting them,
+    where adjacency is defined by either 4-connectivity or 8-connectivity.
+    
+    ** Goals of this formalization:
+    
+    1. Provide a formal specification of what it means for pixels to be connected
+    2. Define correct labeling as an equivalence relation on foreground pixels
+    3. Implement and verify classical CCL algorithms (two-pass, union-find)
+    4. Prove key properties:
+       - Correctness: pixels have same label iff they are connected
+       - Uniqueness: any two correct labelings are equivalent up to relabeling
+       - Termination: algorithms complete in finite time
+       - Efficiency bounds: relating runtime to image dimensions
+    
+    ** Structure:
+    
+    - Basic definitions: coordinates, images, adjacency relations
+    - Connectivity specification: paths and reachability
+    - Labeling specification: when is a labeling correct?
+    - Algorithm implementations with correctness proofs
+    - Applications and extensions
+    
+    ** Why formalize this?
+    
+    CCL is ubiquitous in vision systems, yet implementations often contain subtle
+    bugs, especially at image boundaries or with complex pixel patterns. A formal
+    verification provides confidence for safety-critical applications and serves
+    as a foundation for verifying more complex vision algorithms.
+*)
+
+(** * Imports and Setup *)
+
+Require Import Coq.Init.Nat.
+Require Import Coq.Arith.Arith.
+Require Import Coq.Bool.Bool.
+Require Import Coq.Lists.List.
+Import ListNotations.
+Require Import Coq.Logic.ProofIrrelevance.
+Require Import Coq.Logic.FunctionalExtensionality.
+Require Import Coq.micromega.Lia.
+Require Import Coq.Setoids.Setoid.
+Require Import Coq.Classes.RelationClasses.
+Require Import Coq.Classes.Morphisms.
+Require Import Coq.Arith.PeanoNat.
+Require Import Coq.Arith.Compare_dec.
+Require Import Coq.Init.Datatypes.
+
+Open Scope nat_scope.
+
+(** * Basic Types *)
+
+(** ** Coordinates
+    
+    We represent pixel coordinates as pairs of natural numbers (x, y).
+    The origin (0, 0) is at the top-left corner, with x increasing rightward
+    and y increasing downward, following standard image processing conventions.
+*)
+Definition coord : Type := prod nat nat.
+
+(** Accessor functions for coordinates *)
+Definition fst_coord (c : coord) : nat :=
+  match c with
+  | pair x y => x
+  end.
+
+Definition snd_coord (c : coord) : nat :=
+  match c with
+  | pair x y => y
+  end.
+
+(** ** Images
+    
+    We begin with a simple unbounded image representation as a function
+    from coordinates to booleans. Later we'll add bounded images with
+    explicit dimensions for more realistic modeling.
+    
+    Convention: true represents foreground (object) pixels, 
+                false represents background pixels
+*)
+Definition simple_image : Type := forall (c : coord), bool.
+
+(** The empty image contains no foreground pixels *)
+Definition empty_image : simple_image := fun _ => false.
+
+(** ** Labelings
+    
+    A labeling assigns a natural number label to each coordinate.
+    We use 0 to represent "unlabeled" or background pixels.
+    Connected foreground pixels should receive the same positive label.
+*)
+Definition labeling : Type := forall (c : coord), nat.
+
+(** The empty labeling assigns 0 to all pixels *)
+Definition empty_labeling : labeling := fun _ => O.
+
+(** * Adjacency Relations *)
+
+(** Helper function: absolute difference between natural numbers *)
+Definition abs_diff (a b : nat) : nat :=
+  match Nat.leb a b with
+  | true => Nat.sub b a
+  | false => Nat.sub a b
+  end.
+
+(** ** 4-connectivity adjacency
+    
+    Two pixels are 4-adjacent if they share an edge, i.e., they differ
+    by exactly 1 in either x or y coordinate (but not both).
+    
+    This gives each pixel up to 4 neighbors:
+    - (x-1, y) left
+    - (x+1, y) right  
+    - (x, y+1) down
+    - (x, y-1) up
+*)
+Definition adjacent_4 (c1 c2 : coord) : bool :=
+  let x1 := fst_coord c1 in
+  let y1 := snd_coord c1 in
+  let x2 := fst_coord c2 in
+  let y2 := snd_coord c2 in
+  match Nat.eqb x1 x2 with
+  | true => Nat.eqb (abs_diff y1 y2) (S O)  (* same x, differ by 1 in y *)
+  | false => andb (Nat.eqb y1 y2) (Nat.eqb (abs_diff x1 x2) (S O))  (* same y, differ by 1 in x *)
+  end.
+
+(** ** Basic tests for 4-adjacency *)
+
+Require Import Coq.Init.Logic.
+Require Import Coq.Init.Notations.
+
+Compute adjacent_4 (pair O O) (pair (S O) O).
+
+Check @eq.
+
+Example simple_test : S O = S O := eq_refl.
+
+Definition test_result := adjacent_4 (pair O O) (pair (S O) O).
+Compute test_result.
+
+Example test_adj4_horiz : adjacent_4 (pair O O) (pair (S O) O) = true := eq_refl.
+
+Example test_adj4_vert : adjacent_4 (pair O O) (pair O (S O)) = true := eq_refl.
+
+Example test_adj4_diag : adjacent_4 (pair O O) (pair (S O) (S O)) = false := eq_refl.
+
+(** ** 8-connectivity adjacency
+    
+    Two pixels are 8-adjacent if they share an edge or corner, i.e., they differ
+    by at most 1 in both x and y coordinates (but not identical).
+    
+    This gives each pixel up to 8 neighbors, including diagonals.
+*)
+Definition adjacent_8 (c1 c2 : coord) : bool :=
+  let x1 := fst_coord c1 in
+  let y1 := snd_coord c1 in
+  let x2 := fst_coord c2 in
+  let y2 := snd_coord c2 in
+  let dx := abs_diff x1 x2 in
+  let dy := abs_diff y1 y2 in
+  andb (andb (Nat.leb dx (S O)) (Nat.leb dy (S O))) 
+       (negb (andb (Nat.eqb dx O) (Nat.eqb dy O))).
