@@ -333,3 +333,28 @@ Proof.
     + exact H.
     + exact H0.
 Qed.
+
+(** * Correct Labeling Specification *)
+
+(** A labeling respects connectivity if connected pixels have the same label *)
+Definition respects_connectivity (img : simple_image) (adj : coord -> coord -> bool) 
+                                (l : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+                connected img adj c1 c2 -> l c1 = l c2.
+
+(** A labeling separates components if pixels with same label are connected *)
+Definition separates_components (img : simple_image) (adj : coord -> coord -> bool)
+                               (l : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+                l c1 = l c2 -> l c1 <> O -> connected img adj c1 c2.
+
+(** Background pixels get label 0 *)
+Definition labels_background (img : simple_image) (l : labeling) : Prop :=
+  forall c, img c = false -> l c = O.
+
+(** A correct labeling satisfies all three properties *)
+Definition correct_labeling (img : simple_image) (adj : coord -> coord -> bool)
+                           (l : labeling) : Prop :=
+  labels_background img l /\
+  respects_connectivity img adj l /\
+  separates_components img adj l.
