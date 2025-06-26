@@ -358,3 +358,25 @@ Definition correct_labeling (img : simple_image) (adj : coord -> coord -> bool)
   labels_background img l /\
   respects_connectivity img adj l /\
   separates_components img adj l.
+
+(** * Properties of Correct Labelings *)
+
+(** Connectivity is reflexive on foreground pixels *)
+Lemma connected_refl_fg : forall img adj c,
+  img c = true -> connected img adj c c.
+Proof.
+  intros img adj c H.
+  apply connected_refl. exact H.
+Qed.
+
+(** Connectivity is symmetric for foreground pixels *)
+Lemma connected_sym_fg : forall img adj c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  img c1 = true -> img c2 = true ->
+  connected img adj c1 c2 -> connected img adj c2 c1.
+Proof.
+  intros img adj c1 c2 adj_sym H1 H2 H.
+  apply connected_sym.
+  - exact adj_sym.
+  - exact H.
+Qed.
