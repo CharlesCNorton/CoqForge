@@ -380,3 +380,49 @@ Proof.
   - exact adj_sym.
   - exact H.
 Qed.
+
+(** Connectivity is transitive for foreground pixels *)
+Lemma connected_trans_fg : forall img adj c1 c2 c3,
+  img c1 = true -> img c2 = true -> img c3 = true ->
+  connected img adj c1 c2 -> connected img adj c2 c3 -> 
+  connected img adj c1 c3.
+Proof.
+  intros img adj c1 c2 c3 H1 H2 H3 H12 H23.
+  apply connected_trans with c2.
+  - exact H12.
+  - exact H23.
+Qed.
+
+(** If two foreground pixels have the same non-zero label in a correct labeling,
+    they must be connected *)
+Lemma same_label_implies_connected : forall img adj l c1 c2,
+  correct_labeling img adj l ->
+  img c1 = true -> img c2 = true ->
+  l c1 = l c2 -> l c1 <> O ->
+  connected img adj c1 c2.
+Proof.
+  intros img adj l c1 c2 [Hbg [Hresp Hsep]] H1 H2 Heq Hneq.
+  apply Hsep.
+  - exact H1.
+  - exact H2.
+  - exact Heq.
+  - exact Hneq.
+Qed.
+
+(** * Bounded Images *)
+
+(** An image with explicit dimensions *)
+Record bounded_image : Type := mkBoundedImage {
+  width : nat;
+  height : nat;
+  pixels : coord -> bool
+}.
+
+(** Check if a coordinate is within bounds *)
+Definition in_bounds (img : bounded_image) (c : coord) : bool :=
+  let (x, y) := c in
+  andb (Nat.ltb x (width img)) (Nat.ltb y (height img)).
+
+(** Safe pixel access that returns false for out-of-bounds *)
+Definition get_pixel (img : bounded_image) (c : coord) : bool :=
+  if in_bounds img c then pixels img c else false.
