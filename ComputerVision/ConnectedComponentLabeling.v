@@ -426,3 +426,88 @@ Definition in_bounds (img : bounded_image) (c : coord) : bool :=
 (** Safe pixel access that returns false for out-of-bounds *)
 Definition get_pixel (img : bounded_image) (c : coord) : bool :=
   if in_bounds img c then pixels img c else false.
+
+(** Count foreground pixels in a row *)
+Fixpoint count_row (img : bounded_image) (y : nat) (x : nat) : nat :=
+  match x with
+  | O => O
+  | S x' => (if get_pixel img (pair x' y) then S O else O) + count_row img y x'
+  end.
+
+(** Count all foreground pixels in bounded image *)
+Fixpoint count_foreground (img : bounded_image) (y : nat) : nat :=
+  match y with
+  | O => O
+  | S y' => count_row img y' (width img) + count_foreground img y'
+  end.
+
+(** * Two-Pass Connected Component Labeling Algorithm *)
+
+(** Label equivalence table - tracks which labels should be merged *)
+Definition equiv_table := nat -> nat -> bool.
+
+(** Empty equivalence table *)
+Definition empty_equiv : equiv_table := fun _ _ => false.
+
+(** Add an equivalence *)
+Definition add_equiv (e : equiv_table) (l1 l2 : nat) : equiv_table :=
+  fun a b => orb (e a b) (orb (andb (Nat.eqb a l1) (Nat.eqb b l2))
+                              (andb (Nat.eqb a l2) (Nat.eqb b l1))).
+
+(** Find minimum equivalent label *)
+Fixpoint find_min_equiv (e : equiv_table) (l : nat) (fuel : nat) : nat :=
+  match fuel with
+  | O => l
+  | S fuel' => 
+    let scan := fix scan_labels n :=
+      match n with
+      | O => l
+      | S n' => if e l n' then
+                  Nat.min n' (scan_labels n')
+                else scan_labels n'
+      end
+    in Nat.min l (scan l)
+  end.
+
+(** Coordinate equality *)
+Definition coord_eq (c1 c2 : coord) : bool :=
+  match c1, c2 with
+  | pair x1 y1, pair x2 y2 => andb (Nat.eqb x1 x2) (Nat.eqb y1 y2)
+  end.
+
+(** First pass: initial labeling with equivalences *)
+Fixpoint first_pass_row (img : bounded_image) (adj : coord -> coord -> bool)
+                       (prev_labels : coord -> nat) (equiv : equiv_table)
+                       (y : nat) (x : nat) (next_label : nat) 
+                       : (coord -> nat) * equiv_table * nat :=
+  match x with
+  | O => (prev_labels, equiv, next_label)
+  | S x' =>
+    let c := pair x' y in
+    if get_pixel img c then
+      (* Check neighbors for existing labels *)
+      let left := if x' =? O then O else 
+                  if adj (pair (pred x') y) c then prev_labels (pair (pred x') y) else O in
+      let up := if y =? O then O else
+                if adj (pair x' (pred y)) c then prev_labels (pair x' (pred y)) else O in
+      match left, up with
+      | O, O => (* No labeled neighbors - new label *)
+        let new_labels := fun c' => if coord_eq c c' then next_label else prev_labels c' in
+        first_pass_row img adj new_labels equiv y x' (S next_label)
+      | _, _ => (* Use minimum of existing labels *)
+        let label := match left, up with
+                     | O, u => u
+                     | l, O => l
+                     | l, u => Nat.min l u
+                     end in
+        let new_labels := fun c' => if coord_eq c c' then label else prev_labels c' in
+        let new_equiv := match left, up with
+                         | O, _ => equiv
+                         | _, O => equiv
+                         | l, u => if Nat.eqb l u then equiv else add_equiv equiv l u
+                         end in
+        first_pass_row img adj new_labels new_equiv y x' next_label
+      end
+    else
+      first_pass_row img adj prev_labels equiv y x' next_label
+  end.
