@@ -285,3 +285,51 @@ Proof.
     + apply IHconnected.
     + assumption.
 Qed.
+
+(** Build connectivity backwards *)
+Lemma connected_extend_left : forall img adj c1 c2 c3,
+  img c1 = true ->
+  adj c1 c2 = true ->
+  connected img adj c2 c3 ->
+  connected img adj c1 c3.
+Proof.
+  intros img adj c1 c2 c3 H_img1 H_adj H_conn.
+  induction H_conn.
+  - (* Base case: c2 = c and connected img adj c c *)
+    apply connected_step with c1.
+    + apply connected_refl. exact H_img1.
+    + exact H.
+    + exact H_adj.
+  - (* Step case: c2 connected to c0, c0 connected to c3 *)
+    apply connected_step with c2.
+    + apply IHH_conn. exact H_adj.
+    + exact H.
+    + exact H0.
+Qed.
+
+(** Connectivity is symmetric *)
+Lemma connected_sym : forall img adj c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  connected img adj c1 c2 -> connected img adj c2 c1.
+Proof.
+  intros img adj c1 c2 adj_sym H.
+  induction H.
+  - apply connected_refl. assumption.
+  - apply connected_extend_left with c2.
+    + exact H0.
+    + rewrite adj_sym. exact H1.
+    + exact IHconnected.
+Qed.
+
+(** Connectivity is transitive *)
+Lemma connected_trans : forall img adj c1 c2 c3,
+  connected img adj c1 c2 -> connected img adj c2 c3 -> connected img adj c1 c3.
+Proof.
+  intros img adj c1 c2 c3 H12 H23.
+  induction H23.
+  - exact H12.
+  - apply connected_step with c2.
+    + apply IHconnected. exact H12.
+    + exact H.
+    + exact H0.
+Qed.
