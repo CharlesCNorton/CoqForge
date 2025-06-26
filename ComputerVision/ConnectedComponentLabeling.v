@@ -39,6 +39,7 @@
 
 (** * Imports and Setup *)
 
+Require Import Coq.Init.Prelude.
 Require Import Coq.Init.Nat.
 Require Import Coq.Arith.Arith.
 Require Import Coq.Bool.Bool.
@@ -229,3 +230,58 @@ Definition connected_symmetric img adj :=
 Definition connected_transitive img adj := 
   forall c1 c2 c3, connected img adj c1 c2 -> connected img adj c2 c3 -> 
                    connected img adj c1 c3.
+
+(** Test that proof mode works with -noinit flag fixed by Prelude import *)
+Example proof_mode_test : O = O.
+Proof.
+  reflexivity.
+Qed.
+
+(** Helper: absolute difference is symmetric *)
+Lemma abs_diff_sym : forall a b, abs_diff a b = abs_diff b a.
+Proof.
+  intros a b.
+  unfold abs_diff.
+  destruct (Nat.leb a b) eqn:Hab; destruct (Nat.leb b a) eqn:Hba.
+  - (* a <= b and b <= a means a = b *)
+    apply Nat.leb_le in Hab.
+    apply Nat.leb_le in Hba.
+    assert (a = b) by lia.
+    subst. reflexivity.
+  - (* a <= b and not b <= a *)
+    reflexivity.
+  - (* not a <= b and b <= a *)
+    reflexivity.
+  - (* not a <= b and not b <= a - impossible *)
+    apply Nat.leb_nle in Hab.
+    apply Nat.leb_nle in Hba.
+    lia.
+Qed.
+
+(** Adjacency is symmetric *)
+Lemma adjacent_4_sym : forall c1 c2, 
+  adjacent_4 c1 c2 = adjacent_4 c2 c1.
+Proof.
+  intros c1 c2.
+  unfold adjacent_4.
+  destruct c1 as [x1 y1].
+  destruct c2 as [x2 y2].
+  simpl.
+  rewrite Nat.eqb_sym.
+  rewrite (Nat.eqb_sym y1 y2).
+  rewrite abs_diff_sym.
+  rewrite (abs_diff_sym x1 x2).
+  destruct (Nat.eqb x2 x1); destruct (Nat.eqb y2 y1); reflexivity.
+Qed.
+
+(** Connected pixels must be foreground *)
+Lemma connected_implies_foreground : forall img adj c1 c2,
+  connected img adj c1 c2 -> img c1 = true /\ img c2 = true.
+Proof.
+  intros img adj c1 c2 H.
+  induction H.
+  - split; assumption.
+  - split.
+    + apply IHconnected.
+    + assumption.
+Qed.
