@@ -231,13 +231,9 @@ Definition connected_transitive img adj :=
   forall c1 c2 c3, connected img adj c1 c2 -> connected img adj c2 c3 -> 
                    connected img adj c1 c3.
 
-(** Test that proof mode works with -noinit flag fixed by Prelude import *)
-Example proof_mode_test : O = O.
-Proof.
-  reflexivity.
-Qed.
+(** * Fundamental Properties of Adjacency and Connectivity *)
 
-(** Helper: absolute difference is symmetric *)
+(** Absolute difference is symmetric *)
 Lemma abs_diff_sym : forall a b, abs_diff a b = abs_diff b a.
 Proof.
   intros a b.
@@ -475,11 +471,11 @@ Definition coord_eq (c1 c2 : coord) : bool :=
   | pair x1 y1, pair x2 y2 => andb (Nat.eqb x1 x2) (Nat.eqb y1 y2)
   end.
 
-(** Process a single row left-to-right with fuel *)
-Fixpoint first_pass_row_fuel (img : bounded_image) (adj : coord -> coord -> bool)
-                             (prev_labels : coord -> nat) (equiv : equiv_table)
-                             (y : nat) (x : nat) (fuel : nat) (next_label : nat) 
-                             : (coord -> nat) * equiv_table * nat :=
+(** Process a single row left-to-right *)
+Fixpoint first_pass_row (img : bounded_image) (adj : coord -> coord -> bool)
+                        (prev_labels : coord -> nat) (equiv : equiv_table)
+                        (y : nat) (x : nat) (fuel : nat) (next_label : nat) 
+                        : (coord -> nat) * equiv_table * nat :=
   match fuel with
   | O => (prev_labels, equiv, next_label)
   | S fuel' =>
@@ -494,7 +490,7 @@ Fixpoint first_pass_row_fuel (img : bounded_image) (adj : coord -> coord -> bool
         match left, up with
         | O, O => (* No labeled neighbors - new label *)
           let new_labels := fun c' => if coord_eq c c' then next_label else prev_labels c' in
-          first_pass_row_fuel img adj new_labels equiv y (S x) fuel' (S next_label)
+          first_pass_row img adj new_labels equiv y (S x) fuel' (S next_label)
         | _, _ => (* Use minimum of existing labels *)
           let label := match left, up with
                        | O, u => u
@@ -507,40 +503,40 @@ Fixpoint first_pass_row_fuel (img : bounded_image) (adj : coord -> coord -> bool
                            | _, O => equiv
                            | l, u => if Nat.eqb l u then equiv else add_equiv equiv l u
                            end in
-          first_pass_row_fuel img adj new_labels new_equiv y (S x) fuel' next_label
+          first_pass_row img adj new_labels new_equiv y (S x) fuel' next_label
         end
       else
-        first_pass_row_fuel img adj prev_labels equiv y (S x) fuel' next_label
+        first_pass_row img adj prev_labels equiv y (S x) fuel' next_label
     else
       (prev_labels, equiv, next_label)
   end.
 
 (** Process a row starting from x=0 *)
-Definition first_pass_row_new (img : bounded_image) (adj : coord -> coord -> bool)
-                             (prev_labels : coord -> nat) (equiv : equiv_table)
-                             (y : nat) (next_label : nat) 
-                             : (coord -> nat) * equiv_table * nat :=
-  first_pass_row_fuel img adj prev_labels equiv y O (width img) next_label.
+Definition process_row (img : bounded_image) (adj : coord -> coord -> bool)
+                      (prev_labels : coord -> nat) (equiv : equiv_table)
+                      (y : nat) (next_label : nat) 
+                      : (coord -> nat) * equiv_table * nat :=
+  first_pass_row img adj prev_labels equiv y O (width img) next_label.
 
 (** Process all rows from top to bottom *)
-Fixpoint first_pass_rows_fuel (img : bounded_image) (adj : coord -> coord -> bool)
-                              (labels : coord -> nat) (equiv : equiv_table)
-                              (y : nat) (fuel : nat) (next_label : nat)
-                              : (coord -> nat) * equiv_table * nat :=
+Fixpoint first_pass_rows (img : bounded_image) (adj : coord -> coord -> bool)
+                         (labels : coord -> nat) (equiv : equiv_table)
+                         (y : nat) (fuel : nat) (next_label : nat)
+                         : (coord -> nat) * equiv_table * nat :=
   match fuel with
   | O => (labels, equiv, next_label)
   | S fuel' =>
     if Nat.ltb y (height img) then
-      let '(labels', equiv', next') := first_pass_row_new img adj labels equiv y next_label in
-      first_pass_rows_fuel img adj labels' equiv' (S y) fuel' next'
+      let '(labels', equiv', next') := process_row img adj labels equiv y next_label in
+      first_pass_rows img adj labels' equiv' (S y) fuel' next'
     else
       (labels, equiv, next_label)
   end.
 
-(** Complete first pass - fixed to go top-to-bottom *)
-Definition first_pass_fixed (img : bounded_image) (adj : coord -> coord -> bool) 
-                           : (coord -> nat) * equiv_table * nat :=
-  first_pass_rows_fuel img adj empty_labeling empty_equiv O (height img) (S O).
+(** Complete first pass *)
+Definition first_pass (img : bounded_image) (adj : coord -> coord -> bool) 
+                     : (coord -> nat) * equiv_table * nat :=
+  first_pass_rows img adj empty_labeling empty_equiv O (height img) (S O).
 
 (** Second pass: resolve equivalences *)
 Definition second_pass (labels : coord -> nat) (equiv : equiv_table) (max_label : nat) : coord -> nat :=
@@ -549,13 +545,15 @@ Definition second_pass (labels : coord -> nat) (equiv : equiv_table) (max_label 
     if Nat.eqb l O then O
     else find_min_equiv equiv l max_label.
 
-(** Complete two-pass algorithm - fixed version *)
-Definition two_pass_ccl_fixed (img : bounded_image) (adj : coord -> coord -> bool) : labeling :=
-  let '(labels, equiv, max_label) := first_pass_fixed img adj in
+(** Complete two-pass algorithm *)
+Definition two_pass_ccl (img : bounded_image) (adj : coord -> coord -> bool) : labeling :=
+  let '(labels, equiv, max_label) := first_pass img adj in
   second_pass labels equiv max_label.
 
+(** * Example: Testing the Algorithm *)
+
 (** Create a simple test image *)
-Definition test_image_3x3 : bounded_image :=
+Definition test_image : bounded_image :=
   mkBoundedImage 3 3 (fun c =>
     match c with
     | pair O O => true      (* X.. *)
@@ -566,10 +564,32 @@ Definition test_image_3x3 : bounded_image :=
     | _ => false
     end).
 
-(** Test the fixed algorithm *)
-Definition test_labels_fixed := two_pass_ccl_fixed test_image_3x3 adjacent_4.
+(** Apply CCL algorithm *)
+Definition test_labels := two_pass_ccl test_image adjacent_4.
 
-(** Check the labels *)
-Compute test_labels_fixed (pair O O).
-Compute test_labels_fixed (pair (S O) O).
-Compute test_labels_fixed (pair O (S O)).
+(** Verify results *)
+Compute test_labels (pair O O).
+Compute test_labels (pair (S O) O).
+Compute test_labels (pair O (S O)).
+
+(** Adding an equivalence preserves existing equivalences *)
+Lemma add_equiv_preserves : forall e l1 l2 a b,
+  e a b = true -> add_equiv e l1 l2 a b = true.
+Proof.
+  intros e l1 l2 a b H.
+  unfold add_equiv.
+  rewrite H. reflexivity.
+Qed.
+
+(** Add creates the intended equivalence *)
+Lemma add_equiv_creates : forall e l1 l2,
+  add_equiv e l1 l2 l1 l2 = true.
+Proof.
+  intros e l1 l2.
+  unfold add_equiv.
+  rewrite Nat.eqb_refl.
+  rewrite Nat.eqb_refl.
+  simpl.
+  rewrite orb_true_r.
+  reflexivity.
+Qed.
