@@ -53,6 +53,8 @@ Require Import Coq.Classes.Morphisms.
 Require Import Coq.Arith.PeanoNat.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.Init.Datatypes.
+Require Import Coq.Init.Logic.
+Require Import Coq.Init.Notations.
 
 Open Scope nat_scope.
 
@@ -134,22 +136,8 @@ Definition adjacent_4 (c1 c2 : coord) : bool :=
 
 (** ** Basic tests for 4-adjacency *)
 
-Require Import Coq.Init.Logic.
-Require Import Coq.Init.Notations.
-
-Compute adjacent_4 (pair O O) (pair (S O) O).
-
-Check @eq.
-
-Example simple_test : S O = S O := eq_refl.
-
-Definition test_result := adjacent_4 (pair O O) (pair (S O) O).
-Compute test_result.
-
 Example test_adj4_horiz : adjacent_4 (pair O O) (pair (S O) O) = true := eq_refl.
-
 Example test_adj4_vert : adjacent_4 (pair O O) (pair O (S O)) = true := eq_refl.
-
 Example test_adj4_diag : adjacent_4 (pair O O) (pair (S O) (S O)) = false := eq_refl.
 
 (** ** 8-connectivity adjacency
@@ -168,3 +156,76 @@ Definition adjacent_8 (c1 c2 : coord) : bool :=
   let dy := abs_diff y1 y2 in
   andb (andb (Nat.leb dx (S O)) (Nat.leb dy (S O))) 
        (negb (andb (Nat.eqb dx O) (Nat.eqb dy O))).
+
+(** Tests for 8-connectivity *)
+Example test_adj8_horiz : adjacent_8 (pair O O) (pair (S O) O) = true := eq_refl.
+Example test_adj8_diag : adjacent_8 (pair O O) (pair (S O) (S O)) = true := eq_refl.
+Example test_adj8_self : adjacent_8 (pair O O) (pair O O) = false := eq_refl.
+Example test_adj8_far : adjacent_8 (pair O O) (pair (S (S O)) O) = false := eq_refl.
+
+(** * Paths and Connectivity *)
+
+(** ** Paths
+    
+    A path in an image is a sequence of coordinates where consecutive
+    coordinates are adjacent (according to the chosen connectivity).
+    We represent paths as lists of coordinates.
+*)
+
+(** Check if a list of coordinates forms a valid path with given adjacency *)
+Fixpoint is_path (adj : coord -> coord -> bool) (p : list coord) : bool :=
+  match p with
+  | [] => true
+  | [_] => true
+  | c1 :: (c2 :: rest) as tail => andb (adj c1 c2) (is_path adj tail)
+  end.
+
+(** A path is valid in an image if all coordinates are foreground pixels *)
+Fixpoint path_in_image (img : simple_image) (p : list coord) : bool :=
+  match p with
+  | [] => true
+  | c :: rest => andb (img c) (path_in_image img rest)
+  end.
+
+(** A valid path combines both requirements *)
+Definition valid_path (img : simple_image) (adj : coord -> coord -> bool) 
+                     (p : list coord) : bool :=
+  andb (is_path adj p) (path_in_image img p).
+
+(** Test path validity *)
+Definition test_img : simple_image := fun c =>
+  match c with
+  | pair O O => true
+  | pair (S O) O => true
+  | pair O (S O) => true
+  | _ => false
+  end.
+
+Example test_valid_path : 
+  valid_path test_img adjacent_4 [pair O O; pair (S O) O] = true := eq_refl.
+
+Example test_invalid_path : 
+  valid_path test_img adjacent_4 [pair O O; pair (S O) (S O)] = false := eq_refl.
+
+(** ** Connectivity
+    
+    Two pixels are connected if there exists a valid path between them.
+    We define this inductively to avoid issues with unbounded search.
+*)
+
+Inductive connected (img : simple_image) (adj : coord -> coord -> bool) 
+                   : coord -> coord -> Prop :=
+  | connected_refl : forall c, img c = true -> connected img adj c c
+  | connected_step : forall c1 c2 c3, 
+      connected img adj c1 c2 -> 
+      img c3 = true -> 
+      adj c2 c3 = true -> 
+      connected img adj c1 c3.
+
+(** Connectivity is an equivalence relation on foreground pixels *)
+Definition connected_symmetric img adj := 
+  forall c1 c2, connected img adj c1 c2 -> connected img adj c2 c1.
+
+Definition connected_transitive img adj := 
+  forall c1 c2 c3, connected img adj c1 c2 -> connected img adj c2 c3 -> 
+                   connected img adj c1 c3.
