@@ -1176,3 +1176,99 @@ Lemma empty_labeling_zero : forall c,
 Proof.
   intro c. reflexivity.
 Qed.
+
+(** The labeling function only changes at specific coordinates *)
+Lemma label_update_spec : forall (labels : labeling) (c c' : coord) (label : nat),
+  (fun c'' : coord => if coord_eq c c'' then label else labels c'') c' =
+  if coord_eq c c' then label else labels c'.
+Proof.
+  intros. reflexivity.
+Qed.
+
+(** Label update at different coordinates preserves the value *)
+Lemma label_update_neq : forall (labels : labeling) (c c' : coord) (label : nat),
+  c <> c' ->
+  (fun c'' : coord => if coord_eq c c'' then label else labels c'') c' = labels c'.
+Proof.
+  intros labels c c' label Hneq.
+  simpl.
+  destruct (coord_eq c c') eqn:Heq.
+  - apply coord_eq_true_iff in Heq. contradiction.
+  - reflexivity.
+Qed.
+
+(** Coordinates with different y values are not equal *)
+Lemma coord_neq_diff_y : forall x1 y1 x2 y2,
+  y1 <> y2 ->
+  (pair x1 y1 : coord) <> (pair x2 y2 : coord).
+Proof.
+  intros x1 y1 x2 y2 Hy Heq.
+  apply pair_eq_iff in Heq.
+  destruct Heq as [_ Heq_y].
+  contradiction.
+Qed.
+
+(** coord_eq returns false for coordinates with different y values *)
+Lemma coord_eq_diff_y : forall x1 y1 x2 y2,
+  y1 <> y2 ->
+  coord_eq (pair x1 y1) (pair x2 y2) = false.
+Proof.
+  intros x1 y1 x2 y2 Hy.
+  unfold coord_eq.
+  destruct (x1 =? x2) eqn:Hx; destruct (y1 =? y2) eqn:Heqy; simpl.
+  - apply Nat.eqb_eq in Heqy. contradiction.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+Qed.
+
+(** Label update on one row doesn't affect other rows *)
+Lemma label_update_diff_row : forall (labels : labeling) (x y x' y' : nat) (label : nat),
+  y <> y' ->
+  (fun c => if coord_eq (pair x y) c then label else labels c) (pair x' y') = labels (pair x' y').
+Proof.
+  intros labels x y x' y' label Hy.
+  apply label_update_neq.
+  apply coord_neq_diff_y.
+  exact Hy.
+Qed.
+
+(** The specific label update pattern used in first_pass_row *)
+Lemma first_pass_update_diff_row : forall (labels : labeling) (x y x' y' : nat) (label : nat),
+  y <> y' ->
+  (fun c' : coord => 
+    match c' with 
+    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
+    end) (pair x' y') = 
+  labels (pair x' y').
+Proof.
+  intros labels x y x' y' label Hy.
+  simpl.
+  destruct (x =? x') eqn:Hx; destruct (y =? y') eqn:Heqy; simpl.
+  - apply Nat.eqb_eq in Heqy. contradiction.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+Qed.
+
+(** first_pass_row with fuel 0 returns inputs unchanged *)
+Lemma first_pass_row_fuel_0 : 
+  forall img adj labels equiv y x next_label,
+  first_pass_row img adj labels equiv y x 0 next_label = (labels, equiv, next_label).
+Proof.
+  intros. simpl. reflexivity.
+Qed.
+
+(** first_pass_row with x >= width returns inputs unchanged *)
+Lemma first_pass_row_out_of_bounds :
+  forall img adj labels equiv y x fuel next_label,
+  x >= width img ->
+  first_pass_row img adj labels equiv y x (S fuel) next_label = (labels, equiv, next_label).
+Proof.
+  intros img adj labels equiv y x fuel next_label Hwidth.
+  simpl.
+  assert (x <? width img = false).
+  { apply Nat.ltb_ge. exact Hwidth. }
+  rewrite H.
+  reflexivity.
+Qed.
