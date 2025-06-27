@@ -434,12 +434,32 @@ Proof.
     apply andb_true_intro.
     split.
     + apply andb_true_intro.
-      split; apply Nat.leb_le; apply Nat.max_lub_iff in H; lia.
+      assert (abs_diff x1 x2 <= 1 /\ abs_diff y1 y2 <= 1).
+      { split.
+        - assert (abs_diff x1 x2 <= Nat.max (abs_diff x1 x2) (abs_diff y1 y2)) by apply Nat.le_max_l.
+          rewrite H in *. assumption.
+        - assert (abs_diff y1 y2 <= Nat.max (abs_diff x1 x2) (abs_diff y1 y2)) by apply Nat.le_max_r.
+          rewrite H in *. assumption. }
+      destruct H0.
+      split; apply Nat.leb_le; assumption.
     + apply negb_true_iff.
       apply andb_false_iff.
-      destruct (Nat.max_dec (abs_diff x1 x2) (abs_diff y1 y2)) as [Hmax | Hmax].
-      * rewrite Hmax in H.
-        right. apply Nat.eqb_neq. lia.
-      * rewrite Hmax in H.
-        left. apply Nat.eqb_neq. lia.
+      (* Since max = 1, at least one of the distances is 1 *)
+      assert (abs_diff x1 x2 = 1 \/ abs_diff y1 y2 = 1).
+      { destruct (abs_diff x1 x2) eqn:E1; destruct (abs_diff y1 y2) eqn:E2.
+        - (* both 0, max would be 0 *)
+          simpl in H. lia.
+        - (* x1 x2 = 0, y1 y2 = S n *)
+          right. simpl in H. assumption.
+        - (* x1 x2 = S n, y1 y2 = 0 *)
+          left. 
+          rewrite Nat.max_0_r in H.
+          exact H.
+        - (* both positive *)
+          simpl in H.
+          destruct n; destruct n0; simpl in H; try lia;
+          left; reflexivity. }
+      destruct H0.
+      * left. apply Nat.eqb_neq. rewrite H0. lia.
+      * right. apply Nat.eqb_neq. rewrite H0. lia.
 Qed.
