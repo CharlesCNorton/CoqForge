@@ -1791,3 +1791,78 @@ Proof.
         -- exact IH.
     + exact IH.
 Qed.
+
+(** Helper: when labels are adjacent and equivalent, min preserves structure *)
+Lemma min_adjacent_positive : forall n,
+  Nat.min n (S n) > 0 \/ n = 0.
+Proof.
+  intros n.
+  destruct n.
+  - right. reflexivity.
+  - left. simpl. apply Nat.lt_0_succ.
+Qed.
+
+(** A valid equivalence table for connected component labeling *)
+Definition equiv_valid_ccl (e : equiv_table) : Prop :=
+  equiv_sym e /\ 
+  equiv_well_formed e /\
+  (forall l1 l2, e l1 l2 = true -> l1 > 0 /\ l2 > 0).
+
+(** The empty equivalence table is valid for CCL *)
+Lemma empty_equiv_valid_ccl : equiv_valid_ccl empty_equiv.
+Proof.
+  unfold equiv_valid_ccl.
+  split; [|split].
+  - exact empty_equiv_sym.
+  - unfold equiv_well_formed, empty_equiv.
+    intros l Hl.
+    reflexivity.
+  - intros l1 l2 H.
+    unfold empty_equiv in H.
+    discriminate.
+Qed.
+
+(** add_equiv preserves validity for CCL *)
+Lemma add_equiv_preserves_valid_ccl : forall e l1 l2,
+  equiv_valid_ccl e ->
+  l1 > 0 -> l2 > 0 ->
+  equiv_valid_ccl (add_equiv e l1 l2).
+Proof.
+  intros e l1 l2 [Hsym [Hwf Hpos]] Hl1 Hl2.
+  unfold equiv_valid_ccl.
+  split; [|split].
+  - apply add_equiv_preserves_sym. exact Hsym.
+  - unfold equiv_well_formed in *.
+    intros l Hl.
+    unfold add_equiv.
+    rewrite Hwf; [|exact Hl].
+    simpl.
+    destruct (l =? l1) eqn:Heq1; destruct (0 =? l2) eqn:Heq2; simpl.
+    + apply Nat.eqb_eq in Heq2. lia.
+    + destruct l2.
+      * lia.
+      * simpl. destruct l1.
+        -- lia.
+        -- simpl. rewrite andb_false_r. reflexivity.
+    + apply Nat.eqb_eq in Heq2. lia.
+    + destruct l1.
+      * lia.
+      * simpl. rewrite andb_false_r. reflexivity.
+  - intros a b H.
+    unfold add_equiv in H.
+    apply orb_prop in H.
+    destruct H as [H | H].
+    + apply Hpos. exact H.
+    + apply orb_prop in H.
+      destruct H as [H | H].
+      * apply andb_prop in H.
+        destruct H as [Ha Hb].
+        apply Nat.eqb_eq in Ha.
+        apply Nat.eqb_eq in Hb.
+        subst. split; assumption.
+      * apply andb_prop in H.
+        destruct H as [Ha Hb].
+        apply Nat.eqb_eq in Ha.
+        apply Nat.eqb_eq in Hb.
+        subst. split; assumption.
+Qed.
