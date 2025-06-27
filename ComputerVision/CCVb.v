@@ -1545,3 +1545,35 @@ Proof.
     simpl. auto.
 Qed.
 
+(** ** 8.2 Row Processing Bounds *)
+
+(** Helper: Empty width means no increment *)
+Lemma process_row_empty_width : forall img adj labels equiv y x next_label,
+  process_row img adj labels equiv y x 0 next_label = (labels, equiv, next_label).
+Proof.
+  intros. reflexivity.
+Qed.
+
+(** Helper: Out of bounds means no processing *)
+Lemma process_row_out_of_bounds : forall img adj labels equiv y x width next_label,
+  x >= width ->
+  process_row img adj labels equiv y x width next_label = (labels, equiv, next_label).
+Proof.
+  intros img adj labels equiv y x width next_label Hbound.
+  destruct width.
+  - reflexivity.
+  - simpl. 
+    assert (x <? S width0 = false) by (apply Nat.ltb_nlt; lia).
+    rewrite H. reflexivity.
+Qed.
+
+(** Helper: Single step bound *)
+Lemma process_row_step_bound : forall img adj labels equiv y x width next_label labels' equiv' next',
+  x < width ->
+  process_pixel img adj labels equiv (x, y) next_label = (labels', equiv', next') ->
+  next' <= S next_label.
+Proof.
+  intros img adj labels equiv y x width next_label labels' equiv' next' Hlt Hpix.
+  pose proof (process_pixel_increment_bound img adj labels equiv (x, y) next_label).
+  rewrite Hpix in H. exact H.
+Qed.
