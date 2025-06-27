@@ -709,3 +709,149 @@ Proof.
   - simpl. reflexivity.  
   - simpl. reflexivity.
 Qed.
+
+(** * Intermediate Theorems: Combining Basic Lemmas *)
+
+(** ** Connectivity as an Equivalence Relation *)
+
+(** First, let's verify we have the equivalence properties individually *)
+Theorem connectivity_equiv_refl : forall img adj c,
+  (forall a b, adj a b = adj b a) ->
+  img c = true ->
+  connected img adj c c.
+Proof.
+  intros img adj c adj_sym H.
+  apply connected_refl. exact H.
+Qed.
+
+Theorem connectivity_equiv_sym : forall img adj c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  connected img adj c1 c2 ->
+  connected img adj c2 c1.
+Proof.
+  intros img adj c1 c2 adj_sym H.
+  apply connected_sym; assumption.
+Qed.
+
+Theorem connectivity_equiv_trans : forall img adj c1 c2 c3,
+  connected img adj c1 c2 ->
+  connected img adj c2 c3 ->
+  connected img adj c1 c3.
+Proof.
+  intros img adj c1 c2 c3 H12 H23.
+  apply connected_trans with c2; assumption.
+Qed.
+
+
+Theorem connectivity_is_equivalence : forall img adj,
+  (forall a b, adj a b = adj b a) ->
+  (forall c, img c = true -> connected img adj c c) /\
+  (forall c1 c2, connected img adj c1 c2 -> connected img adj c2 c1) /\
+  (forall c1 c2 c3, connected img adj c1 c2 -> connected img adj c2 c3 -> connected img adj c1 c3).
+Proof.
+  intros img adj adj_sym.
+  split; [| split].
+  - intros c H. apply connected_refl. exact H.
+  - intros c1 c2 H. apply connected_sym; assumption.
+  - intros c1 c2 c3 H12 H23. apply connected_trans with c2; assumption.
+Qed.
+
+(** ** Labels partition foreground pixels into connected components *)
+
+Theorem label_partition : forall img adj l,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  (forall c, img c = true -> l c <> O) ->  (* Add this assumption *)
+  forall c1 c2, img c1 = true -> img c2 = true ->
+    (l c1 = l c2 /\ l c1 <> O) <-> connected img adj c1 c2.
+Proof.
+  intros img adj l adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero c1 c2 H1 H2.
+  split.
+  - intros [Heq Hneq]. apply Hsep; assumption.
+  - intros Hconn. 
+    assert (l c1 = l c2) by (apply Hresp; assumption).
+    split; [exact H | apply Hfg_nonzero; exact H1].
+Qed.
+
+(** ** Adjacent foreground pixels are connected *)
+
+Theorem adjacent_implies_connected : forall img adj c1 c2,
+  img c1 = true -> img c2 = true -> adj c1 c2 = true ->
+  connected img adj c1 c2.
+Proof.
+  intros img adj c1 c2 H1 H2 Hadj.
+  apply connected_step with c1.
+  - apply connected_refl. exact H1.
+  - exact H2.
+  - exact Hadj.
+Qed.
+
+(** And with symmetric adjacency, the connection is bidirectional *)
+Theorem adjacent_implies_bidirectional_connection : forall img adj c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  img c1 = true -> img c2 = true -> adj c1 c2 = true ->
+  connected img adj c1 c2 /\ connected img adj c2 c1.
+Proof.
+  intros img adj c1 c2 adj_sym H1 H2 Hadj.
+  split.
+  - apply adjacent_implies_connected; assumption.
+  - apply adjacent_implies_connected.
+    + exact H2.
+    + exact H1.
+    + rewrite adj_sym. exact Hadj.
+Qed.
+
+(** ** Every valid path induces connectivity between endpoints *)
+
+Theorem valid_path_implies_connected : forall img adj path c1 cn,
+  valid_path img adj path = true ->
+  head path = Some c1 ->
+  last path cn = cn ->  (* last returns default if empty *)
+  path <> [] ->  (* path must be non-empty *)
+  connected img adj c1 cn.
+Proof.
+  intros img adj path.
+  induction path as [|c path' IH].
+  - (* Empty path *)
+    intros c1 cn Hvalid Hhead Hlast Hneq.
+    contradiction.
+  - intros c1 cn Hvalid Hhead Hlast Hneq.
+    simpl in Hhead. injection Hhead as Heq. subst c.
+    destruct path' as [|c' path''].
+    + (* Single element *)
+      simpl in Hlast. subst cn.
+      apply connected_refl.
+      unfold valid_path in Hvalid.
+      simpl in Hvalid.
+      unfold path_in_image in Hvalid.
+      simpl in Hvalid.
+      apply andb_prop in Hvalid. destruct Hvalid as [H _].
+      exact H.
+    + (* Multiple elements *)
+      unfold valid_path in Hvalid.
+      simpl in Hvalid.
+      apply andb_prop in Hvalid. destruct Hvalid as [Hpath Himg].
+      simpl in Hpath.
+      apply andb_prop in Hpath. destruct Hpath as [Hadj Hpath'].
+      unfold path_in_image in Himg.
+      simpl in Himg.
+      apply andb_prop in Himg. destruct Himg as [Hc1 Himg'].
+      (* Extract img c' = true from Himg' *)
+      assert (Hc': img c' = true).
+      { unfold path_in_image in Himg'.
+        simpl in Himg'.
+        apply andb_prop in Himg'. destruct Himg' as [H _].
+        exact H. }
+      assert (Hlast': last (c' :: path'') cn = cn).
+      { exact Hlast. }
+      apply connected_trans with c'.
+      * apply adjacent_implies_connected; assumption.
+      * apply IH.
+        -- unfold valid_path.
+           apply andb_true_intro. split.
+           ++ exact Hpath'.
+           ++ exact Himg'.
+        -- reflexivity.
+        -- exact Hlast'.
+        -- discriminate.
+Qed.
