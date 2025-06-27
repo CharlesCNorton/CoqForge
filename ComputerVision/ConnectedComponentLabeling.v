@@ -1795,3 +1795,58 @@ Proof.
     assert (init + 1 + fuel' = init + S fuel') by lia.
     lia.
 Qed.
+
+(** ** 8.4 All Rows Processing Bounds *)
+
+(** Helper: Empty height means no processing *)
+Lemma process_all_rows_empty_height : forall img adj labels equiv y next_label,
+  process_all_rows img adj labels equiv y 0 next_label = (labels, equiv, next_label).
+Proof.
+  intros. reflexivity.
+Qed.
+
+(** Helper: Process zero rows means no change *)
+Lemma process_all_rows_zero_height : forall img adj labels equiv y next_label,
+  process_all_rows img adj labels equiv y 0 next_label = (labels, equiv, next_label).
+Proof.
+  intros. reflexivity.
+Qed.
+
+(** Helper: Arithmetic for remaining rows *)
+Lemma remaining_rows_arithmetic : forall height y,
+  y < height ->
+  S height - y = S (height - y).
+Proof.
+  intros. lia.
+Qed.
+
+(** Helper: Out of bounds means no processing *)
+Lemma process_all_rows_out_of_bounds : forall img adj labels equiv y height next_label,
+  y >= height ->
+  process_all_rows img adj labels equiv y height next_label = (labels, equiv, next_label).
+Proof.
+  intros img adj labels equiv y height next_label Hbound.
+  destruct height as [|h'].
+  - (* Case height = 0 *)
+    reflexivity.
+  - (* Case height = S h'. Hbound is y >= S h' *)
+    simpl.
+    (* The goal is `(if y <? S h' then ... else ...) = ...` *)
+    (* We prove which branch the `if` takes by destructing the condition. *)
+    (* `eqn:E` saves the result of the condition in a new hypothesis `E`. *)
+    destruct (y <? S h') eqn:E.
+    + (* Case 1: Assume `y <? S h' = true`. This branch should be impossible. *)
+      (* The hypothesis `E` is `y <? S h' = true`. Let's turn it into a proposition. *)
+      apply Nat.ltb_lt in E.
+      (* Now `E` is `y < S h'`. *)
+      (* Our main hypothesis `Hbound` is `y >= S h'`. This contradicts `E`. *)
+      (* We can show this contradiction formally. *)
+      apply Nat.nlt_ge in Hbound.
+      (* Now `Hbound` is `~ (y < S h')`. This directly contradicts `E`. *)
+      contradiction.
+
+    + (* Case 2: Assume `y <? S h' = false`. This is the case we expect. *)
+      (* Since the condition is false, the `if` evaluates to the `else` branch. *)
+      (* Coq simplifies the goal to: `(labels, equiv, next_label) = (labels, equiv, next_label)` *)
+      reflexivity.
+Qed.
