@@ -1693,3 +1693,101 @@ Proof.
   unfold empty_equiv.
   reflexivity.
 Qed.
+
+(** add_equiv makes l1 and l2 equivalent *)
+Lemma add_equiv_makes_equiv : forall e l1 l2,
+  l1 <> 0 -> l2 <> 0 ->
+  add_equiv e l1 l2 l1 l2 = true.
+Proof.
+  intros e l1 l2 H1 H2.
+  unfold add_equiv.
+  rewrite Nat.eqb_refl.
+  rewrite Nat.eqb_refl.
+  simpl.
+  rewrite orb_true_r.
+  reflexivity.
+Qed.
+
+(** add_equiv creates symmetric equivalence *)
+Lemma add_equiv_makes_equiv_sym : forall e l1 l2,
+  l1 <> 0 -> l2 <> 0 ->
+  add_equiv e l1 l2 l2 l1 = true.
+Proof.
+  intros e l1 l2 H1 H2.
+  unfold add_equiv.
+  destruct (e l2 l1); simpl.
+  - reflexivity.
+  - destruct ((l2 =? l1) && (l1 =? l2)); simpl.
+    + reflexivity.
+    + rewrite Nat.eqb_refl. rewrite Nat.eqb_refl. simpl. reflexivity.
+Qed.
+
+(** Helper lemma: scanning with empty_equiv returns l *)
+Lemma scan_labels_empty : forall l n,
+  (fix scan_labels n :=
+    match n with
+    | O => l
+    | S n' => if empty_equiv l n' then
+                Nat.min n' (scan_labels n')
+              else scan_labels n'
+    end) n = l.
+Proof.
+  intros l n.
+  induction n as [|n' IH].
+  - reflexivity.
+  - simpl. unfold empty_equiv. exact IH.
+Qed.
+
+(** The second pass preserves zero labels *)
+Lemma second_pass_preserves_zero : forall labels equiv max_label c,
+  labels c = 0 ->
+  second_pass labels equiv max_label c = 0.
+Proof.
+  intros labels equiv max_label c H.
+  unfold second_pass.
+  rewrite H.
+  reflexivity.
+Qed.
+
+(** Label 0 is never equivalent to positive labels in a well-formed equiv table *)
+Definition equiv_well_formed (e : equiv_table) : Prop :=
+  forall l, l > 0 -> e l 0 = false.
+
+(** Nat.min preserves positivity when at least one argument is positive *)
+Lemma Nat_min_positive : forall a b,
+  a > 0 -> b > 0 -> Nat.min a b > 0.
+Proof.
+  intros a b Ha Hb.
+  destruct a, b.
+  - lia.
+  - lia.
+  - lia.
+  - simpl. apply Nat.lt_0_succ.
+Qed.
+
+(** scan_labels returns positive values for positive l with well-formed equiv *)
+Lemma scan_labels_positive_wf : forall e l n,
+  equiv_well_formed e ->
+  l > 0 ->
+  (fix scan_labels n :=
+    match n with
+    | O => l
+    | S n' => if e l n' then
+                Nat.min n' (scan_labels n')
+              else scan_labels n'
+    end) n > 0.
+Proof.
+  intros e l n Hwf Hl.
+  induction n as [|n' IH].
+  - simpl. exact Hl.
+  - simpl. 
+    case_eq (e l n'); intro Heq.
+    + destruct n'.
+      * unfold equiv_well_formed in Hwf.
+        specialize (Hwf l Hl).
+        congruence.
+      * apply Nat_min_positive.
+        -- apply Nat.lt_0_succ.
+        -- exact IH.
+    + exact IH.
+Qed.
