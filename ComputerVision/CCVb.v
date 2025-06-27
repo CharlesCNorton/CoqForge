@@ -1383,11 +1383,11 @@ Definition coords_in_bounds (img : bounded_image) (c : coord) : Prop :=
   coord_x c < width img /\ coord_y c < height img.
 
 (** process_pixel only modifies in-bounds coordinates *)
-Lemma process_pixel_out_of_bounds : forall img adj labels equiv c next_label,
+Lemma process_pixel_out_of_bounds : forall img c,
   ~ coords_in_bounds img c ->
   get_pixel img c = false.
 Proof.
-  intros img adj labels equiv c next_label Hout.
+  intros img c Hout.
   unfold get_pixel, in_bounds, coords_in_bounds in *.
   destruct (coord_x c <? width img) eqn:Hx;
   destruct (coord_y c <? height img) eqn:Hy;
