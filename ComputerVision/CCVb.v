@@ -239,7 +239,7 @@ Proof.
   intros [x1 y1] [x2 y2].
   unfold adjacent_4; simpl.
   rewrite Nat.eqb_sym, (Nat.eqb_sym y1 y2).
-  rewrite !abs_diff_sym.
+  rewrite (abs_diff_sym y1 y2), (abs_diff_sym x1 x2).
   destruct (Nat.eqb x2 x1); reflexivity.
 Qed.
 
@@ -249,7 +249,8 @@ Lemma adjacent_8_sym : forall c1 c2,
 Proof.
   intros [x1 y1] [x2 y2].
   unfold adjacent_8; simpl.
-  rewrite !abs_diff_sym.
+  rewrite (abs_diff_sym x1 x2).
+  rewrite (abs_diff_sym y1 y2).
   reflexivity.
 Qed.
 
@@ -271,9 +272,8 @@ Proof.
   intros [x y].
   unfold adjacent_8; simpl.
   unfold abs_diff.
-  rewrite !Nat.leb_refl, !Nat.sub_diag.
-  simpl.
-  rewrite !Nat.eqb_refl.
+  rewrite Nat.leb_refl, (Nat.leb_refl y).
+  rewrite Nat.sub_diag, (Nat.sub_diag y).
   reflexivity.
 Qed.
 
