@@ -1833,4 +1833,30 @@ Proof.
          rewrite Nat.eqb_refl in Heq_coord; rewrite Nat.eqb_refl in Heq_coord;
          simpl in Heq_coord; discriminate).
 Qed.
- 
+
+(** Helper: Out of bounds preserves labels exactly *)
+Lemma first_pass_row_out_of_bounds_preserves_labels :
+  forall img adj labels equiv y x fuel next_label,
+  x >= width img ->
+  let '(labels', _, _) := first_pass_row img adj labels equiv y x (S fuel) next_label in
+  labels' = labels.
+Proof.
+  intros img adj labels equiv y x fuel next_label Hbound.
+  rewrite first_pass_row_out_of_bounds_monotone; try assumption.
+  simpl. reflexivity.
+Qed.
+
+(** Helper: Background pixel preserves all labels *)
+Lemma first_pass_row_background_preserves_labels :
+  forall img adj labels equiv y x fuel next_label,
+  x < width img ->
+  get_pixel img (pair x y) = false ->
+  let '(labels', _, _) := first_pass_row img adj labels equiv y x (S fuel) next_label in
+  let '(labels'', _, _) := first_pass_row img adj labels equiv y (S x) fuel next_label in
+  labels' = labels''.
+Proof.
+  intros img adj labels equiv y x fuel next_label Hlt Hbg.
+  rewrite first_pass_row_background_monotone; try assumption.
+  destruct (first_pass_row img adj labels equiv y (S x) fuel next_label) as [[? ?] ?].
+  reflexivity.
+Qed.
