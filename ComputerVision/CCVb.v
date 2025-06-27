@@ -869,3 +869,168 @@ Proof.
   intros img adj l c1 c2 adj_sym Hcorr Hconn.
   apply correct_labeling_connected_same with img adj; assumption.
 Qed.
+
+(** * Section 5: Abstract Algorithm Specification
+    
+    This section specifies what any connected component labeling algorithm
+    must accomplish, independent of implementation details. We define the
+    invariants and properties that characterize correct algorithms. *)
+
+(** ** 5.1 Algorithm Input and Output Specification *)
+
+(** An algorithm takes an image and adjacency relation, produces a labeling *)
+Definition ccl_algorithm : Type :=
+  forall (img : bounded_image) (adj : coord -> coord -> bool), labeling.
+
+(** An algorithm is correct if it always produces correct labelings *)
+Definition algorithm_correct (alg : ccl_algorithm) : Prop :=
+  forall img adj, 
+    (forall a b, adj a b = adj b a) ->
+    correct_labeling (bounded_to_simple img) adj (alg img adj).
+
+(** ** 5.2 Progressive Labeling Invariants *)
+
+(** When processing pixels in order, we maintain partial labelings.
+    A partial labeling is correct for processed pixels. *)
+
+(** A region of pixels (e.g., those processed so far) *)
+Definition pixel_region : Type := coord -> bool.
+
+(** Restriction of a labeling to a region *)
+Definition restrict_labeling (l : labeling) (region : pixel_region) : labeling :=
+  fun c => if region c then l c else 0.
+
+(** Restriction of an image to a region *)
+Definition restrict_image (img : simple_image) (region : pixel_region) : simple_image :=
+  fun c => if region c then img c else false.
+
+(** Helper: get pixel for simple images *)
+Definition get_pixel_simple (img : simple_image) (c : coord) : bool := img c.
+
+(** A labeling is correct on a region *)
+Definition correct_on_region (img : simple_image) (adj : coord -> coord -> bool)
+                            (l : labeling) (region : pixel_region) : Prop :=
+  correct_labeling (restrict_image img region) adj (restrict_labeling l region).
+
+(** ** 5.3 Monotonicity Properties *)
+
+(** When we extend the processed region, correctness is preserved *)
+Definition region_subset (r1 r2 : pixel_region) : Prop :=
+  forall c, r1 c = true -> r2 c = true.
+
+(** Extending a region preserves correctness if done properly *)
+Definition preserves_correctness (img : simple_image) (adj : coord -> coord -> bool)
+                                (extend : labeling -> pixel_region -> coord -> labeling) : Prop :=
+  forall l region c,
+    correct_on_region img adj l region ->
+    region c = false ->
+    get_pixel_simple img c = true ->
+    correct_on_region img adj (extend l region c) 
+                     (fun c' => orb (region c') (coord_eqb c c')).
+
+(** ** 5.4 Label Assignment Strategies *)
+
+(** When assigning a label to a new pixel, we must maintain correctness *)
+Definition valid_label_assignment (img : simple_image) (adj : coord -> coord -> bool)
+                                 (l : labeling) (c : coord) (label : nat) : Prop :=
+  (* If c is adjacent to a labeled pixel, they must get the same label if connected *)
+  forall c', img c' = true -> adj c c' = true -> l c' <> 0 ->
+    (connected img adj c c' -> label = l c').
+
+(** ** 5.5 Equivalence Management *)
+
+(** When we discover two labels should be the same (they label connected pixels),
+    we need to track this equivalence *)
+
+(** Label equivalence relation *)
+Definition label_equiv : Type := nat -> nat -> Prop.
+
+(** A valid equivalence respects connectivity *)
+Definition valid_equiv (img : simple_image) (adj : coord -> coord -> bool)
+                      (l : labeling) (equiv : label_equiv) : Prop :=
+  forall l1 l2, equiv l1 l2 ->
+    exists c1 c2, l c1 = l1 /\ l c2 = l2 /\ connected img adj c1 c2.
+
+(** ** 5.6 Algorithm Progress Properties *)
+
+(** An algorithm makes progress by processing pixels *)
+Definition makes_progress (process : labeling -> coord -> labeling) : Prop :=
+  forall l c, l c = 0 -> (process l c) c <> 0.
+
+(** After processing all pixels, all foreground pixels are labeled *)
+Definition complete_labeling (img : simple_image) (l : labeling) : Prop :=
+  forall c, img c = true -> l c <> 0.
+
+(** ** 5.7 Two-Phase Algorithm Structure *)
+
+(** Many algorithms follow a two-phase structure:
+    1. Initial labeling with possible equivalences
+    2. Resolving equivalences to final labels *)
+
+(** Phase 1 produces preliminary labels and equivalences *)
+Definition phase1_correct (img : simple_image) (adj : coord -> coord -> bool)
+                         (l : labeling) (equiv : label_equiv) : Prop :=
+  (* All foreground pixels are labeled *)
+  complete_labeling img l /\
+  (* Labels respect adjacency *)
+  (forall c1 c2, img c1 = true -> img c2 = true -> 
+                 adj c1 c2 = true -> l c1 <> 0 -> l c2 <> 0 ->
+                 equiv (l c1) (l c2)) /\
+  (* Equivalence is valid *)
+  valid_equiv img adj l equiv.
+
+(** Phase 2 resolves equivalences *)
+Definition phase2_correct (l_initial : labeling) (equiv : label_equiv) 
+                         (l_final : labeling) : Prop :=
+  forall c, l_initial c <> 0 ->
+    (forall c', equiv (l_initial c) (l_initial c') -> 
+                l_final c = l_final c').
+
+(** ** 5.8 Scan-Line Processing Invariants *)
+
+(** For algorithms that process pixels row by row *)
+Definition processed_up_to (width : nat) (row col : nat) : pixel_region :=
+  fun c => match c with
+  | (x, y) => orb (Nat.ltb y row) 
+                  (andb (Nat.eqb y row) (Nat.ltb x col))
+  end.
+
+(** Invariant maintained during row processing *)
+Definition row_scan_invariant (img : bounded_image) (adj : coord -> coord -> bool)
+                             (l : labeling) (row col : nat) : Prop :=
+  correct_on_region (bounded_to_simple img) adj l 
+                   (processed_up_to (width img) row col).
+
+(** ** 5.9 Algorithm Termination *)
+
+(** Algorithms must terminate on bounded images *)
+Definition algorithm_terminates (alg : ccl_algorithm) : Prop :=
+  (* Since we're in Coq, all functions terminate by construction.
+     This property is automatically satisfied. *)
+  True.
+
+(** ** 5.10 Determinism and Uniqueness *)
+
+(** An algorithm is deterministic - same input gives same output *)
+Definition algorithm_deterministic (alg : ccl_algorithm) : Prop :=
+  forall img adj, alg img adj = alg img adj.  (* Trivially true in Coq *)
+
+(** While labelings aren't unique, the partition they induce is *)
+Definition induces_same_partition (img : simple_image) (adj : coord -> coord -> bool)
+                                 (l1 l2 : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+    (l1 c1 = l1 c2 <-> l2 c1 = l2 c2).
+
+(** Correct algorithms induce the same partition *)
+Theorem correct_algorithms_equivalent : forall alg1 alg2 img adj,
+  (forall a b, adj a b = adj b a) ->
+  algorithm_correct alg1 ->
+  algorithm_correct alg2 ->
+  induces_same_partition (bounded_to_simple img) adj (alg1 img adj) (alg2 img adj).
+Proof.
+  intros alg1 alg2 img adj adj_sym Hcorr1 Hcorr2.
+  apply correct_labelings_equivalent.
+  - exact adj_sym.
+  - apply Hcorr1. exact adj_sym.
+  - apply Hcorr2. exact adj_sym.
+Qed.
