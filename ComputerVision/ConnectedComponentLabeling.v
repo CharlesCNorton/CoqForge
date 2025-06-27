@@ -1352,3 +1352,121 @@ Proof.
     + (* Background pixel *)
       apply IH. exact Hy.
 Qed.
+
+(** first_pass_row preserves labels on different rows - cleaner version *)
+Lemma first_pass_row_preserves_diff_row_v2 :
+  forall fuel img adj labels equiv y x next_label labels' equiv' next' y' x',
+  y' <> y ->
+  first_pass_row img adj labels equiv y x fuel next_label = (labels', equiv', next') ->
+  labels' (pair x' y') = labels (pair x' y').
+Proof.
+  intros fuel img adj labels equiv y x next_label labels' equiv' next' y' x' Hy Heq.
+  generalize (first_pass_row_preserves_diff_row fuel img adj labels equiv y x next_label y' x' Hy).
+  rewrite Heq.
+  simpl.
+  intros H. exact H.
+Qed.
+
+(** first_pass_rows preserves labels on future rows *)
+Lemma first_pass_rows_preserves_future_rows :
+  forall fuel img adj labels equiv y next_label y' x',
+  y' >= y + fuel ->
+  let result := first_pass_rows img adj labels equiv y fuel next_label in
+  let '(labels', _, _) := result in
+  labels' (pair x' y') = labels (pair x' y').
+Proof.
+  induction fuel as [|fuel IH]; intros img adj labels equiv y next_label y' x' Hfuture.
+  - simpl. reflexivity.
+  - simpl.
+    destruct (y <? height img) eqn:Hlt; [|reflexivity].
+    assert (Hdiff: y' <> y) by lia.
+    unfold process_row.
+    destruct (first_pass_row img adj labels equiv y 0 (width img) next_label) as [[row_labels row_equiv] row_next] eqn:Hrow.
+    assert (Hpreserve: row_labels (pair x' y') = labels (pair x' y')).
+    { apply (first_pass_row_preserves_diff_row_v2 (width img) img adj labels equiv y 0 next_label row_labels row_equiv row_next y' x' Hdiff Hrow). }
+    specialize (IH img adj row_labels row_equiv (S y) row_next y' x').
+    assert (y' >= S y + fuel) by lia.
+    specialize (IH H).
+    destruct (first_pass_rows img adj row_labels row_equiv (S y) fuel row_next) as [[rec_labels rec_equiv] rec_next] eqn:Hrec.
+    simpl in IH. simpl.
+    rewrite IH. exact Hpreserve.
+Qed.
+
+(** empty_labeling assigns 0 to all pixels *)
+Lemma empty_labeling_all_zero : forall c,
+  empty_labeling c = 0.
+Proof.
+  intro c. reflexivity.
+Qed.
+
+(** The label update in first_pass_row only changes one pixel *)
+Lemma first_pass_label_update_at : forall (labels : labeling) (x y : nat) (label : nat) (x' y' : nat),
+  (fun c' : coord => 
+    match c' with 
+    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
+    end) (pair x' y') =
+  if coord_eq (pair x y) (pair x' y') then label else labels (pair x' y').
+Proof.
+  intros labels x y label x' y'.
+  unfold coord_eq.
+  simpl.
+  reflexivity.
+Qed.
+
+(** If a pixel is background, any label update at a different coordinate preserves its zero label *)
+Lemma background_label_update_preserves_zero : forall (img : bounded_image) (labels : labeling) x y label c,
+  get_pixel img c = false ->
+  labels c = 0 ->
+  coord_eq (pair x y) c = false ->
+  (fun c' : coord => 
+    match c' with 
+    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
+    end) c = 0.
+Proof.
+  intros img labels x y label c Hbg Hzero Hneq.
+  destruct c as [xc yc].
+  simpl.
+  destruct (x =? xc) eqn:Hx; destruct (y =? yc) eqn:Hy; simpl.
+  - (* x = xc and y = yc, but coord_eq says they're different - contradiction *)
+    unfold coord_eq in Hneq.
+    rewrite Hx in Hneq. rewrite Hy in Hneq.
+    simpl in Hneq. discriminate.
+  - exact Hzero.
+  - exact Hzero.
+  - exact Hzero.
+Qed.
+
+(** The update function assigns the new label at the target coordinate *)
+Lemma label_update_at_target : forall (labels : labeling) x y label,
+  (fun c' : coord => 
+    match c' with 
+    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
+    end) (pair x y) = label.
+Proof.
+  intros labels x y label.
+  simpl.
+  rewrite Nat.eqb_refl. rewrite Nat.eqb_refl.
+  reflexivity.
+Qed.
+
+(** Label updates in first_pass_row preserve zero for background pixels *)
+Lemma foreground_update_preserves_background_zero : forall (img : bounded_image) (labels : labeling) x y label,
+  (forall c, get_pixel img c = false -> labels c = 0) ->
+  get_pixel img (pair x y) = true ->
+  forall c, get_pixel img c = false ->
+    (fun c' : coord => 
+      match c' with 
+      | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
+      end) c = 0.
+Proof.
+  intros img labels x y label Hinv Hfg c Hbg.
+  destruct c as [xc yc].
+  simpl.
+  destruct (x =? xc) eqn:Hx; destruct (y =? yc) eqn:Hy; simpl.
+  - (* x = xc and y = yc *)
+    apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
+    subst. rewrite Hbg in Hfg. discriminate.
+  - apply Hinv. exact Hbg.
+  - apply Hinv. exact Hbg.
+  - apply Hinv. exact Hbg.
+Qed.
