@@ -1169,3 +1169,10 @@ Proof. compute. reflexivity. Qed.
 Example test_different_components :
   test_labels (pair 0 0) <> test_labels (pair 2 1).
 Proof. compute. discriminate. Qed.
+
+(** Empty labeling assigns 0 everywhere *)
+Lemma empty_labeling_zero : forall c,
+  empty_labeling c = 0.
+Proof.
+  intro c. reflexivity.
+Qed.
