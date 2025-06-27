@@ -304,16 +304,7 @@ Proof.
     rewrite H. simpl.
     apply Nat.eqb_eq in H1.
     rewrite H1. simpl.
-    rewrite Nat.eqb_refl. simpl.
-    apply Nat.eqb_neq in Heqx.
-    destruct (Nat.eq_dec x1 x2); [contradiction|].
-    destruct (Nat.eqb (abs_diff x1 x2) 0) eqn:Habs.
-    + apply Nat.eqb_eq in Habs.
-      unfold abs_diff in Habs.
-      destruct (Nat.leb x1 x2) eqn:Hle.
-      * apply Nat.leb_le in Hle. lia.
-      * apply Nat.leb_nle in Hle. lia.
-    + reflexivity.
+    reflexivity.
 Qed.
 
 (** The converse is not true: 8-adjacency does not imply 4-adjacency *)
@@ -347,7 +338,7 @@ Proof.
       apply Nat.eqb_eq in Hy; subst.
       apply Nat.eqb_eq in H1.
       rewrite H1.
-      unfold abs_diff at 2.
+      unfold abs_diff.
       rewrite Nat.leb_refl, Nat.sub_diag.
       lia.
   - intros H.
@@ -358,34 +349,58 @@ Proof.
       simpl in H.
       apply Nat.eqb_eq.
       exact H.
-    + destruct (Nat.eqb y1 y2) eqn:Hy.
-      * apply Nat.eqb_eq in Hy; subst.
-        unfold abs_diff at 2 in H.
-        rewrite Nat.leb_refl, Nat.sub_diag in H.
-        rewrite Nat.add_0_r in H.
-        rewrite Hy.
-        simpl.
-        apply Nat.eqb_eq.
-        exact H.
-      * (* x1 ≠ x2 and y1 ≠ y2 but sum = 1, impossible *)
-        apply Nat.eqb_neq in Hx, Hy.
-        assert (abs_diff x1 x2 > 0).
-        { unfold abs_diff. 
-          destruct (Nat.leb x1 x2) eqn:Hle.
-          - apply Nat.leb_le in Hle. lia.
-          - apply Nat.leb_nle in Hle. lia. }
-        assert (abs_diff y1 y2 > 0).
-        { unfold abs_diff. 
-          destruct (Nat.leb y1 y2) eqn:Hle.
-          - apply Nat.leb_le in Hle. lia.
-          - apply Nat.leb_nle in Hle. lia. }
-        lia.
+    + apply andb_true_intro.
+      split.
+      * (* Need to show y1 = y2 *)
+        destruct (Nat.eqb y1 y2) eqn:Heqy.
+        -- reflexivity.
+        -- (* If y1 ≠ y2 and x1 ≠ x2, then sum > 1 *)
+           apply Nat.eqb_neq in Hx, Heqy.
+           assert (abs_diff x1 x2 > 0).
+           { unfold abs_diff. 
+             destruct (Nat.leb x1 x2) eqn:Hle.
+             - apply Nat.leb_le in Hle. lia.
+             - apply Nat.leb_nle in Hle. lia. }
+           assert (abs_diff y1 y2 > 0).
+           { unfold abs_diff. 
+             destruct (Nat.leb y1 y2) eqn:Hle.
+             - apply Nat.leb_le in Hle. lia.
+             - apply Nat.leb_nle in Hle. lia. }
+           lia.
+      * (* Need to show abs_diff x1 x2 = 1 *)
+        apply Nat.eqb_neq in Hx.
+        assert (abs_diff y1 y2 = 0).
+        { destruct (abs_diff y1 y2) eqn:E.
+          - reflexivity.
+          - assert (abs_diff x1 x2 > 0).
+            { unfold abs_diff. 
+              destruct (Nat.leb x1 x2) eqn:Hle.
+              - apply Nat.leb_le in Hle. lia.
+              - apply Nat.leb_nle in Hle. lia. }
+            lia. }
+        unfold abs_diff in H0.
+        destruct (Nat.leb y1 y2) eqn:Hley.
+        -- apply Nat.leb_le in Hley. 
+           assert (y1 = y2) by lia. subst.
+           apply Nat.eqb_eq.
+           assert (abs_diff x1 x2 + abs_diff y2 y2 = 1) by exact H.
+           unfold abs_diff at 2 in H1.
+           rewrite Nat.leb_refl, Nat.sub_diag in H1.
+           rewrite Nat.add_0_r in H1.
+           exact H1.
+        -- apply Nat.leb_nle in Hley.
+           assert (y1 = y2) by lia. subst.
+           apply Nat.eqb_eq.
+           assert (abs_diff x1 x2 + abs_diff y2 y2 = 1) by exact H.
+           unfold abs_diff at 2 in H1.
+           rewrite Nat.leb_refl, Nat.sub_diag in H1.
+           rewrite Nat.add_0_r in H1.
+           exact H1.
 Qed.
 
-(** 8-adjacency can be characterized by Chebyshev distance *)
 Lemma adjacent_8_chebyshev : forall c1 c2,
   adjacent_8 c1 c2 = true <-> 
-  max (abs_diff (coord_x c1) (coord_x c2)) (abs_diff (coord_y c1) (coord_y c2)) = 1.
+  Nat.max (abs_diff (coord_x c1) (coord_x c2)) (abs_diff (coord_y c1) (coord_y c2)) = 1.
 Proof.
   intros [x1 y1] [x2 y2].
   unfold adjacent_8; simpl.
@@ -407,25 +422,24 @@ Proof.
     destruct H1 as [Hx | Hy].
     + destruct (abs_diff x1 x2) eqn:E; [lia|].
       destruct n; [|lia].
-      destruct (abs_diff y1 y2); lia.
+      destruct (abs_diff y1 y2) eqn:E2.
+      * rewrite Nat.max_0_r. reflexivity.
+      * destruct n; [apply Nat.max_comm|lia].
     + destruct (abs_diff y1 y2) eqn:E; [lia|].
       destruct n; [|lia].
-      destruct (abs_diff x1 x2); lia.
+      destruct (abs_diff x1 x2) eqn:E2.
+      * rewrite Nat.max_0_l. reflexivity.
+      * destruct n; [reflexivity|lia].
   - intros H.
     apply andb_true_intro.
     split.
     + apply andb_true_intro.
-      split; apply Nat.leb_le; lia.
+      split; apply Nat.leb_le; apply Nat.max_lub_iff in H; lia.
     + apply negb_true_iff.
       apply andb_false_iff.
-      unfold max in H.
-      destruct (abs_diff x1 x2 <=? abs_diff y1 y2) eqn:Hle.
-      * apply Nat.leb_le in Hle.
-        right.
-        apply Nat.eqb_neq.
-        lia.
-      * apply Nat.leb_nle in Hle.
-        left.
-        apply Nat.eqb_neq.
-        lia.
+      destruct (Nat.max_dec (abs_diff x1 x2) (abs_diff y1 y2)) as [Hmax | Hmax].
+      * rewrite Hmax in H.
+        right. apply Nat.eqb_neq. lia.
+      * rewrite Hmax in H.
+        left. apply Nat.eqb_neq. lia.
 Qed.
