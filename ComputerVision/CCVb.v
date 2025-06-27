@@ -1034,3 +1034,169 @@ Proof.
   - apply Hcorr1. exact adj_sym.
   - apply Hcorr2. exact adj_sym.
 Qed.
+
+(** * Section 6: Two-Pass Algorithm Implementation
+    
+    This section implements the classical two-pass connected component labeling
+    algorithm. The first pass assigns preliminary labels and records equivalences,
+    while the second pass resolves these equivalences to produce final labels. *)
+
+(** ** 6.1 Equivalence Table for Label Merging *)
+
+(** An equivalence table tracks which labels should be merged *)
+Definition equiv_table := nat -> nat -> bool.
+
+(** Empty equivalence table - no labels are equivalent *)
+Definition empty_equiv : equiv_table := fun _ _ => false.
+
+(** Add an equivalence between two labels *)
+Definition add_equiv (e : equiv_table) (l1 l2 : nat) : equiv_table :=
+  fun a b => orb (e a b) (orb (andb (Nat.eqb a l1) (Nat.eqb b l2))
+                              (andb (Nat.eqb a l2) (Nat.eqb b l1))).
+
+(** ** 6.2 Equivalence Table Properties *)
+
+(** Symmetry of equivalence tables *)
+Definition equiv_sym (e : equiv_table) : Prop :=
+  forall a b, e a b = e b a.
+
+(** Empty table is symmetric *)
+Lemma empty_equiv_sym : equiv_sym empty_equiv.
+Proof.
+  unfold equiv_sym, empty_equiv.
+  reflexivity.
+Qed.
+
+(** add_equiv preserves symmetry *)
+Lemma add_equiv_preserves_sym : forall e l1 l2,
+  equiv_sym e ->
+  equiv_sym (add_equiv e l1 l2).
+Proof.
+  intros e l1 l2 He.
+  unfold equiv_sym, add_equiv.
+  intros a b.
+  rewrite He.
+  f_equal.
+  rewrite orb_comm.
+  f_equal.
+  - apply andb_comm.
+  - apply andb_comm.
+Qed.
+
+(** Well-formedness: label 0 is never equivalent to positive labels *)
+Definition equiv_well_formed (e : equiv_table) : Prop :=
+  forall l, l > 0 -> e l 0 = false /\ e 0 l = false.
+
+(** Empty table is well-formed *)
+Lemma empty_equiv_well_formed : equiv_well_formed empty_equiv.
+Proof.
+  unfold equiv_well_formed, empty_equiv.
+  intros l Hl.
+  split; reflexivity.
+Qed.
+
+(** ** 6.3 Finding Minimum Equivalent Label *)
+
+(** Find the minimum label equivalent to l *)
+Fixpoint find_min_equiv (e : equiv_table) (l : nat) (fuel : nat) : nat :=
+  match fuel with
+  | O => l
+  | S fuel' => 
+    let fix scan_labels (n : nat) : nat :=
+      match n with
+      | O => l
+      | S n' => if e l n' then
+                  Nat.min n' (scan_labels n')
+                else scan_labels n'
+      end
+    in Nat.min l (scan_labels l)
+  end.
+
+(** ** 6.4 First Pass - Row Processing *)
+
+(** Process a single pixel in the first pass *)
+Definition process_pixel (img : bounded_image) (adj : coord -> coord -> bool)
+                        (labels : labeling) (equiv : equiv_table)
+                        (c : coord) (next_label : nat) 
+                        : (labeling * equiv_table * nat) :=
+  if get_pixel img c then
+    let x := coord_x c in
+    let y := coord_y c in
+    (* Check left neighbor *)
+    let left := if x =? 0 then 0 else 
+                if adj (x - 1, y) c then labels (x - 1, y) else 0 in
+    (* Check up neighbor *)
+    let up := if y =? 0 then 0 else
+              if adj (x, y - 1) c then labels (x, y - 1) else 0 in
+    match left, up with
+    | 0, 0 => 
+        (* No labeled neighbors - assign new label *)
+        ((fun c' => if coord_eqb c c' then next_label else labels c'),
+         equiv,
+         S next_label)
+    | l, 0 | 0, l => 
+        (* One labeled neighbor - use its label *)
+        ((fun c' => if coord_eqb c c' then l else labels c'),
+         equiv,
+         next_label)
+    | l1, l2 =>
+        (* Two labeled neighbors *)
+        let label := Nat.min l1 l2 in
+        let new_labels := fun c' => if coord_eqb c c' then label else labels c' in
+        let new_equiv := if Nat.eqb l1 l2 then equiv else add_equiv equiv l1 l2 in
+        (new_labels, new_equiv, next_label)
+    end
+  else
+    (labels, equiv, next_label).
+
+(** Process a row of pixels *)
+Fixpoint process_row (img : bounded_image) (adj : coord -> coord -> bool)
+                     (labels : labeling) (equiv : equiv_table)
+                     (y : nat) (x : nat) (width : nat) (next_label : nat)
+                     : (labeling * equiv_table * nat) :=
+  match width with
+  | O => (labels, equiv, next_label)
+  | S width' =>
+      if x <? S width' then
+        let '(labels', equiv', next') := 
+          process_pixel img adj labels equiv (x, y) next_label in
+        process_row img adj labels' equiv' y (S x) width' next'
+      else
+        (labels, equiv, next_label)
+  end.
+
+(** Process all rows *)
+Fixpoint process_all_rows (img : bounded_image) (adj : coord -> coord -> bool)
+                          (labels : labeling) (equiv : equiv_table)
+                          (y : nat) (height : nat) (next_label : nat)
+                          : (labeling * equiv_table * nat) :=
+  match height with
+  | O => (labels, equiv, next_label)
+  | S height' =>
+      if y <? S height' then
+        let '(labels', equiv', next') :=
+          process_row img adj labels equiv y 0 (width img) next_label in
+        process_all_rows img adj labels' equiv' (S y) height' next'
+      else
+        (labels, equiv, next_label)
+  end.
+
+(** Complete first pass *)
+Definition first_pass (img : bounded_image) (adj : coord -> coord -> bool) 
+                     : (labeling * equiv_table * nat) :=
+  process_all_rows img adj empty_labeling empty_equiv 0 (height img) 1.
+
+(** ** 6.5 Second Pass - Resolve Equivalences *)
+
+Definition second_pass (labels : labeling) (equiv : equiv_table) (max_label : nat) 
+                      : labeling :=
+  fun c => 
+    let l := labels c in
+    if Nat.eqb l 0 then 0
+    else find_min_equiv equiv l max_label.
+
+(** ** 6.6 Complete Two-Pass Algorithm *)
+
+Definition two_pass_ccl (img : bounded_image) (adj : coord -> coord -> bool) : labeling :=
+  let '(labels, equiv, max_label) := first_pass img adj in
+  second_pass labels equiv max_label.
