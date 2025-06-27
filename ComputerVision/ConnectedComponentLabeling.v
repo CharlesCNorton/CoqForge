@@ -1866,3 +1866,37 @@ Proof.
         apply Nat.eqb_eq in Hb.
         subst. split; assumption.
 Qed.
+
+(** two_pass_ccl assigns 0 to background pixels *)
+Lemma two_pass_ccl_labels_background : forall img adj c,
+  get_pixel img c = false ->
+  two_pass_ccl img adj c = 0.
+Proof.
+  intros img adj c Hbg.
+  unfold two_pass_ccl.
+  destruct (first_pass img adj) as [[labels equiv] max_label] eqn:Hfirst.
+  apply second_pass_preserves_zero.
+  generalize (first_pass_labels_background img adj).
+  rewrite Hfirst.
+  simpl.
+  intro H.
+  apply H.
+  exact Hbg.
+Qed.
+
+(** first_pass assigns positive labels to foreground pixels - row level *)
+Lemma first_pass_row_labels_foreground : forall img adj labels equiv y x fuel next_label c,
+  get_pixel img c = true ->
+  (forall c', get_pixel img c' = true -> labels c' > 0) ->
+  next_label > 0 ->
+  let '(labels', _, next') := first_pass_row img adj labels equiv y x fuel next_label in
+  labels' c > 0.
+Proof.
+  intros img adj labels equiv y x fuel next_label c Hfg Hinv Hpos.
+  generalize (first_pass_row_preserves_positive_labels fuel img adj labels equiv y x next_label Hinv Hpos).
+  destruct (first_pass_row img adj labels equiv y x fuel next_label) as [[labels' equiv'] next'].
+  simpl.
+  intro H.
+  apply H.
+  exact Hfg.
+Qed.
