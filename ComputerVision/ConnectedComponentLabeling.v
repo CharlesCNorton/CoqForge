@@ -668,3 +668,44 @@ Proof.
   - apply coord_eq_true_iff in Heq. contradiction.
   - reflexivity.
 Qed.
+
+(** Pairs are equal iff components are equal *)
+Lemma pair_eq_iff : forall (x1 y1 x2 y2 : nat),
+  pair x1 y1 = pair x2 y2 <-> x1 = x2 /\ y1 = y2.
+Proof.
+  intros x1 y1 x2 y2.
+  split.
+  - intros H. 
+    injection H as H1 H2.
+    split; assumption.
+  - intros [H1 H2].
+    subst. reflexivity.
+Qed.
+
+(** Pairs with different first components are not equal *)
+Lemma pair_neq_fst : forall (x1 x2 y : nat),
+  x1 <> x2 -> pair x1 y <> pair x2 y.
+Proof.
+  intros x1 x2 y Hneq Heq.
+  apply pair_eq_iff in Heq.
+  destruct Heq as [Hx _].
+  contradiction.
+Qed.
+
+(** Applying updated labeling to different coordinate *)
+Lemma updated_labeling_at_different : forall x y x' y' (prev_labels : labeling) (label : nat),
+  pair x y <> pair x' y' ->
+  (fun c' : coord =>
+    if let (x2, y2) := c' in (x =? x2) && (y =? y2)
+    then label
+    else prev_labels c') (pair x' y') = prev_labels (pair x' y').
+Proof.
+  intros x y x' y' prev_labels label Hneq.
+  simpl.
+  destruct (x =? x') eqn:Hx; destruct (y =? y') eqn:Hy.
+  - apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
+    subst. exfalso. apply Hneq. reflexivity.
+  - simpl. reflexivity.
+  - simpl. reflexivity.  
+  - simpl. reflexivity.
+Qed.
