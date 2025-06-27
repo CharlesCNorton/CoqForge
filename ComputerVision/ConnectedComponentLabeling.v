@@ -2086,3 +2086,33 @@ Proof.
     + (* Background pixel *)
       apply IH; assumption.
 Qed.
+
+(** first_pass_rows preserves equiv well-formedness *)
+Lemma first_pass_rows_preserves_equiv_well_formed : forall fuel img adj labels equiv y next_label,
+  equiv_well_formed equiv ->
+  next_label > 0 ->
+  let '(_, equiv', _) := first_pass_rows img adj labels equiv y fuel next_label in
+  equiv_well_formed equiv'.
+Proof.
+  induction fuel as [|fuel' IH]; intros img adj labels equiv y next_label Hwf Hpos.
+  - simpl. exact Hwf.
+  - simpl.
+    destruct (y <? height img) eqn:Hlt; [|exact Hwf].
+    unfold process_row.
+    destruct (first_pass_row img adj labels equiv y 0 (width img) next_label) as [[labels' equiv'] next'] eqn:Hrow.
+    apply IH.
+    + (* Use the specific result *)
+      assert (equiv_well_formed equiv').
+      { generalize (first_pass_row_preserves_equiv_well_formed (width img) img adj labels equiv y 0 next_label Hwf Hpos).
+        rewrite Hrow.
+        simpl.
+        intro H. exact H. }
+      exact H.
+    + (* next_label stays positive *)
+      assert (next' > 0).
+      { generalize (first_pass_row_next_label_positive (width img) img adj labels equiv y 0 next_label Hpos).
+        rewrite Hrow.
+        simpl.
+        intro H. exact H. }
+      exact H.
+Qed.
