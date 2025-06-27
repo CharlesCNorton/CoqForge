@@ -1220,3 +1220,268 @@ Definition second_pass (labels : labeling) (equiv : equiv_table) (max_label : na
 Definition two_pass_ccl (img : bounded_image) (adj : coord -> coord -> bool) : labeling :=
   let '(labels, equiv, max_label) := first_pass img adj in
   second_pass labels equiv max_label.
+
+(** * Section 7: Algorithm Invariants
+    
+    This section establishes the key invariants maintained by the two-pass
+    algorithm. We prove properties about how labels and equivalences evolve
+    during processing. *)
+
+(** ** 7.1 Label Update Properties *)
+
+(** Updating a label at one coordinate doesn't affect others *)
+Lemma label_update_other : forall (labels : labeling) (c c' : coord) (label : nat),
+  c <> c' ->
+  (fun x => if coord_eqb c x then label else labels x) c' = labels c'.
+Proof.
+  intros labels c c' label Hneq.
+  simpl.
+  destruct (coord_eqb c c') eqn:Heq.
+  - apply coord_eqb_true_iff in Heq. 
+    contradiction.
+  - reflexivity.
+Qed.
+
+(** Updating a label at a coordinate gives the new label *)
+Lemma label_update_same : forall (labels : labeling) (c : coord) (label : nat),
+  (fun x => if coord_eqb c x then label else labels x) c = label.
+Proof.
+  intros labels c label.
+  simpl.
+  rewrite coord_eqb_refl.
+  reflexivity.
+Qed.
+
+(** ** 7.2 Equivalence Table Evolution *)
+
+(** Adding an equivalence preserves existing equivalences *)
+Lemma add_equiv_preserves : forall e l1 l2 a b,
+  e a b = true -> add_equiv e l1 l2 a b = true.
+Proof.
+  intros e l1 l2 a b H.
+  unfold add_equiv.
+  rewrite H.
+  reflexivity.
+Qed.
+
+(** Adding an equivalence creates the intended equivalence *)
+Lemma add_equiv_creates : forall e l1 l2,
+  add_equiv e l1 l2 l1 l2 = true.
+Proof.
+  intros e l1 l2.
+  unfold add_equiv.
+  rewrite !Nat.eqb_refl.
+  simpl.
+  rewrite orb_true_r.
+  reflexivity.
+Qed.
+
+(** Adding an equivalence creates symmetric equivalence *)
+Lemma add_equiv_creates_sym : forall e l1 l2,
+  add_equiv e l1 l2 l2 l1 = true.
+Proof.
+  intros e l1 l2.
+  unfold add_equiv.
+  (* The goal has form: e l2 l1 || (... || true) = true *)
+  (* Since (...||true) = true, we get e l2 l1 || true = true *)
+  destruct (e l2 l1); simpl; reflexivity.
+Qed.
+
+(** ** 7.3 Process Pixel Properties *)
+
+(** Background pixels remain unlabeled *)
+Lemma process_pixel_background : forall img adj labels equiv c next_label,
+  get_pixel img c = false ->
+  process_pixel img adj labels equiv c next_label = (labels, equiv, next_label).
+Proof.
+  intros img adj labels equiv c next_label Hbg.
+  unfold process_pixel.
+  rewrite Hbg.
+  reflexivity.
+Qed.
+
+(** Processing preserves labels at other coordinates *)
+Lemma process_pixel_preserves_other : forall img adj labels equiv c c' next_label,
+  c <> c' ->
+  let '(labels', _, _) := process_pixel img adj labels equiv c next_label in
+  labels' c' = labels c'.
+Proof.
+  intros img adj labels equiv c c' next_label Hneq.
+  unfold process_pixel.
+  destruct (get_pixel img c) eqn:Hpix; [|reflexivity].
+  destruct (coord_x c =? 0) eqn:Hx0;
+  destruct (coord_y c =? 0) eqn:Hy0;
+  try destruct (adj _ c) eqn:Hadj1;
+  try destruct (adj _ c) eqn:Hadj2;
+  try destruct (labels _) eqn:Hl1;
+  try destruct (labels _) eqn:Hl2;
+  simpl; apply label_update_other; assumption.
+Qed.
+
+(** ** 7.4 Next Label Monotonicity *)
+
+(** Next label never decreases *)
+Lemma process_pixel_next_label_mono : forall img adj labels equiv c next_label,
+  let '(_, _, next') := process_pixel img adj labels equiv c next_label in
+  next' >= next_label.
+Proof.
+  intros img adj labels equiv c next_label.
+  unfold process_pixel.
+  destruct (get_pixel img c) eqn:Hpix; [|lia].
+  destruct (coord_x c =? 0) eqn:Hx0;
+  destruct (coord_y c =? 0) eqn:Hy0;
+  try destruct (adj _ c) eqn:Hadj1;
+  try destruct (adj _ c) eqn:Hadj2;
+  try destruct (labels _) eqn:Hl1;
+  try destruct (labels _) eqn:Hl2;
+  simpl; lia.
+Qed.
+
+(** Next label is positive if it starts positive *)
+Lemma process_pixel_next_label_positive : forall img adj labels equiv c next_label,
+  next_label > 0 ->
+  let '(_, _, next') := process_pixel img adj labels equiv c next_label in
+  next' > 0.
+Proof.
+  intros img adj labels equiv c next_label Hpos.
+  pose proof (process_pixel_next_label_mono img adj labels equiv c next_label).
+  destruct (process_pixel img adj labels equiv c next_label) as [[? ?] next'].
+  lia.
+Qed.
+
+(** ** 7.5 Row Processing Invariants *)
+
+(** Processing a row preserves next_label monotonicity *)
+Lemma process_row_next_label_mono : forall img adj labels equiv y x width next_label,
+  let '(_, _, next') := process_row img adj labels equiv y x width next_label in
+  next' >= next_label.
+Proof.
+  intros img adj labels equiv y x width.
+  revert x.
+  induction width as [|width' IH]; intros x next_label.
+  - reflexivity.
+  - simpl.
+    destruct (x <? S width') eqn:Hlt; [|lia].
+    destruct (process_pixel img adj labels equiv (x, y) next_label) as [[labels' equiv'] next'] eqn:Hpix.
+    pose proof (process_pixel_next_label_mono img adj labels equiv (x, y) next_label).
+    rewrite Hpix in H.
+    pose proof (IH (S x) next').
+    destruct (process_row img adj labels' equiv' y (S x) width' next') as [[? ?] next''].
+    lia.
+Qed.
+
+(** ** 7.6 Coordinate Bounds *)
+
+(** Processing respects image bounds *)
+Definition coords_in_bounds (img : bounded_image) (c : coord) : Prop :=
+  coord_x c < width img /\ coord_y c < height img.
+
+(** process_pixel only modifies in-bounds coordinates *)
+Lemma process_pixel_out_of_bounds : forall img adj labels equiv c next_label,
+  ~ coords_in_bounds img c ->
+  get_pixel img c = false.
+Proof.
+  intros img adj labels equiv c next_label Hout.
+  unfold get_pixel, in_bounds, coords_in_bounds in *.
+  destruct (coord_x c <? width img) eqn:Hx;
+  destruct (coord_y c <? height img) eqn:Hy;
+  simpl.
+  - apply Nat.ltb_lt in Hx, Hy. exfalso. apply Hout. split; assumption.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+Qed.
+
+(** ** 7.7 Empty Labeling Properties *)
+
+(** Empty labeling assigns 0 everywhere *)
+Lemma empty_labeling_is_zero : forall c,
+  empty_labeling c = 0.
+Proof.
+  reflexivity.
+Qed.
+
+(** ** 7.8 Well-Formed Equivalence Preservation *)
+
+(** add_equiv preserves well-formedness when adding positive labels *)
+Lemma add_equiv_preserves_well_formed : forall e l1 l2,
+  equiv_well_formed e ->
+  l1 > 0 -> l2 > 0 ->
+  equiv_well_formed (add_equiv e l1 l2).
+Proof.
+  intros e l1 l2 Hwf Hl1 Hl2.
+  unfold equiv_well_formed in *.
+  intros l Hl.
+  unfold add_equiv.
+  destruct (Hwf l Hl) as [H1 H2].
+  split.
+  - rewrite H1. simpl.
+    destruct (l =? l1) eqn:Heq1.
+    + apply Nat.eqb_eq in Heq1. subst.
+      rewrite Nat.eqb_refl. simpl.
+      destruct (0 =? l2) eqn:Heq2.
+      * apply Nat.eqb_eq in Heq2. lia.
+      * reflexivity.
+    + destruct (l =? l2) eqn:Heq2.
+      * apply Nat.eqb_eq in Heq2. subst.
+        destruct (0 =? l1) eqn:Heq3.
+        -- apply Nat.eqb_eq in Heq3. lia.
+        -- reflexivity.
+      * reflexivity.
+  - rewrite H2. simpl.
+    destruct (0 =? l1) eqn:Heq1.
+    + apply Nat.eqb_eq in Heq1. lia.
+    + destruct (0 =? l2) eqn:Heq2.
+      * apply Nat.eqb_eq in Heq2. lia.
+      * reflexivity.
+Qed.
+
+(** ** 7.9 Basic Properties of find_min_equiv *)
+
+(** find_min_equiv returns input when fuel is 0 *)
+Lemma find_min_equiv_fuel_zero : forall e l,
+  find_min_equiv e l 0 = l.
+Proof.
+  reflexivity.
+Qed.
+
+(** find_min_equiv never returns 0 for positive input *)
+Lemma find_min_equiv_positive : forall e l fuel,
+  equiv_well_formed e ->
+  l > 0 ->
+  find_min_equiv e l fuel > 0.
+Proof.
+  intros e l fuel Hwf Hl.
+  induction fuel as [|fuel' IH].
+  - exact Hl.
+  - simpl.
+    (* The minimum of positive numbers is positive *)
+    assert (forall a b, a > 0 -> b > 0 -> Nat.min a b > 0).
+    { intros a b Ha Hb. 
+      unfold Nat.min.
+      destruct (a <=? b); assumption. }
+    apply H.
+    + exact Hl.
+    + (* Need to prove scan_labels returns positive *)
+      clear H IH.
+      assert (forall n, 
+        (fix scan_labels (n : nat) : nat :=
+          match n with
+          | 0 => l
+          | S n' => if e l n' then Nat.min n' (scan_labels n') else scan_labels n'
+          end) n > 0).
+      { intro n.
+        induction n as [|n' IHn].
+        - exact Hl.
+        - simpl.
+          destruct (e l n') eqn:Heq.
+          + destruct n'.
+            * destruct (Hwf l Hl) as [Hwf1 _].
+              rewrite Heq in Hwf1. discriminate.
+            * assert (S n' > 0) by lia.
+              assert (Nat.min (S n') IHn > 0).
+              { unfold Nat.min. destruct (S n' <=? IHn); [exact H | exact IHn]. }
+              exact H0.
+          + exact IHn. }
+      apply H.
+Qed.
