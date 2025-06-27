@@ -1282,9 +1282,15 @@ Lemma add_equiv_creates_sym : forall e l1 l2,
 Proof.
   intros e l1 l2.
   unfold add_equiv.
-  (* The goal has form: e l2 l1 || (... || true) = true *)
-  (* Since (...||true) = true, we get e l2 l1 || true = true *)
-  destruct (e l2 l1); simpl; reflexivity.
+  (* We have: e l2 l1 || ((l2 =? l1) && (l1 =? l2) || (l2 =? l2) && (l1 =? l1)) *)
+  (* Since l2 =? l2 = true and l1 =? l1 = true, the last term is true *)
+  rewrite !Nat.eqb_refl.
+  (* Now: e l2 l1 || ((l2 =? l1) && (l1 =? l2) || true && true) *)
+  simpl.
+  (* true && true = true, so: e l2 l1 || ((l2 =? l1) && (l1 =? l2) || true) *)
+  (* For any X, X || true = true *)
+  destruct ((l2 =? l1) && (l1 =? l2)); simpl; 
+  rewrite orb_true_r; reflexivity.
 Qed.
 
 (** ** 7.3 Process Pixel Properties *)
@@ -1309,13 +1315,12 @@ Proof.
   intros img adj labels equiv c c' next_label Hneq.
   unfold process_pixel.
   destruct (get_pixel img c) eqn:Hpix; [|reflexivity].
-  destruct (coord_x c =? 0) eqn:Hx0;
-  destruct (coord_y c =? 0) eqn:Hy0;
-  try destruct (adj _ c) eqn:Hadj1;
-  try destruct (adj _ c) eqn:Hadj2;
-  try destruct (labels _) eqn:Hl1;
-  try destruct (labels _) eqn:Hl2;
-  simpl; apply label_update_other; assumption.
+  (* Now we need to be careful with the pattern matching *)
+  remember (if coord_x c =? 0 then 0 else 
+            if adj (coord_x c - 1, coord_y c) c then labels (coord_x c - 1, coord_y c) else 0) as left.
+  remember (if coord_y c =? 0 then 0 else
+            if adj (coord_x c, coord_y c - 1) c then labels (coord_x c, coord_y c - 1) else 0) as up.
+  destruct left; destruct up; simpl; apply label_update_other; assumption.
 Qed.
 
 (** ** 7.4 Next Label Monotonicity *)
@@ -1327,14 +1332,13 @@ Lemma process_pixel_next_label_mono : forall img adj labels equiv c next_label,
 Proof.
   intros img adj labels equiv c next_label.
   unfold process_pixel.
-  destruct (get_pixel img c) eqn:Hpix; [|lia].
-  destruct (coord_x c =? 0) eqn:Hx0;
-  destruct (coord_y c =? 0) eqn:Hy0;
-  try destruct (adj _ c) eqn:Hadj1;
-  try destruct (adj _ c) eqn:Hadj2;
-  try destruct (labels _) eqn:Hl1;
-  try destruct (labels _) eqn:Hl2;
-  simpl; lia.
+  destruct (get_pixel img c) eqn:Hpix; [|reflexivity].
+  (* Handle the left and up neighbors systematically *)
+  remember (if coord_x c =? 0 then 0 else 
+            if adj (coord_x c - 1, coord_y c) c then labels (coord_x c - 1, coord_y c) else 0) as left.
+  remember (if coord_y c =? 0 then 0 else
+            if adj (coord_x c, coord_y c - 1) c then labels (coord_x c, coord_y c - 1) else 0) as up.
+  destruct left; destruct up; simpl; lia.
 Qed.
 
 (** Next label is positive if it starts positive *)
