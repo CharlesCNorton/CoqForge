@@ -1550,3 +1550,161 @@ Proof.
     + (* Background pixel - just recurse *)
       apply IH. exact Hinv.
 Qed.
+
+(** first_pass_rows preserves zero labels for background pixels *)
+Lemma first_pass_rows_preserves_background_zero :
+  forall fuel img adj labels equiv y next_label,
+  (forall c, get_pixel img c = false -> labels c = 0) ->
+  let '(labels', _, _) := first_pass_rows img adj labels equiv y fuel next_label in
+  forall c, get_pixel img c = false -> labels' c = 0.
+Proof.
+  induction fuel as [|fuel IH]; intros img adj labels equiv y next_label Hinv.
+  - simpl. exact Hinv.
+  - simpl.
+    destruct (y <? height img) eqn:Hheight; [|exact Hinv].
+    unfold process_row.
+    destruct (first_pass_row img adj labels equiv y 0 (width img) next_label) as [[row_labels row_equiv] row_next] eqn:Hrow.
+    apply IH.
+    intros c Hbg.
+    generalize (first_pass_row_preserves_background_zero_v2 (width img) img adj labels equiv y 0 next_label Hinv).
+    rewrite Hrow. simpl.
+    intro H. apply H. exact Hbg.
+Qed.
+
+(** first_pass assigns 0 to background pixels *)
+Lemma first_pass_labels_background :
+  forall img adj,
+  let '(labels, _, _) := first_pass img adj in
+  forall c, get_pixel img c = false -> labels c = 0.
+Proof.
+  intros img adj.
+  unfold first_pass.
+  remember (first_pass_rows img adj empty_labeling empty_equiv 0 (height img) 1) as result.
+  destruct result as [[labels equiv] next].
+  intros c Hbg.
+  generalize (first_pass_rows_preserves_background_zero (height img) img adj empty_labeling empty_equiv 0 1).
+  rewrite <- Heqresult. simpl.
+  intro H.
+  apply H.
+  - intros c' _. apply empty_labeling_all_zero.
+  - exact Hbg.
+Qed.
+
+(** If a pixel at (x,y) is foreground, first_pass_row will give it a non-zero label *)
+Lemma first_pass_row_labels_current_pixel :
+  forall img adj labels equiv y x next_label,
+  x < width img ->
+  get_pixel img (pair x y) = true ->
+  next_label > 0 ->
+  let '(labels', _, _) := first_pass_row img adj labels equiv y x 1 next_label in
+  labels' (pair x y) > 0.
+Proof.
+  intros img adj labels equiv y x next_label Hwidth Hfg Hpos.
+  simpl.
+  rewrite (proj2 (Nat.ltb_lt _ _) Hwidth).
+  rewrite Hfg.
+  destruct (x =? 0) eqn:Hx0;
+  destruct (y =? 0) eqn:Hy0;
+  try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
+  try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
+  try destruct (labels (pair (pred x) y)) eqn:Hleft;
+  try destruct (labels (pair x (pred y))) eqn:Hup;
+  simpl; rewrite Nat.eqb_refl; rewrite Nat.eqb_refl; simpl;
+  try lia;
+  try (apply Nat.lt_0_succ);
+  try (apply Nat.min_glb_lt_iff; split; lia).
+Qed.
+
+(** next_label is always positive in first_pass_row *)
+Lemma first_pass_row_next_label_positive :
+  forall fuel img adj labels equiv y x next_label,
+  next_label > 0 ->
+  let '(_, _, next') := first_pass_row img adj labels equiv y x fuel next_label in
+  next' > 0.
+Proof.
+  induction fuel as [|fuel IH]; intros img adj labels equiv y x next_label Hpos.
+  - simpl. exact Hpos.
+  - simpl.
+    destruct (x <? width img) eqn:Hwidth; [|exact Hpos].
+    destruct (get_pixel img (pair x y)) eqn:Hpixel.
+    + (* Foreground pixel *)
+      destruct (x =? 0) eqn:Hx0;
+      destruct (y =? 0) eqn:Hy0;
+      try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
+      try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
+      try destruct (labels (pair (pred x) y)) eqn:Hleft;
+      try destruct (labels (pair x (pred y))) eqn:Hup;
+      apply IH; lia.
+    + (* Background pixel *)
+      apply IH. exact Hpos.
+Qed.
+
+(** Simplified: first_pass_row never decreases next_label in one step *)
+Lemma first_pass_row_single_step_monotone :
+  forall img adj labels equiv y x next_label,
+  let '(_, _, next') := first_pass_row img adj labels equiv y x 1 next_label in
+  next' >= next_label.
+Proof.
+  intros img adj labels equiv y x next_label.
+  simpl.
+  destruct (x <? width img) eqn:Hwidth; [|lia].
+  destruct (get_pixel img (pair x y)) eqn:Hpixel; [|simpl; lia].
+  (* Foreground pixel *)
+  destruct (x =? 0) eqn:Hx0;
+  destruct (y =? 0) eqn:Hy0;
+  try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
+  try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
+  try destruct (labels (pair (pred x) y));
+  try destruct (labels (pair x (pred y)));
+  simpl; lia.
+Qed.
+
+(** Helper 1: Out of bounds case *)
+Lemma first_pass_row_out_of_bounds_monotone :
+  forall img adj labels equiv y x fuel next_label,
+  x >= width img ->
+  first_pass_row img adj labels equiv y x (S fuel) next_label = (labels, equiv, next_label).
+Proof.
+  intros img adj labels equiv y x fuel next_label Hbound.
+  simpl.
+  assert (x <? width img = false) by (apply Nat.ltb_ge; exact Hbound).
+  rewrite H.
+  reflexivity.
+Qed.
+
+(** Helper 2: Background pixel case *)
+Lemma first_pass_row_background_monotone :
+  forall img adj labels equiv y x fuel next_label,
+  x < width img ->
+  get_pixel img (pair x y) = false ->
+  first_pass_row img adj labels equiv y x (S fuel) next_label =
+  first_pass_row img adj labels equiv y (S x) fuel next_label.
+Proof.
+  intros img adj labels equiv y x fuel next_label Hlt Hbg.
+  simpl.
+  rewrite (proj2 (Nat.ltb_lt _ _) Hlt).
+  rewrite Hbg.
+  reflexivity.
+Qed.
+
+(** Helper 3: When x = 0 and y = 0, we always get a new label *)
+Lemma first_pass_row_origin_new_label :
+  forall img adj labels equiv fuel next_label,
+  0 < width img ->
+  get_pixel img (pair 0 0) = true ->
+  first_pass_row img adj labels equiv 0 0 (S fuel) next_label =
+  first_pass_row img adj 
+    (fun c' => match c' with 
+               | pair x2 y2 => if (0 =? x2) && (0 =? y2) then next_label else labels c'
+               end)
+    equiv 0 1 fuel (S next_label).
+Proof.
+  intros img adj labels equiv fuel next_label Hwidth Hfg.
+  simpl.
+  rewrite (proj2 (Nat.ltb_lt _ _) Hwidth).
+  rewrite Hfg.
+  f_equal.
+  apply functional_extensionality.
+  intros [x y].
+  reflexivity.
+Qed.
