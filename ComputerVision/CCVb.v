@@ -1118,7 +1118,7 @@ Qed.
 (** ** 6.3 Finding Minimum Equivalent Label *)
 
 (** Find the minimum label equivalent to l *)
-Fixpoint find_min_equiv (e : equiv_table) (l : nat) (fuel : nat) : nat :=
+Fixpoint find_min_equiv (e : equiv_table) (l : nat) (fuel : nat) {struct fuel} : nat :=
   match fuel with
   | O => l
   | S fuel' => 
@@ -1131,6 +1131,13 @@ Fixpoint find_min_equiv (e : equiv_table) (l : nat) (fuel : nat) : nat :=
       end
     in Nat.min l (scan_labels l)
   end.
+
+(** find_min_equiv returns input when fuel is 0 *)
+Lemma find_min_equiv_fuel_zero : forall e l,
+  find_min_equiv e l 0 = l.
+Proof.
+  reflexivity.
+Qed.
 
 (** ** 6.4 First Pass - Row Processing *)
 
@@ -1437,21 +1444,14 @@ Proof.
         -- simpl. reflexivity.
       * reflexivity.
   - rewrite H2. simpl.
-    destruct (0 =? l1) eqn:Heq1.
-    + apply Nat.eqb_eq in Heq1. lia.
-    + destruct (0 =? l2) eqn:Heq2.
-      * apply Nat.eqb_eq in Heq2. lia.
-      * reflexivity.
+    destruct l1.
+    + lia.
+    + destruct l2.
+      * lia.
+      * simpl. reflexivity.
 Qed.
 
 (** ** 7.9 Basic Properties of find_min_equiv *)
-
-(** find_min_equiv returns input when fuel is 0 *)
-Lemma find_min_equiv_fuel_zero : forall e l,
-  find_min_equiv e l 0 = l.
-Proof.
-  reflexivity.
-Qed.
 
 (** find_min_equiv never returns 0 for positive input *)
 Lemma find_min_equiv_positive : forall e l fuel,
@@ -1466,8 +1466,11 @@ Proof.
     (* The minimum of positive numbers is positive *)
     assert (forall a b, a > 0 -> b > 0 -> Nat.min a b > 0).
     { intros a b Ha Hb. 
-      unfold Nat.min.
-      destruct (a <=? b); assumption. }
+      destruct a.
+      - lia.
+      - destruct b.
+        + lia.
+        + simpl. lia. }
     apply H.
     + exact Hl.
     + (* Need to prove scan_labels returns positive *)
@@ -1487,9 +1490,13 @@ Proof.
             * destruct (Hwf l Hl) as [Hwf1 _].
               rewrite Heq in Hwf1. discriminate.
             * assert (S n' > 0) by lia.
-              assert (Nat.min (S n') IHn > 0).
-              { unfold Nat.min. destruct (S n' <=? IHn); [exact H | exact IHn]. }
-              exact H0.
+              (* Apply the min lemma to S n' and the recursive call *)
+              assert (forall a b, a > 0 -> b > 0 -> Nat.min a b > 0).
+              { intros a b Ha Hb. 
+                destruct a; [lia|].
+                destruct b; [lia|].
+                simpl. lia. }
+              apply H0; [exact H|exact IHn].
           + exact IHn. }
       apply H.
 Qed.
