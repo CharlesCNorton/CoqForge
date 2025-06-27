@@ -1942,3 +1942,73 @@ Proof.
   rewrite Hbg.
   reflexivity.
 Qed.
+
+(** * Section 9: Arithmetic for All Rows Processing
+    
+    This section provides the arithmetic infrastructure needed to prove bounds
+    on the all-rows processing function. We decompose the complex proof into
+    manageable pieces by establishing key arithmetic properties. *)
+
+(** ** 9.1 Match Expression Arithmetic *)
+
+(** Subtraction with match on the subtrahend *)
+Lemma match_sub_zero : forall n,
+  match 0 with
+  | 0 => S n
+  | S m => n - m
+  end = S n.
+Proof.
+  reflexivity.
+Qed.
+
+(** Subtraction with match on successor *)
+Lemma match_sub_succ : forall n m,
+  match S m with
+  | 0 => S n
+  | S m' => n - m'
+  end = n - m.
+Proof.
+  reflexivity.
+Qed.
+
+(** General form of the match expression *)
+Lemma match_sub_form : forall height y,
+  match y with
+  | 0 => S height
+  | S y' => height - y'
+  end = S height - y.
+Proof.
+  intros height y.
+  destruct y as [|y'].
+  - reflexivity.
+  - reflexivity.
+Qed.
+
+(** ** 9.2 Height and Row Arithmetic *)
+
+(** When y < S height, we have specific arithmetic properties *)
+Lemma height_sub_arithmetic : forall height y,
+  y < S height ->
+  S height - y = S (height - y).
+Proof.
+  intros height y Hlt.
+  lia.
+Qed.
+
+(** Subtraction by successor *)
+Lemma sub_succ_sub : forall n m,
+  m < n ->
+  n - S m = n - m - 1.
+Proof.
+  intros n m Hlt.
+  lia.
+Qed.
+
+(** Relationship between consecutive subtractions *)
+Lemma consecutive_sub_relation : forall height y,
+  S y <= height ->
+  height - y = S (height - S y).
+Proof.
+  intros height y Hle.
+  lia.
+Qed.
