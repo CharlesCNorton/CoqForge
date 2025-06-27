@@ -1950,3 +1950,139 @@ Proof.
   rewrite Nat.eqb_refl.
   reflexivity.
 Qed.
+
+(** Find minimum equivalent label - FIXED *)
+Fixpoint find_min_equiv_fixed (e : equiv_table) (l : nat) (fuel : nat) {struct fuel} : nat :=
+  match fuel with
+  | O => l
+  | S fuel' => 
+    let scan := fix scan_labels n :=
+      match n with
+      | O => l
+      | S n' => if e l n' then
+                  Nat.min n' (scan_labels n')
+                else scan_labels n'
+      end
+    in Nat.min l (scan l)
+  end.
+
+(** Now the base case will work *)
+Lemma find_min_equiv_fixed_zero : forall e l,
+  find_min_equiv_fixed e l 0 = l.
+Proof.
+  intros e l.
+  reflexivity.
+Qed.
+
+(** Updated second pass with fixed find_min_equiv *)
+Definition second_pass_fixed (labels : coord -> nat) (equiv : equiv_table) (max_label : nat) : coord -> nat :=
+  fun c => 
+    let l := labels c in
+    if Nat.eqb l O then O
+    else find_min_equiv_fixed equiv l max_label.
+
+(** Now we can prove the positivity lemma *)
+Lemma find_min_equiv_fixed_positive : forall e l fuel,
+  equiv_well_formed e ->
+  l > 0 ->
+  find_min_equiv_fixed e l fuel > 0.
+Proof.
+  intros e l fuel Hwf Hl.
+  destruct fuel as [|fuel'].
+  - (* Base case: fuel = 0 *)
+    simpl.
+    exact Hl.
+  - (* Inductive case *)
+    simpl.
+    apply Nat_min_positive.
+    + exact Hl.
+    + apply scan_labels_positive_wf; assumption.
+Qed.
+
+(** second_pass_fixed preserves positive labels for foreground pixels *)
+Lemma second_pass_fixed_preserves_positive : forall labels equiv max_label c,
+  equiv_well_formed equiv ->
+  labels c > 0 ->
+  second_pass_fixed labels equiv max_label c > 0.
+Proof.
+  intros labels equiv max_label c Hwf Hpos.
+  unfold second_pass_fixed.
+  destruct (labels c) eqn:Hl.
+  - (* labels c = 0 *)
+    lia.
+  - (* labels c = S n *)
+    destruct (Nat.eqb (S n) 0) eqn:Heq.
+    + (* S n = 0, impossible *)
+      apply Nat.eqb_eq in Heq.
+      discriminate.
+    + (* S n ≠ 0 *)
+      apply find_min_equiv_fixed_positive.
+      * exact Hwf.
+      * lia.
+Qed.
+
+(** Add equiv preserves well-formedness *)
+Lemma add_equiv_preserves_well_formed : forall e l1 l2,
+  equiv_well_formed e ->
+  l1 > 0 ->
+  l2 > 0 ->
+  equiv_well_formed (add_equiv e l1 l2).
+Proof.
+  intros e l1 l2 Hwf Hl1 Hl2.
+  unfold equiv_well_formed in *.
+  intros l Hl.
+  unfold add_equiv.
+  rewrite Hwf; [|exact Hl].
+  simpl.
+  destruct (l =? l1) eqn:Heq1; destruct (0 =? l2) eqn:Heq2; simpl.
+  - (* l = l1 and 0 = l2 *)
+    apply Nat.eqb_eq in Heq2. lia.
+  - (* l = l1 and 0 ≠ l2 *)
+    destruct l2; [lia|].
+    simpl. destruct l1; [lia|].
+    simpl. rewrite andb_false_r. reflexivity.
+  - (* l ≠ l1 and 0 = l2 *)
+    apply Nat.eqb_eq in Heq2. lia.
+  - (* l ≠ l1 and 0 ≠ l2 *)
+    destruct (l =? l2) eqn:Heq3; simpl.
+    + destruct (0 =? l1) eqn:Heq4.
+      * apply Nat.eqb_eq in Heq4. lia.
+      * destruct l1; [lia|]. reflexivity.
+    + reflexivity.
+Qed.
+
+(** first_pass_row preserves equiv well-formedness *)
+Lemma first_pass_row_preserves_equiv_well_formed : forall fuel img adj labels equiv y x next_label,
+  equiv_well_formed equiv ->
+  next_label > 0 ->
+  let '(_, equiv', _) := first_pass_row img adj labels equiv y x fuel next_label in
+  equiv_well_formed equiv'.
+Proof.
+  induction fuel as [|fuel' IH]; intros img adj labels equiv y x next_label Hwf Hpos.
+  - simpl. exact Hwf.
+  - simpl.
+    destruct (x <? width img) eqn:Hlt; [|exact Hwf].
+    destruct (get_pixel img (pair x y)) eqn:Hpixel.
+    + (* Foreground pixel - need to check all cases *)
+      destruct (x =? 0) eqn:Hx0;
+      destruct (y =? 0) eqn:Hy0;
+      try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
+      try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
+      try destruct (labels (pair (pred x) y)) eqn:Hleft;
+      try destruct (labels (pair x (pred y))) eqn:Hup;
+      try (apply IH; [exact Hwf | lia]);
+      try (apply IH; [apply add_equiv_preserves_well_formed; [exact Hwf | lia | lia] | lia]).
+      (* Handle the case where both neighbors have positive labels *)
+      destruct (S n =? S n0) eqn:Heq.
+      * (* Labels are equal, equiv unchanged *)
+        apply IH; assumption.
+      * (* Labels are different, add equivalence *)
+        apply IH.
+        -- apply add_equiv_preserves_well_formed.
+           ++ exact Hwf.
+           ++ lia.
+           ++ lia.
+        -- exact Hpos.
+    + (* Background pixel *)
+      apply IH; assumption.
+Qed.
