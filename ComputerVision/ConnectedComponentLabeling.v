@@ -1272,3 +1272,83 @@ Proof.
   rewrite H.
   reflexivity.
 Qed.
+
+(** first_pass_row on background pixel recurses without changing labels *)
+Lemma first_pass_row_background_pixel :
+  forall img adj labels equiv y x fuel next_label,
+  x < width img ->
+  get_pixel img (pair x y) = false ->
+  first_pass_row img adj labels equiv y x (S fuel) next_label =
+  first_pass_row img adj labels equiv y (S x) fuel next_label.
+Proof.
+  intros img adj labels equiv y x fuel next_label Hlt Hpixel.
+  simpl.
+  rewrite (proj2 (Nat.ltb_lt _ _) Hlt).
+  rewrite Hpixel.
+  reflexivity.
+Qed.
+
+(** The new_labels function in first_pass_row only differs at the current pixel *)
+Lemma first_pass_row_update_current_only :
+  forall (labels : labeling) (x y : nat) (label : nat) (x' y' : nat),
+  pair x y <> pair x' y' ->
+  (fun c' : coord => match c' with
+                     | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
+                     end) (pair x' y') = labels (pair x' y').
+Proof.
+  intros labels x y label x' y' Hneq.
+  simpl.
+  destruct (x =? x') eqn:Hx; destruct (y =? y') eqn:Hy; simpl.
+  - apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
+    subst. contradiction Hneq. reflexivity.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+Qed.
+
+(** Extract labels from first_pass_row result *)
+Lemma first_pass_row_labels_component :
+  forall img adj labels equiv y x fuel next_label,
+  let result := first_pass_row img adj labels equiv y x fuel next_label in
+  let '(labels', _, _) := result in
+  labels' = fst (fst result).
+Proof.
+  intros.
+  destruct result as [[labels' equiv'] next'].
+  simpl. reflexivity.
+Qed.
+
+(** first_pass_row preserves labels on different rows - explicit version *)
+Lemma first_pass_row_preserves_diff_row :
+  forall fuel img adj labels equiv y x next_label y' x',
+  y' <> y ->
+  let result := first_pass_row img adj labels equiv y x fuel next_label in
+  let '(labels', _, _) := result in
+  labels' (pair x' y') = labels (pair x' y').
+Proof.
+  induction fuel as [|fuel IH]; intros img adj labels equiv y x next_label y' x' Hy.
+  - simpl. reflexivity.
+  - simpl.
+    destruct (x <? width img) eqn:Hlt; [|reflexivity].
+    destruct (get_pixel img (pair x y)) eqn:Hpixel.
+    + (* Foreground pixel *)
+      assert (Hy_sym: y <> y') by (intros H; apply Hy; symmetry; exact H).
+      destruct (x =? 0) eqn:Hx0;
+      destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
+      destruct (y =? 0) eqn:Hy0;
+      destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
+      try destruct (labels (pair (pred x) y)) eqn:Hleft;
+      try destruct (labels (pair x (pred y))) eqn:Hup;
+      (* Apply IH to the recursive call *)
+      match goal with
+      | |- context[first_pass_row img adj ?new_labels ?new_equiv y (S x) fuel ?new_next] =>
+        specialize (IH img adj new_labels new_equiv y (S x) new_next y' x' Hy);
+        remember (first_pass_row img adj new_labels new_equiv y (S x) fuel new_next) as rec_result;
+        destruct rec_result as [[rec_labels rec_equiv] rec_next];
+        simpl in IH; simpl;
+        rewrite IH;
+        apply first_pass_update_diff_row; exact Hy_sym
+      end.
+    + (* Background pixel *)
+      apply IH. exact Hy.
+Qed.
