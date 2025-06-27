@@ -1701,3 +1701,97 @@ Proof.
       { simpl. lia. }
       rewrite H. lia.
 Qed.
+
+(** ** 8.3 General Arithmetic Lemmas for Subtraction *)
+
+(** The specific match pattern from our proof *)
+Lemma succ_sub_match : forall n m,
+  match m with 
+  | 0 => S n 
+  | S m' => n - m' 
+  end = S n - m.
+Proof.
+  intros n m.
+  destruct m.
+  - reflexivity.
+  - simpl. reflexivity.
+Qed.
+
+(** General pattern: processing one element with bounded increment *)
+Lemma single_step_bound : forall (f : nat -> nat) (n : nat),
+  (forall m, f m <= S m) ->  (* f increments by at most 1 *)
+  f n <= n + 1.
+Proof.
+  intros f n Hf.
+  pose proof (Hf n).
+  lia.
+Qed.
+
+(** Subtraction arithmetic for successor *)
+Lemma succ_sub_le : forall n m,
+  m <= n ->
+  S n - m = S (n - m).
+Proof.
+  intros n m H.
+  lia.
+Qed.
+
+(** When incrementing position reaches bound *)
+Lemma increment_at_bound : forall n bound,
+  n < bound ->
+  S n > bound ->
+  n = bound.
+Proof.
+  intros n bound Hlt Hgt.
+  lia.
+Qed.
+
+(** Bounded recursion with decreasing fuel *)
+Lemma bounded_recursion : forall (f : nat -> nat) (start fuel : nat),
+  (forall n, f n <= S n) ->  (* single step bound *)
+  (forall k n, k <= fuel -> 
+    Nat.iter k f n <= n + k) ->  (* iteration bound *)
+  start <= fuel ->
+  Nat.iter (fuel - start) f start <= fuel.
+Proof.
+  intros f start fuel Hstep Hiter Hbound.
+  pose proof (Hiter (fuel - start) start).
+  assert (fuel - start <= fuel) by lia.
+  specialize (H H0).
+  assert (start + (fuel - start) = fuel) by lia.
+  lia.
+Qed.
+
+(** Processing a range with out-of-bounds check *)
+Lemma range_processing_bound : forall (process : nat -> nat -> nat) (start width init : nat),
+  (forall pos n, process pos n <= S n) ->  (* each step increments by at most 1 *)
+  (forall pos n, pos >= width -> process pos n = n) ->  (* no-op when out of bounds *)
+  start <= width ->
+  (fix iter pos fuel n :=
+    match fuel with
+    | 0 => n
+    | S fuel' => 
+        if pos <? width then
+          iter (S pos) fuel' (process pos n)
+        else n
+    end) start (width - start) init <= init + (width - start).
+Proof.
+  intros process start width init Hstep Hout Hbound.
+  remember (width - start) as fuel.
+  assert (start + fuel = width) as Hsum by lia.
+  clear Heqfuel.
+  revert start init Hsum Hbound.
+  induction fuel as [|fuel' IH]; intros start init Hsum Hbound.
+  - simpl. lia.
+  - simpl.
+    assert (start < width) by lia.
+    assert (start <? width = true) by (apply Nat.ltb_lt; exact H).
+    rewrite H0.
+    pose proof (Hstep start init) as Hstep_init.
+    assert (S start + fuel' = width) by lia.
+    assert (S start <= width) by lia.
+    specialize (IH (S start) (process start init) H1 H2).
+    assert (process start init + fuel' <= init + 1 + fuel') by lia.
+    assert (init + 1 + fuel' = init + S fuel') by lia.
+    lia.
+Qed.
