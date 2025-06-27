@@ -1639,3 +1639,57 @@ Proof.
   (* But l c1' = label1 and l c2' = label2 *)
   congruence.
 Qed.
+
+(** The empty equivalence table has no equivalences *)
+Lemma empty_equiv_empty : forall l1 l2,
+  empty_equiv l1 l2 = false.
+Proof.
+  intros l1 l2.
+  reflexivity.
+Qed.
+
+(** An equivalence table is symmetric *)
+Definition equiv_sym (e : equiv_table) : Prop :=
+  forall a b, e a b = e b a.
+
+(** add_equiv preserves symmetry *)
+Lemma add_equiv_preserves_sym : forall e l1 l2,
+  equiv_sym e ->
+  equiv_sym (add_equiv e l1 l2).
+Proof.
+  intros e l1 l2 He.
+  unfold equiv_sym in *.
+  intros a b.
+  unfold add_equiv.
+  rewrite He.
+  f_equal.
+  rewrite orb_comm.
+  f_equal.
+  - apply andb_comm.
+  - apply andb_comm.
+Qed.
+
+(** The empty equivalence table is symmetric *)
+Lemma empty_equiv_sym : equiv_sym empty_equiv.
+Proof.
+  unfold equiv_sym, empty_equiv.
+  intros a b.
+  reflexivity.
+Qed.
+
+(** An equivalence table is transitive *)
+Definition equiv_trans (e : equiv_table) : Prop :=
+  forall a b c, e a b = true -> e b c = true -> e a c = true.
+
+(** An equivalence table is reflexive on non-zero labels *)
+Definition equiv_refl_nonzero (e : equiv_table) : Prop :=
+  forall l, l <> 0 -> e l l = true.
+
+(** The empty equivalence table has no reflexive non-zero labels *)
+Lemma empty_equiv_not_refl_nonzero : forall l,
+  l <> 0 -> empty_equiv l l = false.
+Proof.
+  intros l Hneq.
+  unfold empty_equiv.
+  reflexivity.
+Qed.
