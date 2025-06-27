@@ -1844,9 +1844,29 @@ Proof.
       apply Nat.nlt_ge in Hbound.
       (* Now `Hbound` is `~ (y < S h')`. This directly contradicts `E`. *)
       contradiction.
-
     + (* Case 2: Assume `y <? S h' = false`. This is the case we expect. *)
       (* Since the condition is false, the `if` evaluates to the `else` branch. *)
       (* Coq simplifies the goal to: `(labels, equiv, next_label) = (labels, equiv, next_label)` *)
       reflexivity.
+Qed.
+
+(** ** 8.5 Row Processing Preserves Positive Labels *)
+
+(** Helper: process_row preserves positive labels *)
+Lemma process_row_next_label_positive : forall img adj labels equiv y x width next_label,
+  next_label > 0 ->
+  let '(_, _, next') := process_row img adj labels equiv y x width next_label in
+  next' > 0.
+Proof.
+  intros img adj labels equiv y x width.
+  revert x labels equiv.
+  induction width as [|width' IH]; intros x labels equiv next_label Hpos.
+  - simpl. exact Hpos.
+  - simpl.
+    destruct (x <? S width') eqn:Hlt.
+    + destruct (process_pixel img adj labels equiv (x, y) next_label) as [[labels' equiv'] next'] eqn:Hpix.
+      pose proof (process_pixel_next_label_positive img adj labels equiv (x, y) next_label Hpos) as H.
+      rewrite Hpix in H.
+      apply IH. exact H.
+    + exact Hpos.
 Qed.
