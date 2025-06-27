@@ -593,3 +593,52 @@ Proof.
   rewrite orb_true_r.
   reflexivity.
 Qed.
+
+(** Equivalence tables should include reflexivity *)
+Definition equiv_refl (e : equiv_table) : Prop :=
+  forall l, e l l = true.
+
+(** If equiv table is reflexive, add_equiv preserves it *)
+Lemma add_equiv_preserves_refl : forall e l1 l2,
+  equiv_refl e ->
+  equiv_refl (add_equiv e l1 l2).
+Proof.
+  intros e l1 l2 Hrefl.
+  unfold equiv_refl in *.
+  intros l.
+  unfold add_equiv.
+  rewrite Hrefl.
+  reflexivity.
+Qed.
+
+(** Understand find_min_equiv behavior *)
+Example find_min_test : find_min_equiv empty_equiv 5 0 = 5.
+Proof.
+  compute.
+  reflexivity.
+Qed.
+
+(** Basic property of coord_eq *)
+Lemma coord_eq_refl : forall c,
+  coord_eq c c = true.
+Proof.
+  intros c.
+  destruct c as [x y].
+  unfold coord_eq.
+  rewrite Nat.eqb_refl.
+  rewrite Nat.eqb_refl.
+  reflexivity.
+Qed.
+
+(** coord_eq is symmetric *)
+Lemma coord_eq_sym : forall c1 c2,
+  coord_eq c1 c2 = coord_eq c2 c1.
+Proof.
+  intros c1 c2.
+  destruct c1 as [x1 y1].
+  destruct c2 as [x2 y2].
+  unfold coord_eq.
+  rewrite Nat.eqb_sym.
+  rewrite (Nat.eqb_sym y1 y2).
+  reflexivity.
+Qed.
