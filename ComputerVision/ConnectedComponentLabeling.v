@@ -657,3 +657,14 @@ Proof.
     subst. reflexivity.
   - intros H. subst. apply coord_eq_refl.
 Qed.
+
+(** Labeling update preserves values for different coordinates *)
+Lemma label_update_preserves : forall (prev_labels : labeling) (c c' : coord) (label : nat),
+  c <> c' ->
+  (if coord_eq c c' then label else prev_labels c') = prev_labels c'.
+Proof.
+  intros prev_labels c c' label Hneq.
+  destruct (coord_eq c c') eqn:Heq.
+  - apply coord_eq_true_iff in Heq. contradiction.
+  - reflexivity.
+Qed.
