@@ -1708,3 +1708,129 @@ Proof.
   intros [x y].
   reflexivity.
 Qed.
+
+(** Helper 4a: Single step returns something *)
+Lemma first_pass_row_single_step_exists :
+  forall img adj labels equiv y x next_label,
+  x < width img ->
+  get_pixel img (pair x y) = true ->
+  exists labels' equiv' next',
+    first_pass_row img adj labels equiv y x 1 next_label = (labels', equiv', next').
+Proof.
+  intros img adj labels equiv y x next_label Hlt Hfg.
+  exists (fst (fst (first_pass_row img adj labels equiv y x 1 next_label))).
+  exists (snd (fst (first_pass_row img adj labels equiv y x 1 next_label))).
+  exists (snd (first_pass_row img adj labels equiv y x 1 next_label)).
+  destruct (first_pass_row img adj labels equiv y x 1 next_label) as [[? ?] ?].
+  reflexivity.
+Qed.
+
+(** Helper 4b: first_pass_row decomposes into single step + recursion *)
+Lemma first_pass_row_decompose :
+  forall img adj labels equiv y x fuel next_label labels' equiv' next',
+  x < width img ->
+  get_pixel img (pair x y) = true ->
+  first_pass_row img adj labels equiv y x 1 next_label = (labels', equiv', next') ->
+  first_pass_row img adj labels equiv y x (S fuel) next_label = 
+  first_pass_row img adj labels' equiv' y (S x) fuel next'.
+Proof.
+  intros img adj labels equiv y x fuel next_label labels' equiv' next' Hlt Hfg Hstep.
+  simpl.
+  rewrite (proj2 (Nat.ltb_lt _ _) Hlt).
+  rewrite Hfg.
+  simpl in Hstep.
+  rewrite (proj2 (Nat.ltb_lt _ _) Hlt) in Hstep.
+  rewrite Hfg in Hstep.
+  (* The key is that both computations do the same thing for step 1 *)
+  destruct (x =? 0) eqn:Hx0;
+  destruct (y =? 0) eqn:Hy0;
+  try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
+  try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
+  try destruct (labels (pair (pred x) y)) eqn:Hleft;
+  try destruct (labels (pair x (pred y))) eqn:Hup;
+  injection Hstep; intros; subst; reflexivity.
+Qed.
+
+(** Helper 5: Monotonicity for zero fuel *)
+Lemma first_pass_row_zero_fuel_monotone :
+  forall img adj labels equiv y x next_label,
+  first_pass_row img adj labels equiv y x 0 next_label = (labels, equiv, next_label).
+Proof.
+  intros. reflexivity.
+Qed.
+
+(** Now the main proof becomes much simpler *)
+Lemma first_pass_row_next_label_monotone :
+  forall fuel img adj labels equiv y x next_label,
+  let '(_, _, next') := first_pass_row img adj labels equiv y x fuel next_label in
+  next' >= next_label.
+Proof.
+  induction fuel as [|fuel IH]; intros img adj labels equiv y x next_label.
+  - rewrite first_pass_row_zero_fuel_monotone. simpl. lia.
+  - destruct (x <? width img) eqn:Htest.
+    + (* x < width img *)
+      apply Nat.ltb_lt in Htest.
+      destruct (get_pixel img (pair x y)) eqn:Hpixel.
+      * (* Foreground case *)
+        destruct (first_pass_row_single_step_exists img adj labels equiv y x next_label Htest Hpixel)
+          as [labels' [equiv' [next' Hstep]]].
+        rewrite (first_pass_row_decompose img adj labels equiv y x fuel next_label labels' equiv' next' Htest Hpixel Hstep).
+        specialize (IH img adj labels' equiv' y (S x) next').
+        destruct (first_pass_row img adj labels' equiv' y (S x) fuel next') as [[? ?] ?].
+        assert (next' >= next_label).
+        { generalize (first_pass_row_single_step_monotone img adj labels equiv y x next_label).
+          rewrite Hstep. simpl. intro. exact H. }
+        lia.
+      * (* Background case *)
+        rewrite first_pass_row_background_monotone; try assumption.
+        apply IH.
+    + (* x >= width img *)
+      apply Nat.ltb_ge in Htest.
+      rewrite first_pass_row_out_of_bounds_monotone; try assumption.
+      simpl. lia.
+Qed.
+
+(** Helper: Single step preserves positive labels for foreground pixels *)
+Lemma first_pass_row_single_step_preserves_positive :
+  forall img adj labels equiv y x next_label c,
+  x < width img ->
+  get_pixel img (pair x y) = true ->
+  (forall c', get_pixel img c' = true -> labels c' > 0) ->
+  next_label > 0 ->
+  get_pixel img c = true ->
+  let '(labels', _, _) := first_pass_row img adj labels equiv y x 1 next_label in
+  labels' c > 0.
+Proof.
+  intros img adj labels equiv y x next_label c Hlt Hpixel Hinv Hpos Hfg_c.
+  simpl.
+  rewrite (proj2 (Nat.ltb_lt _ _) Hlt).
+  rewrite Hpixel.
+  destruct (coord_eq (pair x y) c) eqn:Heq_coord.
+  - (* c = (x, y) - the current pixel *)
+    apply coord_eq_true_iff in Heq_coord. subst c.
+    destruct (x =? 0) eqn:Hx0;
+    destruct (y =? 0) eqn:Hy0;
+    try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
+    try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
+    try destruct (labels (pair (pred x) y)) eqn:Hleft;
+    try destruct (labels (pair x (pred y))) eqn:Hup;
+    simpl; rewrite Nat.eqb_refl; rewrite Nat.eqb_refl; simpl;
+    try lia;
+    try (apply Nat.min_glb_lt_iff; split; lia).
+  - (* c ≠ (x, y) - different pixel *)
+    destruct (x =? 0) eqn:Hx0;
+    destruct (y =? 0) eqn:Hy0;
+    try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
+    try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
+    try destruct (labels (pair (pred x) y)) eqn:Hleft;
+    try destruct (labels (pair x (pred y))) eqn:Hup;
+    destruct c as [xc yc]; simpl;
+    destruct (x =? xc) eqn:Hxc; destruct (y =? yc) eqn:Hyc; simpl;
+    try (apply Hinv; exact Hfg_c);
+    (* If x = xc and y = yc but coord_eq returned false, contradiction *)
+    try (apply Nat.eqb_eq in Hxc; apply Nat.eqb_eq in Hyc; subst;
+         unfold coord_eq in Heq_coord; simpl in Heq_coord;
+         rewrite Nat.eqb_refl in Heq_coord; rewrite Nat.eqb_refl in Heq_coord;
+         simpl in Heq_coord; discriminate).
+Qed.
+ 
