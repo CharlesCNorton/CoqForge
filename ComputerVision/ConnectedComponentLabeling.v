@@ -2116,3 +2116,17 @@ Proof.
         intro H. exact H. }
       exact H.
 Qed.
+
+(** first_pass produces a well-formed equiv table *)
+Lemma first_pass_equiv_well_formed : forall img adj,
+  let '(_, equiv, _) := first_pass img adj in
+  equiv_well_formed equiv.
+Proof.
+  intros img adj.
+  unfold first_pass.
+  apply first_pass_rows_preserves_equiv_well_formed.
+  - unfold equiv_well_formed, empty_equiv.
+    intros l Hl.
+    reflexivity.
+  - lia.
+Qed.
