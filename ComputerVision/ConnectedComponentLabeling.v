@@ -1927,3 +1927,26 @@ Proof.
       * simpl in Hrow_next. exact Hrow_next.
     + apply Hinv. exact Hfg.
 Qed.
+
+(** A coordinate is in a processed region *)
+Definition in_processed_region (y : nat) (c : coord) : Prop :=
+  snd_coord c < y.
+
+(** A coordinate is processed in the current row *)
+Definition in_processed_row (y x : nat) (c : coord) : Prop :=
+  snd_coord c = y /\ fst_coord c < x.
+
+(** Label update at current pixel gives positive value *)
+Lemma label_update_current_positive : forall labels x y label,
+  label > 0 ->
+  (fun c' : coord => 
+    match c' with 
+    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
+    end) (pair x y) = label.
+Proof.
+  intros labels x y label Hpos.
+  simpl.
+  rewrite Nat.eqb_refl.
+  rewrite Nat.eqb_refl.
+  reflexivity.
+Qed.
