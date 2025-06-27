@@ -1140,3 +1140,32 @@ Proof.
   { apply Hresp; assumption. }
   contradiction.
 Qed.
+
+Example test_label_00 : test_labels (pair 0 0) = 1.
+Proof. compute. reflexivity. Qed.
+
+Example test_label_10 : test_labels (pair 1 0) = 1.
+Proof. compute. reflexivity. Qed.
+
+Example test_label_01 : test_labels (pair 0 1) = 1.
+Proof. compute. reflexivity. Qed.
+
+Example test_label_21 : test_labels (pair 2 1) = 2.
+Proof. compute. reflexivity. Qed.
+
+Example test_label_22 : test_labels (pair 2 2) = 2.
+Proof. compute. reflexivity. Qed.
+
+(* Now verify the components *)
+Example test_component_1 : 
+  test_labels (pair 0 0) = test_labels (pair 1 0) /\
+  test_labels (pair 1 0) = test_labels (pair 0 1).
+Proof. compute. split; reflexivity. Qed.
+
+Example test_component_2 :
+  test_labels (pair 2 1) = test_labels (pair 2 2).
+Proof. compute. reflexivity. Qed.
+
+Example test_different_components :
+  test_labels (pair 0 0) <> test_labels (pair 2 1).
+Proof. compute. discriminate. Qed.
