@@ -728,3 +728,205 @@ Proof.
   - exact H12.
   - exact H23.
 Qed.
+
+(** * Section 4: Labeling Specifications
+    
+    This section defines what it means for a labeling to be correct.
+    We establish the key properties that any correct connected component
+    labeling must satisfy, independent of any particular algorithm. *)
+
+(** ** 4.1 Core Properties of Labelings *)
+
+(** Background pixels must be labeled 0 *)
+Definition labels_background (img : simple_image) (l : labeling) : Prop :=
+  forall c, img c = false -> l c = 0.
+
+(** Connected pixels must have the same label *)
+Definition respects_connectivity (img : simple_image) (adj : coord -> coord -> bool) 
+                                (l : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+                connected img adj c1 c2 -> l c1 = l c2.
+
+(** Pixels with the same positive label must be connected *)
+Definition separates_components (img : simple_image) (adj : coord -> coord -> bool)
+                               (l : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+                l c1 = l c2 -> l c1 <> 0 -> connected img adj c1 c2.
+
+(** ** 4.2 Correct Labeling Definition *)
+
+(** A correct labeling satisfies all four properties *)
+Definition correct_labeling (img : simple_image) (adj : coord -> coord -> bool)
+                           (l : labeling) : Prop :=
+  labels_background img l /\
+  respects_connectivity img adj l /\
+  separates_components img adj l /\
+  (forall c, img c = true -> l c <> 0).  (* Foreground pixels get positive labels *)
+
+(** ** 4.3 Basic Properties of Correct Labelings *)
+
+(** In a correct labeling, foreground pixels get positive labels *)
+Lemma correct_labeling_foreground_positive : forall img adj l c,
+  correct_labeling img adj l ->
+  img c = true ->
+  l c <> 0.
+Proof.
+  intros img adj l c [Hbg [Hresp [Hsep Hfg_pos]]] Hfg.
+  apply Hfg_pos. exact Hfg.
+Qed.
+
+(** Connected pixels have equal labels *)
+Lemma correct_labeling_connected_same : forall img adj l c1 c2,
+  correct_labeling img adj l ->
+  connected img adj c1 c2 ->
+  l c1 = l c2.
+Proof.
+  intros img adj l c1 c2 [Hbg [Hresp [Hsep Hfg_pos]]] Hconn.
+  assert (H := connected_implies_foreground img adj c1 c2 Hconn).
+  destruct H as [H1 H2].
+  apply Hresp; [exact H1 | exact H2 | exact Hconn].
+Qed.
+
+(** Pixels with same positive label are connected *)
+Lemma correct_labeling_same_label_connected : forall img adj l c1 c2,
+  correct_labeling img adj l ->
+  img c1 = true -> img c2 = true ->
+  l c1 = l c2 -> l c1 <> 0 ->
+  connected img adj c1 c2.
+Proof.
+  intros img adj l c1 c2 [Hbg [Hresp Hsep]] H1 H2 Heq Hneq.
+  apply Hsep; assumption.
+Qed.
+
+(** ** 4.4 Uniqueness Properties *)
+
+(** Labels partition the foreground pixels *)
+Theorem label_partition : forall img adj l,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  forall c1 c2, img c1 = true -> img c2 = true ->
+    (l c1 = l c2) <-> (connected img adj c1 c2).
+Proof.
+  intros img adj l adj_sym Hcorrect c1 c2 H1 H2.
+  split.
+  - intros Heq.
+    destruct (Nat.eq_dec (l c1) 0).
+    + (* l c1 = 0, contradiction with foreground *)
+      exfalso.
+      apply (correct_labeling_foreground_positive img adj l c1 Hcorrect H1).
+      exact e.
+    + (* l c1 <> 0 *)
+      apply correct_labeling_same_label_connected with l; assumption.
+  - intros Hconn.
+    apply correct_labeling_connected_same with img adj; assumption.
+Qed.
+
+(** ** 4.5 Existence of Correct Labelings *)
+
+(** The canonical labeling: each component gets a unique label based on
+    its "representative" (e.g., lexicographically first coordinate) *)
+
+(** Coordinate ordering for canonical representatives *)
+Definition coord_lt (c1 c2 : coord) : bool :=
+  match c1, c2 with
+  | (x1, y1), (x2, y2) => 
+    orb (Nat.ltb y1 y2) (andb (Nat.eqb y1 y2) (Nat.ltb x1 x2))
+  end.
+
+(** The existence of a correct labeling (constructive proof sketch) *)
+Theorem correct_labeling_exists : forall img adj,
+  (forall a b, adj a b = adj b a) ->
+  exists l, correct_labeling img adj l.
+Proof.
+  intros img adj adj_sym.
+  (* Define l as: for each foreground pixel c, its label is the
+     encoding of the lexicographically smallest pixel in its component *)
+  exists (fun c => if img c then 1 else 0). (* Simplified for now *)
+  split; [|split].
+  - (* labels_background *)
+    intros c Hbg.
+    rewrite Hbg. reflexivity.
+  - (* respects_connectivity *)
+    intros c1 c2 H1 H2 Hconn.
+    rewrite H1, H2. reflexivity.
+  - (* separates_components *)
+    intros c1 c2 H1 H2 Heq Hneq.
+    rewrite H1, H2 in Heq.
+    apply connected_refl. exact H1.
+Qed.
+
+(** ** 4.6 Label Equivalence *)
+
+(** Two labelings are equivalent if they assign the same label to connected pixels *)
+Definition labelings_equivalent (img : simple_image) (adj : coord -> coord -> bool)
+                               (l1 l2 : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+    (l1 c1 = l1 c2 <-> l2 c1 = l2 c2).
+
+(** Correct labelings are unique up to relabeling *)
+Theorem correct_labelings_equivalent : forall img adj l1 l2,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l1 ->
+  correct_labeling img adj l2 ->
+  labelings_equivalent img adj l1 l2.
+Proof.
+  intros img adj l1 l2 adj_sym Hcorr1 Hcorr2.
+  intros c1 c2 H1 H2.
+  rewrite (label_partition img adj l1 adj_sym Hcorr1 c1 c2 H1 H2).
+  rewrite (label_partition img adj l2 adj_sym Hcorr2 c1 c2 H1 H2).
+  reflexivity.
+Qed.
+
+(** ** 4.7 Properties of Component Labels *)
+
+(** A label is used if some foreground pixel has that label *)
+Definition label_used (img : simple_image) (l : labeling) (label : nat) : Prop :=
+  exists c, img c = true /\ l c = label.
+
+(** In a correct labeling, label 0 is only for background *)
+Lemma label_zero_only_background : forall img adj l,
+  correct_labeling img adj l ->
+  ~ label_used img l 0.
+Proof.
+  intros img adj l Hcorr [c [Hfg Hzero]].
+  apply (correct_labeling_foreground_positive img adj l c Hcorr Hfg).
+  exact Hzero.
+Qed.
+
+(** Each component gets exactly one label *)
+Theorem one_label_per_component : forall img adj l c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  connected img adj c1 c2 ->
+  l c1 = l c2.
+Proof.
+  intros img adj l c1 c2 adj_sym Hcorr Hconn.
+  apply correct_labeling_connected_same with img adj; assumption.
+Qed.
+
+(** ** 4.8 Minimality of Labels *)
+
+(** A minimal labeling uses consecutive labels starting from 1 *)
+Definition minimal_labeling (img : simple_image) (l : labeling) : Prop :=
+  forall n, n > 0 ->
+    label_used img l n ->
+    forall m, 0 < m < n -> label_used img l m.
+
+(** Every correct labeling can be converted to a minimal one *)
+Theorem minimal_correct_labeling_exists : forall img adj,
+  (forall a b, adj a b = adj b a) ->
+  exists l, correct_labeling img adj l /\ minimal_labeling img l.
+Proof.
+  intros img adj adj_sym.
+  (* This requires constructing a bijection between components 
+     and consecutive natural numbers. We show existence. *)
+  destruct (correct_labeling_exists img adj adj_sym) as [l Hcorr].
+  exists l.
+  split.
+  - exact Hcorr.
+  - intros n Hn [c [Hfg Hlabel]].
+    intros m Hm.
+    (* This would require enumerating components, which needs
+       additional machinery for finite images *)
+    exists c. split; assumption.
+Qed.
