@@ -855,3 +855,90 @@ Proof.
         -- exact Hlast'.
         -- discriminate.
 Qed.
+
+(** ** Bounded images can be viewed as simple images *)
+
+Definition bounded_to_simple (img : bounded_image) : simple_image :=
+  fun c => get_pixel img c.
+
+Theorem bounded_connectivity_preserved : forall bimg adj c1 c2,
+  connected (bounded_to_simple bimg) adj c1 c2 <->
+  connected (fun c => get_pixel bimg c) adj c1 c2.
+Proof.
+  intros bimg adj c1 c2.
+  unfold bounded_to_simple.
+  reflexivity.
+Qed.
+
+(** Connectivity in bounded images respects bounds *)
+Theorem bounded_connected_in_bounds : forall bimg adj c1 c2,
+  connected (bounded_to_simple bimg) adj c1 c2 ->
+  in_bounds bimg c1 = true /\ in_bounds bimg c2 = true.
+Proof.
+  intros bimg adj c1 c2 H.
+  apply connected_implies_foreground in H.
+  destruct H as [H1 H2].
+  unfold bounded_to_simple in H1, H2.
+  unfold get_pixel in H1, H2.
+  split.
+  - destruct (in_bounds bimg c1) eqn:E1.
+    + reflexivity.
+    + discriminate.
+  - destruct (in_bounds bimg c2) eqn:E2.
+    + reflexivity.
+    + discriminate.
+Qed.
+
+(** ** The Component Collapse Theorem *)
+(** When switching from 4-adjacency to 8-adjacency, components can only merge, never split *)
+
+Theorem component_collapse : forall c1 c2,
+  adjacent_4 c1 c2 = true -> adjacent_8 c1 c2 = true.
+Proof.
+  intros [x1 y1] [x2 y2] H4.
+  unfold adjacent_4 in H4.
+  unfold adjacent_8.
+  simpl in *.
+  destruct (x1 =? x2) eqn:Heqx.
+  - (* Same x coordinate *)
+    apply Nat.eqb_eq in Heqx. subst x2.
+    assert (abs_diff x1 x1 = 0).
+    { unfold abs_diff. rewrite Nat.leb_refl. lia. }
+    rewrite H.
+    simpl.
+    assert (abs_diff y1 y2 = 1).
+    { destruct (Nat.eqb (abs_diff y1 y2) 1) eqn:E.
+      - apply Nat.eqb_eq in E. exact E.
+      - simpl in H4. congruence. }
+    rewrite H0.
+    simpl.
+    reflexivity.
+  - (* Different x, must have same y *)
+    apply andb_prop in H4. destruct H4 as [Heqy H1].
+    apply Nat.eqb_eq in Heqy. subst y2.
+    assert (abs_diff y1 y1 = 0).
+    { unfold abs_diff. rewrite Nat.leb_refl. lia. }
+    rewrite H.
+    assert (abs_diff x1 x2 = 1).
+    { apply Nat.eqb_eq in H1. exact H1. }
+    rewrite H0.
+    simpl.
+    apply Nat.eqb_neq in Heqx.
+    destruct (Nat.eq_dec x1 x2); [contradiction|].
+    simpl. reflexivity.
+Qed.
+
+(** This implies connectivity can only increase *)
+Theorem connectivity_monotone : forall img c1 c2,
+  connected img adjacent_4 c1 c2 ->
+  connected img adjacent_8 c1 c2.
+Proof.
+  intros img c1 c2 H.
+  induction H.
+  - apply connected_refl. assumption.
+  - apply connected_step with c2.
+    + exact IHconnected.
+    + exact H0.
+    + apply component_collapse. exact H1.
+Qed.
+                         
