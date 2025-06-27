@@ -1037,3 +1037,106 @@ Proof.
   (* But l c1' = label1 and l c2' = label2 *)
   congruence.
 Qed.
+
+(** ** The Component Boundary Theorem *)
+(** A pixel is on the boundary of its component if it has an adjacent pixel
+    that is either background or in a different component *)
+
+Definition on_component_boundary (img : simple_image) (adj : coord -> coord -> bool) 
+                                 (l : labeling) (c : coord) : Prop :=
+  img c = true /\ 
+  exists c', adj c c' = true /\ 
+             (img c' = false \/ (img c' = true /\ l c <> l c')).
+
+(** Boundary pixels connect different components *)
+Theorem boundary_bridges_components : forall img adj l c c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  (forall c, img c = true -> l c <> 0) ->
+  on_component_boundary img adj l c ->
+  adj c c1 = true -> adj c c2 = true ->
+  img c1 = true -> img c2 = true ->
+  l c = l c1 -> l c <> l c2 ->
+  ~ connected img adj c1 c2.
+Proof.
+  intros img adj l c c1 c2 adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero.
+  intros [Hc_fg [c' [Hadj_c' Hc']]] Hadj1 Hadj2 H1 H2 Heq1 Hneq2 Hconn.
+  (* If c1 and c2 were connected, they'd have the same label *)
+  assert (l c1 = l c2) by (apply Hresp; assumption).
+  (* But c has the same label as c1 and different from c2 *)
+  congruence.
+Qed.
+
+(** Interior pixels have all neighbors in the same component *)
+Definition interior_pixel (img : simple_image) (adj : coord -> coord -> bool)
+                         (l : labeling) (c : coord) : Prop :=
+  img c = true /\
+  forall c', adj c c' = true -> img c' = true /\ l c = l c'.
+
+(** Check if a pixel is interior - decidable version *)
+Definition is_interior_pixel (img : simple_image) (adj : coord -> coord -> bool)
+                            (l : labeling) (c : coord) (neighbors : list coord) : bool :=
+  andb (img c) 
+       (forallb (fun c' => implb (adj c c') 
+                                 (andb (img c') (Nat.eqb (l c) (l c')))) 
+                neighbors).
+
+(** A simpler boundary characterization that's decidable *)
+Definition has_boundary_neighbor (img : simple_image) (adj : coord -> coord -> bool)
+                                (l : labeling) (c : coord) (neighbors : list coord) : bool :=
+  existsb (fun c' => andb (adj c c') 
+                         (orb (negb (img c'))
+                              (andb (img c') (negb (Nat.eqb (l c) (l c'))))))
+          neighbors.
+
+(** A simpler theorem about boundary existence *)
+Theorem boundary_exists_if_different_labels : forall img adj l c1 c2,
+  img c1 = true ->
+  img c2 = true ->
+  adj c1 c2 = true ->
+  l c1 <> l c2 ->
+  on_component_boundary img adj l c1.
+Proof.
+  intros img adj l c1 c2 H1 H2 Hadj Hneq.
+  unfold on_component_boundary.
+  split; [assumption|].
+  exists c2.
+  split; [assumption|].
+  right.
+  split; assumption.
+Qed.
+
+(** A pixel with a background neighbor is on the boundary *)
+Theorem background_neighbor_is_boundary : forall img adj l c c',
+  img c = true ->
+  adj c c' = true ->
+  img c' = false ->
+  on_component_boundary img adj l c.
+Proof.
+  intros img adj l c c' Hc Hadj Hc'.
+  unfold on_component_boundary.
+  split; [assumption|].
+  exists c'.
+  split; [assumption|].
+  left. assumption.
+Qed.
+
+(** Components are separated by boundaries or background *)
+Theorem component_separation : forall img adj l c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  (forall c, img c = true -> l c <> 0) ->
+  img c1 = true ->
+  img c2 = true ->
+  l c1 <> l c2 ->
+  ~ adj c1 c2 = true.
+Proof.
+  intros img adj l c1 c2 adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero H1 H2 Hneq Hadj.
+  (* If they were adjacent, we could connect them *)
+  assert (connected img adj c1 c2).
+  { apply adjacent_implies_connected; assumption. }
+  (* But then they'd have the same label *)
+  assert (l c1 = l c2).
+  { apply Hresp; assumption. }
+  contradiction.
+Qed.
