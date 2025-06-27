@@ -1470,3 +1470,83 @@ Proof.
   - apply Hinv. exact Hbg.
   - apply Hinv. exact Hbg.
 Qed.
+
+(** The exact pattern match form used in first_pass_row *)
+Lemma first_pass_update_pattern : forall (labels : labeling) x y (label : nat) c,
+  match c with 
+  | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c
+  end =
+  (fun c' : coord => 
+    match c' with 
+    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
+    end) c.
+Proof.
+  intros labels x y label c.
+  destruct c as [xc yc].
+  reflexivity.
+Qed.
+
+(** If we're updating at a foreground pixel, background pixels stay 0 *)
+Lemma update_at_foreground_preserves_background : forall img labels x y label c,
+  get_pixel img (pair x y) = true ->
+  get_pixel img c = false ->
+  (forall c', get_pixel img c' = false -> labels c' = 0) ->
+  match c with 
+  | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c
+  end = 0.
+Proof.
+  intros img labels x y label c Hfg Hbg Hinv.
+  destruct c as [xc yc].
+  destruct (x =? xc) eqn:Hx; destruct (y =? yc) eqn:Hy; simpl.
+  - (* x = xc and y = yc, so c = (x,y) *)
+    apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
+    subst. rewrite Hfg in Hbg. discriminate.
+  - apply Hinv. exact Hbg.
+  - apply Hinv. exact Hbg.
+  - apply Hinv. exact Hbg.
+Qed.
+
+(** Helper that matches the exact pattern in first_pass_row *)
+Lemma update_preserves_background_exact : forall img labels x y label c,
+  get_pixel img (pair x y) = true ->
+  get_pixel img c = false ->
+  (forall c', get_pixel img c' = false -> labels c' = 0) ->
+  (if let (x2, y2) := c in (x =? x2) && (y =? y2) then label else labels c) = 0.
+Proof.
+  intros img labels x y label c Hfg Hbg Hinv.
+  destruct c as [xc yc].
+  destruct (x =? xc) eqn:Hx; destruct (y =? yc) eqn:Hy; simpl.
+  - (* x = xc and y = yc, so c = (x,y) *)
+    apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
+    subst. rewrite Hfg in Hbg. discriminate.
+  - apply Hinv. exact Hbg.
+  - apply Hinv. exact Hbg.
+  - apply Hinv. exact Hbg.
+Qed.
+
+(** first_pass_row preserves zero labels for background pixels - fixed version *)
+Lemma first_pass_row_preserves_background_zero_v2 :
+  forall fuel img adj labels equiv y x next_label,
+  (forall c, get_pixel img c = false -> labels c = 0) ->
+  let '(labels', _, _) := first_pass_row img adj labels equiv y x fuel next_label in
+  forall c, get_pixel img c = false -> labels' c = 0.
+Proof.
+  induction fuel as [|fuel IH]; intros img adj labels equiv y x next_label Hinv.
+  - simpl. exact Hinv.
+  - simpl.
+    destruct (x <? width img) eqn:Hwidth; [|exact Hinv].
+    destruct (get_pixel img (pair x y)) eqn:Hpixel.
+    + (* Foreground pixel case *)
+      destruct (x =? 0) eqn:Hx0;
+      destruct (y =? 0) eqn:Hy0;
+      try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
+      try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
+      try destruct (labels (pair (pred x) y)) eqn:Hleft;
+      try destruct (labels (pair x (pred y))) eqn:Hup;
+      apply IH;
+      intros c' Hbg';
+      apply update_preserves_background_exact with img;
+      assumption.
+    + (* Background pixel - just recurse *)
+      apply IH. exact Hinv.
+Qed.
