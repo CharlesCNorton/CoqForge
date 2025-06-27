@@ -642,3 +642,18 @@ Proof.
   rewrite (Nat.eqb_sym y1 y2).
   reflexivity.
 Qed.
+
+(** coord_eq decides equality *)
+Lemma coord_eq_true_iff : forall c1 c2,
+  coord_eq c1 c2 = true <-> c1 = c2.
+Proof.
+  intros c1 c2.
+  split.
+  - intros H.
+    destruct c1 as [x1 y1], c2 as [x2 y2].
+    unfold coord_eq in H.
+    apply andb_prop in H. destruct H as [Hx Hy].
+    apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
+    subst. reflexivity.
+  - intros H. subst. apply coord_eq_refl.
+Qed.
