@@ -1424,15 +1424,17 @@ Proof.
   - rewrite H1. simpl.
     destruct (l =? l1) eqn:Heq1.
     + apply Nat.eqb_eq in Heq1. subst.
-      rewrite Nat.eqb_refl. simpl.
-      destruct (0 =? l2) eqn:Heq2.
-      * apply Nat.eqb_eq in Heq2. lia.
-      * reflexivity.
+      destruct l1.
+      * lia.
+      * simpl. 
+        destruct l2.
+        -- lia.
+        -- simpl. rewrite andb_false_r. reflexivity.
     + destruct (l =? l2) eqn:Heq2.
       * apply Nat.eqb_eq in Heq2. subst.
-        destruct (0 =? l1) eqn:Heq3.
-        -- apply Nat.eqb_eq in Heq3. lia.
-        -- reflexivity.
+        destruct l1.
+        -- lia.
+        -- simpl. reflexivity.
       * reflexivity.
   - rewrite H2. simpl.
     destruct (0 =? l1) eqn:Heq1.
