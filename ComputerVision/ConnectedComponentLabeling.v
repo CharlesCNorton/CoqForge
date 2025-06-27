@@ -941,4 +941,99 @@ Proof.
     + exact H0.
     + apply component_collapse. exact H1.
 Qed.
-                         
+
+(** ** Components are Maximal Connected Sets *)
+(** A component defined by a correct labeling is maximal: 
+    no foreground pixel outside the component can be added while preserving connectivity *)
+
+Theorem component_maximality : forall img adj l label,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  (forall c, img c = true -> l c <> 0) ->
+  label <> 0 ->
+  forall c_out c_in,
+    img c_out = true ->
+    img c_in = true ->
+    l c_in = label ->
+    l c_out <> label ->
+    ~ connected img adj c_out c_in.
+Proof.
+  intros img adj l label adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero Hlabel_nonzero.
+  intros c_out c_in Hout_fg Hin_fg Hin_label Hout_diff Hconn.
+  (* If they're connected, they must have the same label *)
+  assert (l c_out = l c_in).
+  { apply Hresp; assumption. }
+  (* But we know they have different labels *)
+  congruence.
+Qed.
+
+(** Corollary: Components partition the foreground pixels *)
+Theorem component_partition : forall img adj l,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  (forall c, img c = true -> l c <> 0) ->
+  forall c1 c2,
+    img c1 = true ->
+    img c2 = true ->
+    (l c1 = l c2) \/ ~ connected img adj c1 c2.
+Proof.
+  intros img adj l adj_sym Hcorrect Hfg_nonzero c1 c2 H1 H2.
+  destruct (Nat.eq_dec (l c1) (l c2)).
+  - left. assumption.
+  - right. intros Hconn.
+    destruct Hcorrect as [Hbg [Hresp Hsep]].
+    assert (l c1 = l c2) by (apply Hresp; assumption).
+    contradiction.
+Qed.
+
+(** ** The Label Count Theorem *)
+(** The number of distinct non-zero labels in a correct labeling 
+    equals the number of connected components *)
+
+(** First, define what it means for two foreground pixels to be in different components *)
+Definition in_different_components (img : simple_image) (adj : coord -> coord -> bool) (c1 c2 : coord) : Prop :=
+  img c1 = true /\ img c2 = true /\ ~ connected img adj c1 c2.
+
+(** A label is "used" if some foreground pixel has that label *)
+Definition label_used (img : simple_image) (l : labeling) (label : nat) : Prop :=
+  exists c, img c = true /\ l c = label.
+
+(** The minimum label theorem: you can't correctly label n components with fewer than n labels *)
+Theorem minimum_labels_needed : forall img adj l c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  (forall c, img c = true -> l c <> 0) ->
+  in_different_components img adj c1 c2 ->
+  l c1 <> l c2.
+Proof.
+  intros img adj l c1 c2 adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero [H1 [H2 Hnconn]].
+  intros Heq.
+  assert (l c1 <> 0) by (apply Hfg_nonzero; assumption).
+  assert (connected img adj c1 c2) by (apply Hsep; assumption).
+  contradiction.
+Qed.
+
+(** Each component gets exactly one label *)
+Theorem one_label_per_component : forall img adj l label1 label2,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  (forall c, img c = true -> l c <> 0) ->
+  label1 <> 0 ->
+  label2 <> 0 ->
+  label_used img l label1 ->
+  label_used img l label2 ->
+  (exists c1 c2, l c1 = label1 /\ l c2 = label2 /\ connected img adj c1 c2) ->
+  label1 = label2.
+Proof.
+  intros img adj l label1 label2 adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero.
+  intros Hl1_nonzero Hl2_nonzero [c1 [H1c1 Hl1]] [c2 [H2c2 Hl2]] [c1' [c2' [Heq1 [Heq2 Hconn]]]].
+  (* c1' and c2' are connected and have labels label1 and label2 respectively *)
+  (* By correctness, they must have the same label *)
+  assert (Hfg: img c1' = true /\ img c2' = true).
+  { apply connected_implies_foreground with adj. exact Hconn. }
+  destruct Hfg as [Hc1'_fg Hc2'_fg].
+  assert (l c1' = l c2').
+  { apply Hresp; assumption. }
+  (* But l c1' = label1 and l c2' = label2 *)
+  congruence.
+Qed.
