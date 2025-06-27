@@ -1577,3 +1577,127 @@ Proof.
   pose proof (process_pixel_increment_bound img adj labels equiv (x, y) next_label).
   rewrite Hpix in H. exact H.
 Qed.
+
+(** Helper: Subtraction arithmetic for successor *)
+Lemma width_sub_x_succ : forall width x,
+  x <= width ->
+  S width - x = S (width - x).
+Proof.
+  intros width x Hle.
+  lia.
+Qed.
+
+(** Helper: Subtraction arithmetic for incremented x *)
+Lemma width_sub_succ_x : forall width x,
+  x < width ->
+  width - S x = width - x - 1.
+Proof.
+  intros width x Hlt.
+  lia.
+Qed.
+
+(** Helper: Transitivity for bounded increments *)
+Lemma bounded_increment_trans : forall a b c d e,
+  a <= b + c ->
+  b <= S d ->
+  c = e - 1 ->
+  e > 0 ->
+  a <= d + e.
+Proof.
+  intros a b c d e H1 H2 H3 He.
+  rewrite H3 in H1.
+  assert (b + (e - 1) <= S d + (e - 1)) by lia.
+  assert (S d + (e - 1) = d + S (e - 1)) by lia.
+  assert (S (e - 1) = e) by lia.
+  lia.
+Qed.
+
+(** Helper: Match expression evaluation for x = 0 *)
+Lemma match_x_zero : forall width',
+  match 0 with | 0 => S width' | S l => width' - l end = S width'.
+Proof.
+  reflexivity.
+Qed.
+
+(** Helper: Match expression evaluation for x = S l *)
+Lemma match_x_succ : forall width' l,
+  match S l with | 0 => S width' | S l' => width' - l' end = width' - l.
+Proof.
+  reflexivity.
+Qed.
+
+(** Helper: When processing exactly one pixel *)
+Lemma single_pixel_bound : forall next' next_label,
+  next' <= S next_label ->
+  next' <= next_label + 1.
+Proof.
+  intros. lia.
+Qed.
+
+(** Helper: Edge case when x = width' *)
+Lemma process_row_edge_case : forall img adj labels equiv y width' next_label,
+  let '(_, _, next') := process_pixel img adj labels equiv (width', y) next_label in
+  next' <= next_label + 1.
+Proof.
+  intros.
+  destruct (process_pixel img adj labels equiv (width', y) next_label) as [[? ?] next'] eqn:Hpix.
+  pose proof (process_pixel_increment_bound img adj labels equiv (width', y) next_label).
+  rewrite Hpix in H.
+  exact (single_pixel_bound next' next_label H).
+Qed.
+
+(** Helper: The match expression always evaluates to 1 *)
+Lemma match_width_minus_pred : forall w',
+  match w' with | 0 => S w' | S l => w' - l end = 1.
+Proof.
+  intros w'.
+  destruct w' as [|l].
+  - reflexivity.
+  - assert (S l - l = 1).
+    { induction l as [|l' IH].
+      - reflexivity.
+      - simpl. exact IH. }
+    exact H.
+Qed.
+
+(** process_row increments next_label by at most the number of pixels processed *)
+Lemma process_row_increment_bound : forall img adj labels equiv y x width next_label,
+  x <= width ->
+  let '(_, _, next') := process_row img adj labels equiv y x width next_label in
+  next' <= next_label + (width - x).
+Proof.
+  intros img adj labels equiv y x width.
+  revert x labels equiv.
+  induction width as [|width' IH]; intros x labels equiv next_label Hbound.
+  - rewrite process_row_empty_width. lia.
+  - simpl. destruct (x <? S width') eqn:Hlt.
+    + apply Nat.ltb_lt in Hlt.
+      destruct (process_pixel img adj labels equiv (x, y) next_label) as [[labels' equiv'] next'] eqn:Hpix.
+      pose proof (process_row_step_bound img adj labels equiv y x (S width') next_label labels' equiv' next' Hlt Hpix).
+      destruct (Nat.le_gt_cases (S x) width') as [Hle | Hgt].
+      * specialize (IH (S x) labels' equiv' next' Hle).
+        destruct (process_row img adj labels' equiv' y (S x) width' next') as [[? ?] next''] eqn:Hrow.
+        assert (x < width') by lia.
+        (* Simplify the match expression *)
+        assert (match x with | 0 => S width' | S l0 => width' - l0 end = S width' - x) by
+          (destruct x; reflexivity).
+        rewrite H1.
+        rewrite (width_sub_succ_x width' x H0) in IH.
+        assert (S width' - x = S (width' - x)) by (apply width_sub_x_succ; lia).
+        rewrite H2.
+        lia.
+      * (* S x > width', so x = width' *)
+        assert (x = width') by lia.
+        subst x.
+        assert (S width' >= width') by lia.
+        rewrite (process_row_out_of_bounds img adj labels' equiv' y (S width') width' next' H0).
+        rewrite match_width_minus_pred.
+        exact (single_pixel_bound next' next_label H).
+    + (* x >= S width' *)
+      apply Nat.ltb_nlt in Hlt.
+      assert (x = S width') by lia.
+      subst x.
+      assert (match S width' with | 0 => S width' | S l => width' - l end = 0).
+      { simpl. lia. }
+      rewrite H. lia.
+Qed.
