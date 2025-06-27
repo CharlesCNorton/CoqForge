@@ -463,3 +463,268 @@ Proof.
       * left. apply Nat.eqb_neq. rewrite H0. lia.
       * right. apply Nat.eqb_neq. rewrite H0. lia.
 Qed.
+
+(** * Section 3: Connectivity Theory
+    
+    This section builds upon adjacency relations to define connectivity
+    between pixels. We formalize paths, define when pixels are connected,
+    and prove that connectivity forms an equivalence relation on foreground
+    pixels. *)
+
+(** ** 3.1 Paths in Images
+    
+    A path is a sequence of coordinates. We represent paths as lists
+    and define what makes a path valid in an image. *)
+
+(** Check if consecutive elements in a list are adjacent *)
+Fixpoint is_adjacent_path (adj : coord -> coord -> bool) (p : list coord) : bool :=
+  match p with
+  | [] => true
+  | [_] => true
+  | c1 :: (c2 :: rest) as tail => andb (adj c1 c2) (is_adjacent_path adj tail)
+  end.
+
+(** Check if all coordinates in a path are foreground pixels *)
+Fixpoint all_foreground (img : simple_image) (p : list coord) : bool :=
+  match p with
+  | [] => true
+  | c :: rest => andb (img c) (all_foreground img rest)
+  end.
+
+(** A valid path has adjacent coordinates and all are foreground *)
+Definition valid_path (img : simple_image) (adj : coord -> coord -> bool) 
+                     (p : list coord) : bool :=
+  andb (is_adjacent_path adj p) (all_foreground img p).
+
+(** ** 3.2 Basic Path Properties *)
+
+(** Empty path is always valid *)
+Lemma empty_path_valid : forall img adj,
+  valid_path img adj [] = true.
+Proof.
+  reflexivity.
+Qed.
+
+(** Single pixel path is valid if pixel is foreground *)
+Lemma singleton_path_valid : forall img adj c,
+  valid_path img adj [c] = img c.
+Proof.
+  intros img adj c.
+  unfold valid_path.
+  simpl.
+  rewrite andb_true_r.
+  reflexivity.
+Qed.
+
+(** Valid path implies all pixels are foreground *)
+Lemma valid_path_all_foreground : forall img adj p,
+  valid_path img adj p = true -> all_foreground img p = true.
+Proof.
+  intros img adj p H.
+  unfold valid_path in H.
+  apply andb_prop in H.
+  exact (proj2 H).
+Qed.
+
+(** Valid path implies adjacent path *)
+Lemma valid_path_adjacent : forall img adj p,
+  valid_path img adj p = true -> is_adjacent_path adj p = true.
+Proof.
+  intros img adj p H.
+  unfold valid_path in H.
+  apply andb_prop in H.
+  exact (proj1 H).
+Qed.
+
+(** ** 3.3 Connectivity Relation
+    
+    Two pixels are connected if there exists a path between them.
+    We define this inductively to ensure termination and ease of reasoning. *)
+
+Inductive connected (img : simple_image) (adj : coord -> coord -> bool) 
+                   : coord -> coord -> Prop :=
+  | connected_refl : forall c, 
+      img c = true -> connected img adj c c
+  | connected_step : forall c1 c2 c3,
+      connected img adj c1 c2 -> 
+      img c3 = true -> 
+      adj c2 c3 = true -> 
+      connected img adj c1 c3.
+
+(** ** 3.4 Basic Connectivity Properties *)
+
+(** Connected pixels must both be foreground *)
+Lemma connected_implies_foreground : forall img adj c1 c2,
+  connected img adj c1 c2 -> img c1 = true /\ img c2 = true.
+Proof.
+  intros img adj c1 c2 H.
+  induction H.
+  - split; assumption.
+  - split.
+    + exact (proj1 IHconnected).
+    + assumption.
+Qed.
+
+(** Adjacent foreground pixels are connected *)
+Lemma adjacent_implies_connected : forall img adj c1 c2,
+  img c1 = true -> img c2 = true -> adj c1 c2 = true ->
+  connected img adj c1 c2.
+Proof.
+  intros img adj c1 c2 H1 H2 Hadj.
+  apply connected_step with c1.
+  - apply connected_refl. exact H1.
+  - exact H2.
+  - exact Hadj.
+Qed.
+
+(** ** 3.5 Connectivity is Symmetric *)
+
+(** Helper: extend connectivity leftward *)
+Lemma connected_extend_left : forall img adj c1 c2 c3,
+  img c1 = true ->
+  adj c1 c2 = true ->
+  connected img adj c2 c3 ->
+  connected img adj c1 c3.
+Proof.
+  intros img adj c1 c2 c3 H_img1 H_adj H_conn.
+  induction H_conn.
+  - apply adjacent_implies_connected.
+    + exact H_img1.
+    + exact H.
+    + exact H_adj.
+  - apply connected_step with c2.
+    + apply IHH_conn. exact H_adj.
+    + exact H.
+    + exact H0.
+Qed.
+
+(** Connectivity is symmetric when adjacency is symmetric *)
+Theorem connected_symmetric : forall img adj c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  connected img adj c1 c2 -> connected img adj c2 c1.
+Proof.
+  intros img adj c1 c2 adj_sym H.
+  induction H.
+  - apply connected_refl. assumption.
+  - apply connected_extend_left with c2.
+    + exact H0.
+    + rewrite adj_sym. exact H1.
+    + exact IHconnected.
+Qed.
+
+(** ** 3.6 Connectivity is Transitive *)
+
+Theorem connected_transitive : forall img adj c1 c2 c3,
+  connected img adj c1 c2 -> connected img adj c2 c3 -> 
+  connected img adj c1 c3.
+Proof.
+  intros img adj c1 c2 c3 H12 H23.
+  induction H23.
+  - exact H12.
+  - apply connected_step with c2.
+    + apply IHconnected. exact H12.
+    + exact H.
+    + exact H0.
+Qed.
+
+(** ** 3.7 Connectivity is an Equivalence Relation *)
+
+(** Main theorem: connectivity is an equivalence relation on foreground pixels *)
+Theorem connectivity_equivalence : forall img adj,
+  (forall a b, adj a b = adj b a) ->
+  (forall c, img c = true -> connected img adj c c) /\
+  (forall c1 c2, connected img adj c1 c2 -> connected img adj c2 c1) /\
+  (forall c1 c2 c3, connected img adj c1 c2 -> connected img adj c2 c3 -> 
+                    connected img adj c1 c3).
+Proof.
+  intros img adj adj_sym.
+  split; [|split].
+  - intros c H. apply connected_refl. exact H.
+  - intros c1 c2 H. apply connected_symmetric; assumption.
+  - intros c1 c2 c3 H12 H23. apply connected_transitive with c2; assumption.
+Qed.
+
+(** ** 3.8 Path Construction from Connectivity *)
+
+(** Helper: extract a coordinate from a connectivity proof *)
+Definition connected_head {img adj c1 c2} (H : connected img adj c1 c2) : coord := c1.
+Definition connected_tail {img adj c1 c2} (H : connected img adj c1 c2) : coord := c2.
+
+(** Every pair of adjacent coordinates forms a valid 2-element path *)
+Lemma adjacent_makes_path : forall img adj c1 c2,
+  img c1 = true -> img c2 = true -> adj c1 c2 = true ->
+  valid_path img adj [c1; c2] = true.
+Proof.
+  intros img adj c1 c2 H1 H2 Hadj.
+  unfold valid_path.
+  simpl.
+  rewrite H1, H2, Hadj.
+  simpl.
+  reflexivity.
+Qed.
+
+(** ** 3.9 Connected Components *)
+
+(** A connected component is the set of all pixels connected to a given pixel *)
+Definition in_same_component (img : simple_image) (adj : coord -> coord -> bool) 
+                            (c1 c2 : coord) : Prop :=
+  connected img adj c1 c2.
+
+(** Being in the same component is decidable for finite images *)
+(* Note: We'll need additional machinery for decidability, 
+   so we just state the property for now *)
+
+(** Two components are either disjoint or identical *)
+Lemma component_disjoint_or_equal : forall img adj c1 c2 c3,
+  (forall a b, adj a b = adj b a) ->
+  connected img adj c1 c3 ->
+  connected img adj c2 c3 ->
+  connected img adj c1 c2.
+Proof.
+  intros img adj c1 c2 c3 adj_sym H13 H23.
+  apply connected_transitive with c3.
+  - exact H13.
+  - apply connected_symmetric.
+    + exact adj_sym.
+    + exact H23.
+Qed.
+
+(** ** 3.10 Properties of Components in Different Adjacencies *)
+
+(** 4-connectivity implies 8-connectivity *)
+Theorem connected_4_implies_8 : forall img c1 c2,
+  connected img adjacent_4 c1 c2 ->
+  connected img adjacent_8 c1 c2.
+Proof.
+  intros img c1 c2 H.
+  induction H.
+  - apply connected_refl. assumption.
+  - apply connected_step with c2.
+    + exact IHconnected.
+    + exact H0.
+    + apply adjacent_4_implies_8. exact H1.
+Qed.
+
+(** ** 3.11 Maximal Connectivity *)
+
+(** A pixel is maximally connected to another if they share the same component *)
+Definition maximally_connected (img : simple_image) (adj : coord -> coord -> bool)
+                              (c1 c2 : coord) : Prop :=
+  connected img adj c1 c2.
+
+(** Components are maximal connected sets *)
+Theorem component_maximality : forall img adj c1 c2 c3,
+  (forall a b, adj a b = adj b a) ->
+  img c1 = true ->
+  img c2 = true ->
+  img c3 = true ->
+  connected img adj c1 c2 ->
+  ~ connected img adj c1 c3 ->
+  ~ connected img adj c2 c3.
+Proof.
+  intros img adj c1 c2 c3 adj_sym H1 H2 H3 H12 H13 H23.
+  apply H13.
+  apply connected_transitive with c2.
+  - exact H12.
+  - exact H23.
+Qed.
