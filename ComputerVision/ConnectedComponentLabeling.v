@@ -2012,3 +2012,109 @@ Proof.
   intros height y Hle.
   lia.
 Qed.
+
+(** ** 9.3 Multiplication and Subtraction Properties *)
+
+(** Distributivity of multiplication over subtraction *)
+Lemma mul_sub_distr_r : forall a b c,
+  b >= c ->
+  (b - c) * a = b * a - c * a.
+Proof.
+  intros a b c Hge.
+  rewrite Nat.mul_comm.
+  rewrite Nat.mul_comm with (n := b).
+  rewrite Nat.mul_comm with (n := c).
+  rewrite <- Nat.mul_sub_distr_l.
+  reflexivity.
+Qed.
+
+(** Adding one to a product *)
+Lemma succ_mul_expand : forall n m,
+  S n * m = m + n * m.
+Proof.
+  intros n m.
+  rewrite Nat.mul_succ_l.
+  rewrite Nat.add_comm.
+  reflexivity.
+Qed.
+
+(** Subtracting one from a product *)
+Lemma pred_mul_contract : forall n m,
+  n > 0 ->
+  (n - 1) * m + m = n * m.
+Proof.
+  intros n m Hpos.
+  destruct n as [|n'].
+  - lia.
+  - simpl. lia.
+Qed.
+
+(** ** 9.4 Row and Column Index Properties *)
+
+(** When processing from column 0, we process exactly width pixels *)
+Lemma process_from_zero : forall width,
+  width - 0 = width.
+Proof.
+  intros width.
+  apply Nat.sub_0_r.
+Qed.
+
+(** Remaining pixels after processing x columns *)
+Lemma remaining_pixels : forall width x,
+  x <= width ->
+  width - x + x = width.
+Proof.
+  intros width x Hle.
+  lia.
+Qed.
+
+(** Processing one more pixel *)
+Lemma process_one_more : forall width x,
+  x < width ->
+  width - x = S (width - S x).
+Proof.
+  intros width x Hlt.
+  lia.
+Qed.
+
+(** ** 9.5 Height Iteration Properties *)
+
+(** Match expression evaluation for specific cases *)
+Lemma match_height_zero : forall height,
+  match 0 with
+  | 0 => S height
+  | S y' => height - y'
+  end = S height.
+Proof.
+  reflexivity.
+Qed.
+
+(** Match expression for successor *)
+Lemma match_height_succ : forall height y',
+  match S y' with
+  | 0 => S height
+  | S y'' => height - y''
+  end = height - y'.
+Proof.
+  reflexivity.
+Qed.
+
+(** Height arithmetic when iterating *)
+Lemma height_iter_step : forall height y,
+  y < height ->
+  height - y = S (height - S y).
+Proof.
+  intros height y Hlt.
+  lia.
+Qed.
+
+(** Total pixels in remaining rows *)
+Lemma remaining_rows_pixels : forall width height y,
+  y <= height ->
+  (height - y) * width = height * width - y * width.
+Proof.
+  intros width height y Hle.
+  rewrite mul_sub_distr_r.
+  - reflexivity.
+  - exact Hle.
+Qed.
