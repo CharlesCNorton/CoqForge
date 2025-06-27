@@ -1332,13 +1332,15 @@ Lemma process_pixel_next_label_mono : forall img adj labels equiv c next_label,
 Proof.
   intros img adj labels equiv c next_label.
   unfold process_pixel.
-  destruct (get_pixel img c) eqn:Hpix; [|reflexivity].
-  (* Handle the left and up neighbors systematically *)
-  remember (if coord_x c =? 0 then 0 else 
-            if adj (coord_x c - 1, coord_y c) c then labels (coord_x c - 1, coord_y c) else 0) as left.
-  remember (if coord_y c =? 0 then 0 else
-            if adj (coord_x c, coord_y c - 1) c then labels (coord_x c, coord_y c - 1) else 0) as up.
-  destruct left; destruct up; simpl; lia.
+  destruct (get_pixel img c) eqn:Hpix.
+  - (* get_pixel img c = true *)
+    remember (if coord_x c =? 0 then 0 else 
+              if adj (coord_x c - 1, coord_y c) c then labels (coord_x c - 1, coord_y c) else 0) as left.
+    remember (if coord_y c =? 0 then 0 else
+              if adj (coord_x c, coord_y c - 1) c then labels (coord_x c, coord_y c - 1) else 0) as up.
+    destruct left; destruct up; simpl; lia.
+  - (* get_pixel img c = false *)
+    simpl. lia.
 Qed.
 
 (** Next label is positive if it starts positive *)
@@ -1361,16 +1363,16 @@ Lemma process_row_next_label_mono : forall img adj labels equiv y x width next_l
   next' >= next_label.
 Proof.
   intros img adj labels equiv y x width.
-  revert x.
-  induction width as [|width' IH]; intros x next_label.
-  - reflexivity.
+  revert x labels equiv.
+  induction width as [|width' IH]; intros x labels equiv next_label.
+  - simpl. lia.
   - simpl.
     destruct (x <? S width') eqn:Hlt; [|lia].
     destruct (process_pixel img adj labels equiv (x, y) next_label) as [[labels' equiv'] next'] eqn:Hpix.
     pose proof (process_pixel_next_label_mono img adj labels equiv (x, y) next_label).
     rewrite Hpix in H.
-    pose proof (IH (S x) next').
-    destruct (process_row img adj labels' equiv' y (S x) width' next') as [[? ?] next''].
+    pose proof (IH (S x) labels' equiv' next') as H1.
+    destruct (process_row img adj labels' equiv' y (S x) width' next') as [[l e] next''].
     lia.
 Qed.
 
