@@ -821,41 +821,7 @@ Proof.
     apply correct_labeling_connected_same with img adj; assumption.
 Qed.
 
-(** ** 4.5 Existence of Correct Labelings *)
-
-(** The canonical labeling: each component gets a unique label based on
-    its "representative" (e.g., lexicographically first coordinate) *)
-
-(** Coordinate ordering for canonical representatives *)
-Definition coord_lt (c1 c2 : coord) : bool :=
-  match c1, c2 with
-  | (x1, y1), (x2, y2) => 
-    orb (Nat.ltb y1 y2) (andb (Nat.eqb y1 y2) (Nat.ltb x1 x2))
-  end.
-
-(** The existence of a correct labeling (constructive proof sketch) *)
-Theorem correct_labeling_exists : forall img adj,
-  (forall a b, adj a b = adj b a) ->
-  exists l, correct_labeling img adj l.
-Proof.
-  intros img adj adj_sym.
-  (* Define l as: for each foreground pixel c, its label is the
-     encoding of the lexicographically smallest pixel in its component *)
-  exists (fun c => if img c then 1 else 0). (* Simplified for now *)
-  split; [|split].
-  - (* labels_background *)
-    intros c Hbg.
-    rewrite Hbg. reflexivity.
-  - (* respects_connectivity *)
-    intros c1 c2 H1 H2 Hconn.
-    rewrite H1, H2. reflexivity.
-  - (* separates_components *)
-    intros c1 c2 H1 H2 Heq Hneq.
-    rewrite H1, H2 in Heq.
-    apply connected_refl. exact H1.
-Qed.
-
-(** ** 4.6 Label Equivalence *)
+(** ** 4.5 Label Equivalence *)
 
 (** Two labelings are equivalent if they assign the same label to connected pixels *)
 Definition labelings_equivalent (img : simple_image) (adj : coord -> coord -> bool)
@@ -877,7 +843,7 @@ Proof.
   reflexivity.
 Qed.
 
-(** ** 4.7 Properties of Component Labels *)
+(** ** 4.6 Properties of Component Labels *)
 
 (** A label is used if some foreground pixel has that label *)
 Definition label_used (img : simple_image) (l : labeling) (label : nat) : Prop :=
@@ -902,31 +868,4 @@ Theorem one_label_per_component : forall img adj l c1 c2,
 Proof.
   intros img adj l c1 c2 adj_sym Hcorr Hconn.
   apply correct_labeling_connected_same with img adj; assumption.
-Qed.
-
-(** ** 4.8 Minimality of Labels *)
-
-(** A minimal labeling uses consecutive labels starting from 1 *)
-Definition minimal_labeling (img : simple_image) (l : labeling) : Prop :=
-  forall n, n > 0 ->
-    label_used img l n ->
-    forall m, 0 < m < n -> label_used img l m.
-
-(** Every correct labeling can be converted to a minimal one *)
-Theorem minimal_correct_labeling_exists : forall img adj,
-  (forall a b, adj a b = adj b a) ->
-  exists l, correct_labeling img adj l /\ minimal_labeling img l.
-Proof.
-  intros img adj adj_sym.
-  (* This requires constructing a bijection between components 
-     and consecutive natural numbers. We show existence. *)
-  destruct (correct_labeling_exists img adj adj_sym) as [l Hcorr].
-  exists l.
-  split.
-  - exact Hcorr.
-  - intros n Hn [c [Hfg Hlabel]].
-    intros m Hm.
-    (* This would require enumerating components, which needs
-       additional machinery for finite images *)
-    exists c. split; assumption.
 Qed.
