@@ -1870,3 +1870,28 @@ Proof.
       apply IH. exact H.
     + exact Hpos.
 Qed.
+
+(** ** 8.6 Foreground Pixel Label Assignment *)
+
+(** Foreground pixels get positive labels after processing *)
+Lemma process_pixel_foreground_gets_label : forall img adj labels equiv c next_label,
+  get_pixel img c = true ->
+  next_label > 0 ->
+  let '(labels', _, _) := process_pixel img adj labels equiv c next_label in
+  labels' c > 0.
+Proof.
+  intros img adj labels equiv c next_label Hfg Hpos.
+  unfold process_pixel.
+  rewrite Hfg.
+  remember (if coord_x c =? 0 then 0 else 
+            if adj (coord_x c - 1, coord_y c) c then labels (coord_x c - 1, coord_y c) else 0) as left.
+  remember (if coord_y c =? 0 then 0 else
+            if adj (coord_x c, coord_y c - 1) c then labels (coord_x c, coord_y c - 1) else 0) as up.
+  destruct left as [|left_label]; destruct up as [|up_label]; simpl.
+  - rewrite label_update_same. exact Hpos.
+  - rewrite label_update_same. lia.
+  - rewrite label_update_same. lia.
+  - rewrite label_update_same. 
+    unfold Nat.min.
+    destruct (left_label <=? up_label); lia.
+Qed.
