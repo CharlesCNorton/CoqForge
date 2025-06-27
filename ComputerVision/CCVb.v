@@ -1,3 +1,23 @@
+(** * Connected Component Labeling in Coq
+
+    This formalization develops a verified implementation of connected component
+    labeling (CCL), a fundamental algorithm in computer vision and image processing.
+    
+    ** Overview
+    
+    Connected component labeling assigns unique labels to connected regions of 
+    foreground pixels in a binary image. Two pixels belong to the same component
+    if and only if there exists a path of foreground pixels connecting them,
+    where adjacency is defined by either 4-connectivity or 8-connectivity.
+    
+    ** Why formalize this?
+    
+    CCL is ubiquitous in vision systems, yet implementations often contain subtle
+    bugs, especially at image boundaries or with complex pixel patterns. A formal
+    verification provides confidence for safety-critical applications and serves
+    as a foundation for verifying more complex vision algorithms.
+*)
+
 (** * Section 1: Foundations - Basic Types and Definitions
     
     This section establishes the fundamental types for image processing:
