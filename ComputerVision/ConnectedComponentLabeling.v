@@ -10,25 +10,6 @@
     if and only if there exists a path of foreground pixels connecting them,
     where adjacency is defined by either 4-connectivity or 8-connectivity.
     
-    ** Goals of this formalization:
-    
-    1. Provide a formal specification of what it means for pixels to be connected
-    2. Define correct labeling as an equivalence relation on foreground pixels
-    3. Implement and verify classical CCL algorithms (two-pass, union-find)
-    4. Prove key properties:
-       - Correctness: pixels have same label iff they are connected
-       - Uniqueness: any two correct labelings are equivalent up to relabeling
-       - Termination: algorithms complete in finite time
-       - Efficiency bounds: relating runtime to image dimensions
-    
-    ** Structure:
-    
-    - Basic definitions: coordinates, images, adjacency relations
-    - Connectivity specification: paths and reachability
-    - Labeling specification: when is a labeling correct?
-    - Algorithm implementations with correctness proofs
-    - Applications and extensions
-    
     ** Why formalize this?
     
     CCL is ubiquitous in vision systems, yet implementations often contain subtle
@@ -37,7 +18,11 @@
     as a foundation for verifying more complex vision algorithms.
 *)
 
-(** * Imports and Setup *)
+(** * Section 1: Foundations - Basic Types and Definitions
+    
+    This section establishes the fundamental types for image processing:
+    coordinates, images, labelings, and basic utility functions.
+    We keep definitions minimal and focused on core concepts. *)
 
 Require Import Coq.Init.Prelude.
 Require Import Coq.Init.Nat.
@@ -45,76 +30,163 @@ Require Import Coq.Arith.Arith.
 Require Import Coq.Bool.Bool.
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Import Coq.Logic.ProofIrrelevance.
-Require Import Coq.Logic.FunctionalExtensionality.
-Require Import Coq.micromega.Lia.
-Require Import Coq.Setoids.Setoid.
-Require Import Coq.Classes.RelationClasses.
-Require Import Coq.Classes.Morphisms.
 Require Import Coq.Arith.PeanoNat.
-Require Import Coq.Arith.Compare_dec.
-Require Import Coq.Init.Datatypes.
-Require Import Coq.Init.Logic.
-Require Import Coq.Init.Notations.
+Require Import Coq.micromega.Lia.
 
 Open Scope nat_scope.
 
-(** * Basic Types and Definitions *)
-
-(** ** Coordinate System
+(** ** 1.1 Coordinate System
     
     We represent pixel coordinates as pairs of natural numbers (x, y).
     The origin (0, 0) is at the top-left corner, with x increasing rightward
-    and y increasing downward, following standard image processing conventions.
-*)
-Definition coord : Type := prod nat nat.
+    and y increasing downward, following standard image processing conventions. *)
 
-(** Accessor functions for coordinates *)
-Definition fst_coord (c : coord) : nat :=
-  match c with
-  | pair x y => x
+Definition coord : Type := nat * nat.
+
+(** Accessor functions for readability *)
+Definition coord_x (c : coord) : nat := fst c.
+Definition coord_y (c : coord) : nat := snd c.
+
+(** Coordinate equality as a decidable boolean function *)
+Definition coord_eqb (c1 c2 : coord) : bool :=
+  match c1, c2 with
+  | (x1, y1), (x2, y2) => andb (Nat.eqb x1 x2) (Nat.eqb y1 y2)
   end.
 
-Definition snd_coord (c : coord) : nat :=
-  match c with
-  | pair x y => y
-  end.
-
-(** ** Image Representations
+(** ** 1.2 Image Representations
     
-    We begin with a simple unbounded image representation as a function
-    from coordinates to booleans. Later we'll add bounded images with
-    explicit dimensions for more realistic modeling.
+    We provide two image representations:
+    1. Simple images: unbounded functions from coordinates to booleans
+    2. Bounded images: images with explicit width and height
     
     Convention: true represents foreground (object) pixels, 
-                false represents background pixels
-*)
-Definition simple_image : Type := forall (c : coord), bool.
+                false represents background pixels *)
+
+Definition simple_image : Type := coord -> bool.
 
 (** The empty image contains no foreground pixels *)
 Definition empty_image : simple_image := fun _ => false.
 
-(** ** Labeling Functions
+(** Bounded images with explicit dimensions *)
+Record bounded_image : Type := mkBoundedImage {
+  width : nat;
+  height : nat;
+  pixels : coord -> bool
+}.
+
+(** Check if a coordinate is within bounds *)
+Definition in_bounds (img : bounded_image) (c : coord) : bool :=
+  andb (Nat.ltb (coord_x c) (width img)) 
+       (Nat.ltb (coord_y c) (height img)).
+
+(** Safe pixel access that returns false for out-of-bounds *)
+Definition get_pixel (img : bounded_image) (c : coord) : bool :=
+  if in_bounds img c then pixels img c else false.
+
+(** Convert bounded image to simple image *)
+Definition bounded_to_simple (img : bounded_image) : simple_image :=
+  fun c => get_pixel img c.
+
+(** ** 1.3 Labeling Functions
     
     A labeling assigns a natural number label to each coordinate.
     We use 0 to represent "unlabeled" or background pixels.
-    Connected foreground pixels should receive the same positive label.
-*)
-Definition labeling : Type := forall (c : coord), nat.
+    Connected foreground pixels should receive the same positive label. *)
+
+Definition labeling : Type := coord -> nat.
 
 (** The empty labeling assigns 0 to all pixels *)
-Definition empty_labeling : labeling := fun _ => O.
+Definition empty_labeling : labeling := fun _ => 0.
 
-(** * Adjacency Relations and Their Properties *)
+(** ** 1.4 Basic Utility Functions *)
 
-(** ** Helper: Absolute Difference *)
+(** Absolute difference between natural numbers *)
 Definition abs_diff (a b : nat) : nat :=
-  match Nat.leb a b with
-  | true => Nat.sub b a
-  | false => Nat.sub a b
-  end.
+  if Nat.leb a b then b - a else a - b.
 
-(** ** 4-Connectivity Adjacency
+(** ** 1.5 Basic Properties of Foundations *)
+
+(** coord_eqb is reflexive *)
+Lemma coord_eqb_refl : forall c,
+  coord_eqb c c = true.
+Proof.
+  intros [x y].
+  unfold coord_eqb.
+  rewrite !Nat.eqb_refl.
+  reflexivity.
+Qed.
+
+(** coord_eqb is symmetric *)
+Lemma coord_eqb_sym : forall c1 c2,
+  coord_eqb c1 c2 = coord_eqb c2 c1.
+Proof.
+  intros [x1 y1] [x2 y2].
+  unfold coord_eqb.
+  rewrite (Nat.eqb_sym x1 x2).
+  rewrite (Nat.eqb_sym y1 y2).
+  reflexivity.
+Qed.
+
+(** coord_eqb decides equality *)
+Lemma coord_eqb_true_iff : forall c1 c2,
+  coord_eqb c1 c2 = true <-> c1 = c2.
+Proof.
+  intros [x1 y1] [x2 y2].
+  unfold coord_eqb.
+  rewrite andb_true_iff.
+  rewrite !Nat.eqb_eq.
+  split.
+  - intros [Hx Hy]. f_equal; assumption.
+  - intros H. injection H as Hx Hy. auto.
+Qed.
+
+(** abs_diff is symmetric *)
+Lemma abs_diff_sym : forall a b, 
+  abs_diff a b = abs_diff b a.
+Proof.
+  intros a b.
+  unfold abs_diff.
+  destruct (Nat.leb a b) eqn:Hab; destruct (Nat.leb b a) eqn:Hba;
+  try reflexivity.
+  - apply Nat.leb_le in Hab.
+    apply Nat.leb_le in Hba.
+    assert (a = b) by lia. subst. reflexivity.
+  - apply Nat.leb_nle in Hab.
+    apply Nat.leb_nle in Hba.
+    lia.
+Qed.
+
+(** Empty labeling is always zero *)
+Lemma empty_labeling_zero : forall c,
+  empty_labeling c = 0.
+Proof.
+  reflexivity.
+Qed.
+
+(** get_pixel returns false outside bounds *)
+Lemma get_pixel_out_of_bounds : forall img c,
+  in_bounds img c = false -> get_pixel img c = false.
+Proof.
+  intros img c Hout.
+  unfold get_pixel.
+  rewrite Hout.
+  reflexivity.
+Qed.
+
+(** Bounded to simple conversion preserves pixel values *)
+Lemma bounded_to_simple_spec : forall img c,
+  bounded_to_simple img c = get_pixel img c.
+Proof.
+  reflexivity.
+Qed.
+
+(** * Section 2: Adjacency Theory
+    
+    This section defines adjacency relations for pixels and establishes their
+    fundamental properties. We focus on 4-connectivity and 8-connectivity,
+    the two most common adjacency relations in image processing. *)
+
+(** ** 2.1 4-Connectivity (Edge Adjacency)
     
     Two pixels are 4-adjacent if they share an edge, i.e., they differ
     by exactly 1 in either x or y coordinate (but not both).
@@ -122,156 +194,384 @@ Definition abs_diff (a b : nat) : nat :=
     This gives each pixel up to 4 neighbors:
     - (x-1, y) left
     - (x+1, y) right  
-    - (x, y+1) down
     - (x, y-1) up
-*)
+    - (x, y+1) down *)
+
 Definition adjacent_4 (c1 c2 : coord) : bool :=
-  let x1 := fst_coord c1 in
-  let y1 := snd_coord c1 in
-  let x2 := fst_coord c2 in
-  let y2 := snd_coord c2 in
+  let x1 := coord_x c1 in
+  let y1 := coord_y c1 in
+  let x2 := coord_x c2 in
+  let y2 := coord_y c2 in
   match Nat.eqb x1 x2 with
-  | true => Nat.eqb (abs_diff y1 y2) (S O)  (* same x, differ by 1 in y *)
-  | false => andb (Nat.eqb y1 y2) (Nat.eqb (abs_diff x1 x2) (S O))  (* same y, differ by 1 in x *)
+  | true => Nat.eqb (abs_diff y1 y2) 1  (* same x, differ by 1 in y *)
+  | false => andb (Nat.eqb y1 y2) (Nat.eqb (abs_diff x1 x2) 1)  (* same y, differ by 1 in x *)
   end.
 
-(** ** Basic Tests for 4-Adjacency *)
-Example test_adj4_horiz : adjacent_4 (pair O O) (pair (S O) O) = true := eq_refl.
-Example test_adj4_vert : adjacent_4 (pair O O) (pair O (S O)) = true := eq_refl.
-Example test_adj4_diag : adjacent_4 (pair O O) (pair (S O) (S O)) = false := eq_refl.
-
-(** ** 8-Connectivity Adjacency
+(** ** 2.2 8-Connectivity (Edge or Corner Adjacency)
     
     Two pixels are 8-adjacent if they share an edge or corner, i.e., they differ
     by at most 1 in both x and y coordinates (but not identical).
     
-    This gives each pixel up to 8 neighbors, including diagonals.
-*)
+    This gives each pixel up to 8 neighbors, including diagonals. *)
+
 Definition adjacent_8 (c1 c2 : coord) : bool :=
-  let x1 := fst_coord c1 in
-  let y1 := snd_coord c1 in
-  let x2 := fst_coord c2 in
-  let y2 := snd_coord c2 in
+  let x1 := coord_x c1 in
+  let y1 := coord_y c1 in
+  let x2 := coord_x c2 in
+  let y2 := coord_y c2 in
   let dx := abs_diff x1 x2 in
   let dy := abs_diff y1 y2 in
-  andb (andb (Nat.leb dx (S O)) (Nat.leb dy (S O))) 
-       (negb (andb (Nat.eqb dx O) (Nat.eqb dy O))).
+  andb (andb (Nat.leb dx 1) (Nat.leb dy 1)) 
+       (negb (andb (Nat.eqb dx 0) (Nat.eqb dy 0))).
 
-(** ** Tests for 8-Connectivity *)
-Example test_adj8_horiz : adjacent_8 (pair O O) (pair (S O) O) = true := eq_refl.
-Example test_adj8_diag : adjacent_8 (pair O O) (pair (S O) (S O)) = true := eq_refl.
-Example test_adj8_self : adjacent_8 (pair O O) (pair O O) = false := eq_refl.
-Example test_adj8_far : adjacent_8 (pair O O) (pair (S (S O)) O) = false := eq_refl.
+(** ** 2.3 Basic Tests for Adjacency *)
 
-(** ** Fundamental Properties of Adjacency *)
+Example test_adj4_horiz : adjacent_4 (0, 0) (1, 0) = true. 
+Proof. reflexivity. Qed.
 
-(** Absolute difference is symmetric *)
-Lemma abs_diff_sym : forall a b, abs_diff a b = abs_diff b a.
-Proof.
-  intros a b.
-  unfold abs_diff.
-  destruct (Nat.leb a b) eqn:Hab; destruct (Nat.leb b a) eqn:Hba.
-  - (* a <= b and b <= a means a = b *)
-    apply Nat.leb_le in Hab.
-    apply Nat.leb_le in Hba.
-    assert (a = b) by lia.
-    subst. reflexivity.
-  - (* a <= b and not b <= a *)
-    reflexivity.
-  - (* not a <= b and b <= a *)
-    reflexivity.
-  - (* not a <= b and not b <= a - impossible *)
-    apply Nat.leb_nle in Hab.
-    apply Nat.leb_nle in Hba.
-    lia.
-Qed.
+Example test_adj4_vert : adjacent_4 (0, 0) (0, 1) = true. 
+Proof. reflexivity. Qed.
+
+Example test_adj4_diag : adjacent_4 (0, 0) (1, 1) = false. 
+Proof. reflexivity. Qed.
+
+Example test_adj4_self : adjacent_4 (0, 0) (0, 0) = false. 
+Proof. reflexivity. Qed.
+
+Example test_adj8_horiz : adjacent_8 (0, 0) (1, 0) = true. 
+Proof. reflexivity. Qed.
+
+Example test_adj8_diag : adjacent_8 (0, 0) (1, 1) = true. 
+Proof. reflexivity. Qed.
+
+Example test_adj8_self : adjacent_8 (0, 0) (0, 0) = false. 
+Proof. reflexivity. Qed.
+
+Example test_adj8_far : adjacent_8 (0, 0) (2, 0) = false. 
+Proof. reflexivity. Qed.
+
+(** ** 2.4 Fundamental Properties of Adjacency *)
 
 (** 4-adjacency is symmetric *)
 Lemma adjacent_4_sym : forall c1 c2, 
   adjacent_4 c1 c2 = adjacent_4 c2 c1.
 Proof.
-  intros c1 c2.
-  unfold adjacent_4.
-  destruct c1 as [x1 y1].
-  destruct c2 as [x2 y2].
-  simpl.
-  rewrite Nat.eqb_sym.
-  rewrite (Nat.eqb_sym y1 y2).
-  rewrite abs_diff_sym.
-  rewrite (abs_diff_sym x1 x2).
-  destruct (Nat.eqb x2 x1); destruct (Nat.eqb y2 y1); reflexivity.
+  intros [x1 y1] [x2 y2].
+  unfold adjacent_4; simpl.
+  rewrite Nat.eqb_sym, (Nat.eqb_sym y1 y2).
+  rewrite (abs_diff_sym y1 y2), (abs_diff_sym x1 x2).
+  destruct (Nat.eqb x2 x1); reflexivity.
 Qed.
 
-(** * Paths and Connectivity Definitions *)
+(** 8-adjacency is symmetric *)
+Lemma adjacent_8_sym : forall c1 c2,
+  adjacent_8 c1 c2 = adjacent_8 c2 c1.
+Proof.
+  intros [x1 y1] [x2 y2].
+  unfold adjacent_8; simpl.
+  rewrite (abs_diff_sym x1 x2).
+  rewrite (abs_diff_sym y1 y2).
+  reflexivity.
+Qed.
 
-(** ** Path Validity
+(** Neither adjacency relation is reflexive *)
+Lemma adjacent_4_irrefl : forall c,
+  adjacent_4 c c = false.
+Proof.
+  intros [x y].
+  unfold adjacent_4; simpl.
+  rewrite Nat.eqb_refl.
+  unfold abs_diff.
+  rewrite Nat.leb_refl, Nat.sub_diag.
+  reflexivity.
+Qed.
+
+Lemma adjacent_8_irrefl : forall c,
+  adjacent_8 c c = false.
+Proof.
+  intros [x y].
+  unfold adjacent_8; simpl.
+  unfold abs_diff.
+  rewrite Nat.leb_refl, (Nat.leb_refl y).
+  rewrite Nat.sub_diag, (Nat.sub_diag y).
+  reflexivity.
+Qed.
+
+(** ** 2.5 Relationship Between 4 and 8 Adjacency *)
+
+(** 4-adjacency implies 8-adjacency *)
+Theorem adjacent_4_implies_8 : forall c1 c2,
+  adjacent_4 c1 c2 = true -> adjacent_8 c1 c2 = true.
+Proof.
+  intros [x1 y1] [x2 y2] H4.
+  unfold adjacent_4 in H4; simpl in H4.
+  unfold adjacent_8; simpl.
+  destruct (Nat.eqb x1 x2) eqn:Heqx.
+  - (* Same x coordinate *)
+    apply Nat.eqb_eq in Heqx; subst x2.
+    assert (abs_diff x1 x1 = 0).
+    { unfold abs_diff. rewrite Nat.leb_refl. lia. }
+    rewrite H. simpl.
+    assert (abs_diff y1 y2 = 1).
+    { apply Nat.eqb_eq. exact H4. }
+    rewrite H0. simpl.
+    reflexivity.
+  - (* Different x, must have same y *)
+    apply andb_prop in H4. destruct H4 as [Heqy H1].
+    apply Nat.eqb_eq in Heqy; subst y2.
+    assert (abs_diff y1 y1 = 0).
+    { unfold abs_diff. rewrite Nat.leb_refl. lia. }
+    rewrite H. simpl.
+    apply Nat.eqb_eq in H1.
+    rewrite H1. simpl.
+    reflexivity.
+Qed.
+
+(** The converse is not true: 8-adjacency does not imply 4-adjacency *)
+Example adjacent_8_not_implies_4 : 
+  exists c1 c2, adjacent_8 c1 c2 = true /\ adjacent_4 c1 c2 = false.
+Proof.
+  exists (0, 0), (1, 1).
+  split; reflexivity.
+Qed.
+
+(** ** 2.6 Adjacency Characterizations *)
+
+(** 4-adjacency can be characterized by unit distance in Manhattan metric *)
+Lemma adjacent_4_manhattan : forall c1 c2,
+  adjacent_4 c1 c2 = true <-> 
+  abs_diff (coord_x c1) (coord_x c2) + abs_diff (coord_y c1) (coord_y c2) = 1.
+Proof.
+  intros [x1 y1] [x2 y2].
+  unfold adjacent_4; simpl.
+  split.
+  - intros H.
+    destruct (Nat.eqb x1 x2) eqn:Hx.
+    + apply Nat.eqb_eq in Hx; subst.
+      apply Nat.eqb_eq in H.
+      rewrite H.
+      unfold abs_diff at 1.
+      rewrite Nat.leb_refl, Nat.sub_diag.
+      reflexivity.
+    + apply andb_prop in H.
+      destruct H as [Hy H1].
+      apply Nat.eqb_eq in Hy; subst.
+      apply Nat.eqb_eq in H1.
+      rewrite H1.
+      unfold abs_diff.
+      rewrite Nat.leb_refl, Nat.sub_diag.
+      lia.
+  - intros H.
+    destruct (Nat.eqb x1 x2) eqn:Hx.
+    + apply Nat.eqb_eq in Hx; subst.
+      unfold abs_diff at 1 in H.
+      rewrite Nat.leb_refl, Nat.sub_diag in H.
+      simpl in H.
+      apply Nat.eqb_eq.
+      exact H.
+    + apply andb_true_intro.
+      split.
+      * (* Need to show y1 = y2 *)
+        destruct (Nat.eqb y1 y2) eqn:Heqy.
+        -- reflexivity.
+        -- (* If y1 ≠ y2 and x1 ≠ x2, then sum > 1 *)
+           apply Nat.eqb_neq in Hx, Heqy.
+           assert (abs_diff x1 x2 > 0).
+           { unfold abs_diff. 
+             destruct (Nat.leb x1 x2) eqn:Hle.
+             - apply Nat.leb_le in Hle. lia.
+             - apply Nat.leb_nle in Hle. lia. }
+           assert (abs_diff y1 y2 > 0).
+           { unfold abs_diff. 
+             destruct (Nat.leb y1 y2) eqn:Hle.
+             - apply Nat.leb_le in Hle. lia.
+             - apply Nat.leb_nle in Hle. lia. }
+           lia.
+      * (* Need to show abs_diff x1 x2 = 1 *)
+        apply Nat.eqb_neq in Hx.
+        assert (abs_diff y1 y2 = 0).
+        { destruct (abs_diff y1 y2) eqn:E.
+          - reflexivity.
+          - assert (abs_diff x1 x2 > 0).
+            { unfold abs_diff. 
+              destruct (Nat.leb x1 x2) eqn:Hle.
+              - apply Nat.leb_le in Hle. lia.
+              - apply Nat.leb_nle in Hle. lia. }
+            lia. }
+        unfold abs_diff in H0.
+        destruct (Nat.leb y1 y2) eqn:Hley.
+        -- apply Nat.leb_le in Hley. 
+           assert (y1 = y2) by lia. subst.
+           apply Nat.eqb_eq.
+           assert (abs_diff x1 x2 + abs_diff y2 y2 = 1) by exact H.
+           unfold abs_diff at 2 in H1.
+           rewrite Nat.leb_refl, Nat.sub_diag in H1.
+           rewrite Nat.add_0_r in H1.
+           exact H1.
+        -- apply Nat.leb_nle in Hley.
+           assert (y1 = y2) by lia. subst.
+           apply Nat.eqb_eq.
+           assert (abs_diff x1 x2 + abs_diff y2 y2 = 1) by exact H.
+           unfold abs_diff at 2 in H1.
+           rewrite Nat.leb_refl, Nat.sub_diag in H1.
+           rewrite Nat.add_0_r in H1.
+           exact H1.
+Qed.
+
+Lemma adjacent_8_chebyshev : forall c1 c2,
+  adjacent_8 c1 c2 = true <-> 
+  Nat.max (abs_diff (coord_x c1) (coord_x c2)) (abs_diff (coord_y c1) (coord_y c2)) = 1.
+Proof.
+  intros [x1 y1] [x2 y2].
+  unfold adjacent_8; simpl.
+  split.
+  - intros H.
+    apply andb_prop in H.
+    destruct H as [H1 H2].
+    apply andb_prop in H1.
+    destruct H1 as [Hdx Hdy].
+    apply Nat.leb_le in Hdx, Hdy.
+    apply negb_true_iff in H2.
+    apply andb_false_iff in H2.
+    assert (abs_diff x1 x2 <= 1) by exact Hdx.
+    assert (abs_diff y1 y2 <= 1) by exact Hdy.
+    assert (abs_diff x1 x2 > 0 \/ abs_diff y1 y2 > 0).
+    { destruct H2 as [H2 | H2].
+      - apply Nat.eqb_neq in H2. left. lia.
+      - apply Nat.eqb_neq in H2. right. lia. }
+    destruct H1 as [Hx | Hy].
+    + destruct (abs_diff x1 x2) eqn:E; [lia|].
+      destruct n; [|lia].
+      destruct (abs_diff y1 y2) eqn:E2.
+      * rewrite Nat.max_0_r. reflexivity.
+      * destruct n; [apply Nat.max_comm|lia].
+    + destruct (abs_diff y1 y2) eqn:E; [lia|].
+      destruct n; [|lia].
+      destruct (abs_diff x1 x2) eqn:E2.
+      * rewrite Nat.max_0_l. reflexivity.
+      * destruct n; [reflexivity|lia].
+  - intros H.
+    apply andb_true_intro.
+    split.
+    + apply andb_true_intro.
+      assert (abs_diff x1 x2 <= 1 /\ abs_diff y1 y2 <= 1).
+      { split.
+        - assert (abs_diff x1 x2 <= Nat.max (abs_diff x1 x2) (abs_diff y1 y2)) by apply Nat.le_max_l.
+          rewrite H in *. assumption.
+        - assert (abs_diff y1 y2 <= Nat.max (abs_diff x1 x2) (abs_diff y1 y2)) by apply Nat.le_max_r.
+          rewrite H in *. assumption. }
+      destruct H0.
+      split; apply Nat.leb_le; assumption.
+    + apply negb_true_iff.
+      apply andb_false_iff.
+      (* Since max = 1, at least one of the distances is 1 *)
+      assert (abs_diff x1 x2 = 1 \/ abs_diff y1 y2 = 1).
+      { destruct (abs_diff x1 x2) eqn:E1; destruct (abs_diff y1 y2) eqn:E2.
+        - (* both 0, max would be 0 *)
+          simpl in H. lia.
+        - (* x1 x2 = 0, y1 y2 = S n *)
+          right. simpl in H. assumption.
+        - (* x1 x2 = S n, y1 y2 = 0 *)
+          left. 
+          rewrite Nat.max_0_r in H.
+          exact H.
+        - (* both positive *)
+          simpl in H.
+          destruct n; destruct n0; simpl in H; try lia;
+          left; reflexivity. }
+      destruct H0.
+      * left. apply Nat.eqb_neq. rewrite H0. lia.
+      * right. apply Nat.eqb_neq. rewrite H0. lia.
+Qed.
+
+(** * Section 3: Connectivity Theory
     
-    A path in an image is a sequence of coordinates where consecutive
-    coordinates are adjacent (according to the chosen connectivity).
-    We represent paths as lists of coordinates.
-*)
+    This section builds upon adjacency relations to define connectivity
+    between pixels. We formalize paths, define when pixels are connected,
+    and prove that connectivity forms an equivalence relation on foreground
+    pixels. *)
 
-(** Check if a list of coordinates forms a valid path with given adjacency *)
-Fixpoint is_path (adj : coord -> coord -> bool) (p : list coord) : bool :=
+(** ** 3.1 Paths in Images
+    
+    A path is a sequence of coordinates. We represent paths as lists
+    and define what makes a path valid in an image. *)
+
+(** Check if consecutive elements in a list are adjacent *)
+Fixpoint is_adjacent_path (adj : coord -> coord -> bool) (p : list coord) : bool :=
   match p with
   | [] => true
   | [_] => true
-  | c1 :: (c2 :: rest) as tail => andb (adj c1 c2) (is_path adj tail)
+  | c1 :: (c2 :: rest) as tail => andb (adj c1 c2) (is_adjacent_path adj tail)
   end.
 
-(** A path is valid in an image if all coordinates are foreground pixels *)
-Fixpoint path_in_image (img : simple_image) (p : list coord) : bool :=
+(** Check if all coordinates in a path are foreground pixels *)
+Fixpoint all_foreground (img : simple_image) (p : list coord) : bool :=
   match p with
   | [] => true
-  | c :: rest => andb (img c) (path_in_image img rest)
+  | c :: rest => andb (img c) (all_foreground img rest)
   end.
 
-(** A valid path combines both requirements *)
+(** A valid path has adjacent coordinates and all are foreground *)
 Definition valid_path (img : simple_image) (adj : coord -> coord -> bool) 
                      (p : list coord) : bool :=
-  andb (is_path adj p) (path_in_image img p).
+  andb (is_adjacent_path adj p) (all_foreground img p).
 
-(** ** Test Path Validity *)
-Definition test_img : simple_image := fun c =>
-  match c with
-  | pair O O => true
-  | pair (S O) O => true
-  | pair O (S O) => true
-  | _ => false
-  end.
+(** ** 3.2 Basic Path Properties *)
 
-Example test_valid_path : 
-  valid_path test_img adjacent_4 [pair O O; pair (S O) O] = true := eq_refl.
+(** Empty path is always valid *)
+Lemma empty_path_valid : forall img adj,
+  valid_path img adj [] = true.
+Proof.
+  reflexivity.
+Qed.
 
-Example test_invalid_path : 
-  valid_path test_img adjacent_4 [pair O O; pair (S O) (S O)] = false := eq_refl.
+(** Single pixel path is valid if pixel is foreground *)
+Lemma singleton_path_valid : forall img adj c,
+  valid_path img adj [c] = img c.
+Proof.
+  intros img adj c.
+  unfold valid_path.
+  simpl.
+  rewrite andb_true_r.
+  reflexivity.
+Qed.
 
-(** ** Connectivity Relation
+(** Valid path implies all pixels are foreground *)
+Lemma valid_path_all_foreground : forall img adj p,
+  valid_path img adj p = true -> all_foreground img p = true.
+Proof.
+  intros img adj p H.
+  unfold valid_path in H.
+  apply andb_prop in H.
+  exact (proj2 H).
+Qed.
+
+(** Valid path implies adjacent path *)
+Lemma valid_path_adjacent : forall img adj p,
+  valid_path img adj p = true -> is_adjacent_path adj p = true.
+Proof.
+  intros img adj p H.
+  unfold valid_path in H.
+  apply andb_prop in H.
+  exact (proj1 H).
+Qed.
+
+(** ** 3.3 Connectivity Relation
     
-    Two pixels are connected if there exists a valid path between them.
-    We define this inductively to avoid issues with unbounded search.
-*)
+    Two pixels are connected if there exists a path between them.
+    We define this inductively to ensure termination and ease of reasoning. *)
 
 Inductive connected (img : simple_image) (adj : coord -> coord -> bool) 
                    : coord -> coord -> Prop :=
-  | connected_refl : forall c, img c = true -> connected img adj c c
-  | connected_step : forall c1 c2 c3, 
+  | connected_refl : forall c, 
+      img c = true -> connected img adj c c
+  | connected_step : forall c1 c2 c3,
       connected img adj c1 c2 -> 
       img c3 = true -> 
       adj c2 c3 = true -> 
       connected img adj c1 c3.
 
-(** Connectivity is an equivalence relation on foreground pixels *)
-Definition connected_symmetric img adj := 
-  forall c1 c2, connected img adj c1 c2 -> connected img adj c2 c1.
-
-Definition connected_transitive img adj := 
-  forall c1 c2 c3, connected img adj c1 c2 -> connected img adj c2 c3 -> 
-                   connected img adj c1 c3.
-
-(** * Properties of Connectivity *)
-
-(** ** Basic Properties *)
+(** ** 3.4 Basic Connectivity Properties *)
 
 (** Connected pixels must both be foreground *)
 Lemma connected_implies_foreground : forall img adj c1 c2,
@@ -281,11 +581,25 @@ Proof.
   induction H.
   - split; assumption.
   - split.
-    + apply IHconnected.
+    + exact (proj1 IHconnected).
     + assumption.
 Qed.
 
-(** Build connectivity by extending leftward *)
+(** Adjacent foreground pixels are connected *)
+Lemma adjacent_implies_connected : forall img adj c1 c2,
+  img c1 = true -> img c2 = true -> adj c1 c2 = true ->
+  connected img adj c1 c2.
+Proof.
+  intros img adj c1 c2 H1 H2 Hadj.
+  apply connected_step with c1.
+  - apply connected_refl. exact H1.
+  - exact H2.
+  - exact Hadj.
+Qed.
+
+(** ** 3.5 Connectivity is Symmetric *)
+
+(** Helper: extend connectivity leftward *)
 Lemma connected_extend_left : forall img adj c1 c2 c3,
   img c1 = true ->
   adj c1 c2 = true ->
@@ -294,22 +608,18 @@ Lemma connected_extend_left : forall img adj c1 c2 c3,
 Proof.
   intros img adj c1 c2 c3 H_img1 H_adj H_conn.
   induction H_conn.
-  - (* Base case: c2 = c and connected img adj c c *)
-    apply connected_step with c1.
-    + apply connected_refl. exact H_img1.
+  - apply adjacent_implies_connected.
+    + exact H_img1.
     + exact H.
     + exact H_adj.
-  - (* Step case: c2 connected to c0, c0 connected to c3 *)
-    apply connected_step with c2.
+  - apply connected_step with c2.
     + apply IHH_conn. exact H_adj.
     + exact H.
     + exact H0.
 Qed.
 
-(** ** Connectivity as an Equivalence Relation *)
-
-(** Connectivity is symmetric for symmetric adjacency *)
-Lemma connected_sym : forall img adj c1 c2,
+(** Connectivity is symmetric when adjacency is symmetric *)
+Theorem connected_symmetric : forall img adj c1 c2,
   (forall a b, adj a b = adj b a) ->
   connected img adj c1 c2 -> connected img adj c2 c1.
 Proof.
@@ -322,9 +632,11 @@ Proof.
     + exact IHconnected.
 Qed.
 
-(** Connectivity is transitive *)
-Lemma connected_trans : forall img adj c1 c2 c3,
-  connected img adj c1 c2 -> connected img adj c2 c3 -> connected img adj c1 c3.
+(** ** 3.6 Connectivity is Transitive *)
+
+Theorem connected_transitive : forall img adj c1 c2 c3,
+  connected img adj c1 c2 -> connected img adj c2 c3 -> 
+  connected img adj c1 c3.
 Proof.
   intros img adj c1 c2 c3 H12 H23.
   induction H23.
@@ -335,1189 +647,72 @@ Proof.
     + exact H0.
 Qed.
 
-(** Connectivity is reflexive on foreground pixels *)
-Lemma connected_refl_fg : forall img adj c,
-  img c = true -> connected img adj c c.
-Proof.
-  intros img adj c H.
-  apply connected_refl. exact H.
-Qed.
+(** ** 3.7 Connectivity is an Equivalence Relation *)
 
-(** Connectivity is symmetric for foreground pixels *)
-Lemma connected_sym_fg : forall img adj c1 c2,
-  (forall a b, adj a b = adj b a) ->
-  img c1 = true -> img c2 = true ->
-  connected img adj c1 c2 -> connected img adj c2 c1.
-Proof.
-  intros img adj c1 c2 adj_sym H1 H2 H.
-  apply connected_sym.
-  - exact adj_sym.
-  - exact H.
-Qed.
-
-(** Connectivity is transitive for foreground pixels *)
-Lemma connected_trans_fg : forall img adj c1 c2 c3,
-  img c1 = true -> img c2 = true -> img c3 = true ->
-  connected img adj c1 c2 -> connected img adj c2 c3 -> 
-  connected img adj c1 c3.
-Proof.
-  intros img adj c1 c2 c3 H1 H2 H3 H12 H23.
-  apply connected_trans with c2.
-  - exact H12.
-  - exact H23.
-Qed.
-
-(** The complete equivalence relation theorem *)
-Theorem connectivity_is_equivalence : forall img adj,
+(** Main theorem: connectivity is an equivalence relation on foreground pixels *)
+Theorem connectivity_equivalence : forall img adj,
   (forall a b, adj a b = adj b a) ->
   (forall c, img c = true -> connected img adj c c) /\
   (forall c1 c2, connected img adj c1 c2 -> connected img adj c2 c1) /\
-  (forall c1 c2 c3, connected img adj c1 c2 -> connected img adj c2 c3 -> connected img adj c1 c3).
+  (forall c1 c2 c3, connected img adj c1 c2 -> connected img adj c2 c3 -> 
+                    connected img adj c1 c3).
 Proof.
   intros img adj adj_sym.
-  split; [| split].
+  split; [|split].
   - intros c H. apply connected_refl. exact H.
-  - intros c1 c2 H. apply connected_sym; assumption.
-  - intros c1 c2 c3 H12 H23. apply connected_trans with c2; assumption.
+  - intros c1 c2 H. apply connected_symmetric; assumption.
+  - intros c1 c2 c3 H12 H23. apply connected_transitive with c2; assumption.
 Qed.
 
-(** * Correct Labeling Specification *)
+(** ** 3.8 Path Construction from Connectivity *)
 
-(** ** Core Properties of Correct Labelings *)
+(** Helper: extract a coordinate from a connectivity proof *)
+Definition connected_head {img adj c1 c2} (H : connected img adj c1 c2) : coord := c1.
+Definition connected_tail {img adj c1 c2} (H : connected img adj c1 c2) : coord := c2.
 
-(** A labeling respects connectivity if connected pixels have the same label *)
-Definition respects_connectivity (img : simple_image) (adj : coord -> coord -> bool) 
-                                (l : labeling) : Prop :=
-  forall c1 c2, img c1 = true -> img c2 = true ->
-                connected img adj c1 c2 -> l c1 = l c2.
-
-(** A labeling separates components if pixels with same label are connected *)
-Definition separates_components (img : simple_image) (adj : coord -> coord -> bool)
-                               (l : labeling) : Prop :=
-  forall c1 c2, img c1 = true -> img c2 = true ->
-                l c1 = l c2 -> l c1 <> O -> connected img adj c1 c2.
-
-(** Background pixels get label 0 *)
-Definition labels_background (img : simple_image) (l : labeling) : Prop :=
-  forall c, img c = false -> l c = O.
-
-(** A correct labeling satisfies all three properties *)
-Definition correct_labeling (img : simple_image) (adj : coord -> coord -> bool)
-                           (l : labeling) : Prop :=
-  labels_background img l /\
-  respects_connectivity img adj l /\
-  separates_components img adj l.
-
-(** ** Consequences of Correct Labeling *)
-
-(** Pixels with same non-zero label are connected *)
-Lemma same_label_implies_connected : forall img adj l c1 c2,
-  correct_labeling img adj l ->
-  img c1 = true -> img c2 = true ->
-  l c1 = l c2 -> l c1 <> O ->
-  connected img adj c1 c2.
-Proof.
-  intros img adj l c1 c2 [Hbg [Hresp Hsep]] H1 H2 Heq Hneq.
-  apply Hsep.
-  - exact H1.
-  - exact H2.
-  - exact Heq.
-  - exact Hneq.
-Qed.
-
-(** * Bounded Images *)
-
-(** ** Image with Explicit Dimensions *)
-Record bounded_image : Type := mkBoundedImage {
-  width : nat;
-  height : nat;
-  pixels : coord -> bool
-}.
-
-(** Check if a coordinate is within bounds *)
-Definition in_bounds (img : bounded_image) (c : coord) : bool :=
-  let (x, y) := c in
-  andb (Nat.ltb x (width img)) (Nat.ltb y (height img)).
-
-(** Safe pixel access that returns false for out-of-bounds *)
-Definition get_pixel (img : bounded_image) (c : coord) : bool :=
-  if in_bounds img c then pixels img c else false.
-
-(** ** Pixel Counting Operations *)
-
-(** Count foreground pixels in a row *)
-Fixpoint count_row (img : bounded_image) (y : nat) (x : nat) : nat :=
-  match x with
-  | O => O
-  | S x' => (if get_pixel img (pair x' y) then S O else O) + count_row img y x'
-  end.
-
-(** Count all foreground pixels in bounded image *)
-Fixpoint count_foreground (img : bounded_image) (y : nat) : nat :=
-  match y with
-  | O => O
-  | S y' => count_row img y' (width img) + count_foreground img y'
-  end.
-
-(** * Two-Pass Connected Component Labeling Algorithm *)
-
-(** ** Equivalence Table for Label Merging *)
-
-(** Label equivalence table - tracks which labels should be merged *)
-Definition equiv_table := nat -> nat -> bool.
-
-(** Empty equivalence table *)
-Definition empty_equiv : equiv_table := fun _ _ => false.
-
-(** Add an equivalence *)
-Definition add_equiv (e : equiv_table) (l1 l2 : nat) : equiv_table :=
-  fun a b => orb (e a b) (orb (andb (Nat.eqb a l1) (Nat.eqb b l2))
-                              (andb (Nat.eqb a l2) (Nat.eqb b l1))).
-
-(** Find minimum equivalent label *)
-Fixpoint find_min_equiv (e : equiv_table) (l : nat) (fuel : nat) : nat :=
-  match fuel with
-  | O => l
-  | S fuel' => 
-    let scan := fix scan_labels n :=
-      match n with
-      | O => l
-      | S n' => if e l n' then
-                  Nat.min n' (scan_labels n')
-                else scan_labels n'
-      end
-    in Nat.min l (scan l)
-  end.
-
-(** ** Coordinate Operations *)
-
-(** Coordinate equality *)
-Definition coord_eq (c1 c2 : coord) : bool :=
-  match c1, c2 with
-  | pair x1 y1, pair x2 y2 => andb (Nat.eqb x1 x2) (Nat.eqb y1 y2)
-  end.
-
-(** ** First Pass Implementation *)
-
-(** Process a single row left-to-right *)
-Fixpoint first_pass_row (img : bounded_image) (adj : coord -> coord -> bool)
-                        (prev_labels : coord -> nat) (equiv : equiv_table)
-                        (y : nat) (x : nat) (fuel : nat) (next_label : nat) 
-                        : (coord -> nat) * equiv_table * nat :=
-  match fuel with
-  | O => (prev_labels, equiv, next_label)
-  | S fuel' =>
-    if Nat.ltb x (width img) then
-      let c := pair x y in
-      if get_pixel img c then
-        (* Check left and up neighbors *)
-        let left := if x =? O then O else 
-                    if adj (pair (pred x) y) c then prev_labels (pair (pred x) y) else O in
-        let up := if y =? O then O else
-                  if adj (pair x (pred y)) c then prev_labels (pair x (pred y)) else O in
-        match left, up with
-        | O, O => (* No labeled neighbors - new label *)
-          let new_labels := fun c' => if coord_eq c c' then next_label else prev_labels c' in
-          first_pass_row img adj new_labels equiv y (S x) fuel' (S next_label)
-        | _, _ => (* Use minimum of existing labels *)
-          let label := match left, up with
-                       | O, u => u
-                       | l, O => l
-                       | l, u => Nat.min l u
-                       end in
-          let new_labels := fun c' => if coord_eq c c' then label else prev_labels c' in
-          let new_equiv := match left, up with
-                           | O, _ => equiv
-                           | _, O => equiv
-                           | l, u => if Nat.eqb l u then equiv else add_equiv equiv l u
-                           end in
-          first_pass_row img adj new_labels new_equiv y (S x) fuel' next_label
-        end
-      else
-        first_pass_row img adj prev_labels equiv y (S x) fuel' next_label
-    else
-      (prev_labels, equiv, next_label)
-  end.
-
-(** Process a row starting from x=0 *)
-Definition process_row (img : bounded_image) (adj : coord -> coord -> bool)
-                      (prev_labels : coord -> nat) (equiv : equiv_table)
-                      (y : nat) (next_label : nat) 
-                      : (coord -> nat) * equiv_table * nat :=
-  first_pass_row img adj prev_labels equiv y O (width img) next_label.
-
-(** Process all rows from top to bottom *)
-Fixpoint first_pass_rows (img : bounded_image) (adj : coord -> coord -> bool)
-                         (labels : coord -> nat) (equiv : equiv_table)
-                         (y : nat) (fuel : nat) (next_label : nat)
-                         : (coord -> nat) * equiv_table * nat :=
-  match fuel with
-  | O => (labels, equiv, next_label)
-  | S fuel' =>
-    if Nat.ltb y (height img) then
-      let '(labels', equiv', next') := process_row img adj labels equiv y next_label in
-      first_pass_rows img adj labels' equiv' (S y) fuel' next'
-    else
-      (labels, equiv, next_label)
-  end.
-
-(** Complete first pass *)
-Definition first_pass (img : bounded_image) (adj : coord -> coord -> bool) 
-                     : (coord -> nat) * equiv_table * nat :=
-  first_pass_rows img adj empty_labeling empty_equiv O (height img) (S O).
-
-(** ** Second Pass: Resolve Equivalences *)
-
-Definition second_pass (labels : coord -> nat) (equiv : equiv_table) (max_label : nat) : coord -> nat :=
-  fun c => 
-    let l := labels c in
-    if Nat.eqb l O then O
-    else find_min_equiv equiv l max_label.
-
-(** ** Complete Two-Pass Algorithm *)
-Definition two_pass_ccl (img : bounded_image) (adj : coord -> coord -> bool) : labeling :=
-  let '(labels, equiv, max_label) := first_pass img adj in
-  second_pass labels equiv max_label.
-
-(** * Algorithm Testing *)
-
-(** ** Test Image Creation *)
-Definition test_image : bounded_image :=
-  mkBoundedImage 3 3 (fun c =>
-    match c with
-    | pair O O => true      (* X.. *)
-    | pair (S O) O => true   (* XX. *)
-    | pair O (S O) => true   (* X.. *)
-    | pair (S (S O)) (S O) => true  (* ..X *)
-    | pair (S (S O)) (S (S O)) => true (* ..X *)
-    | _ => false
-    end).
-
-(** Apply CCL algorithm *)
-Definition test_labels := two_pass_ccl test_image adjacent_4.
-
-(** ** Verify Expected Results *)
-Example test_label_00 : test_labels (pair 0 0) = 1.
-Proof. compute. reflexivity. Qed.
-
-Example test_label_10 : test_labels (pair 1 0) = 1.
-Proof. compute. reflexivity. Qed.
-
-Example test_label_01 : test_labels (pair 0 1) = 1.
-Proof. compute. reflexivity. Qed.
-
-Example test_label_21 : test_labels (pair 2 1) = 2.
-Proof. compute. reflexivity. Qed.
-
-Example test_label_22 : test_labels (pair 2 2) = 2.
-Proof. compute. reflexivity. Qed.
-
-(** Verify components *)
-Example test_component_1 : 
-  test_labels (pair 0 0) = test_labels (pair 1 0) /\
-  test_labels (pair 1 0) = test_labels (pair 0 1).
-Proof. compute. split; reflexivity. Qed.
-
-Example test_component_2 :
-  test_labels (pair 2 1) = test_labels (pair 2 2).
-Proof. compute. reflexivity. Qed.
-
-Example test_different_components :
-  test_labels (pair 0 0) <> test_labels (pair 2 1).
-Proof. compute. discriminate. Qed.
-
-(** * Properties of Algorithm Components *)
-
-(** ** Equivalence Table Properties *)
-
-(** Adding an equivalence preserves existing equivalences *)
-Lemma add_equiv_preserves : forall e l1 l2 a b,
-  e a b = true -> add_equiv e l1 l2 a b = true.
-Proof.
-  intros e l1 l2 a b H.
-  unfold add_equiv.
-  rewrite H. reflexivity.
-Qed.
-
-(** Add creates the intended equivalence *)
-Lemma add_equiv_creates : forall e l1 l2,
-  add_equiv e l1 l2 l1 l2 = true.
-Proof.
-  intros e l1 l2.
-  unfold add_equiv.
-  rewrite Nat.eqb_refl.
-  rewrite Nat.eqb_refl.
-  simpl.
-  rewrite orb_true_r.
-  reflexivity.
-Qed.
-
-(** Equivalence tables should include reflexivity *)
-Definition equiv_refl (e : equiv_table) : Prop :=
-  forall l, e l l = true.
-
-(** If equiv table is reflexive, add_equiv preserves it *)
-Lemma add_equiv_preserves_refl : forall e l1 l2,
-  equiv_refl e ->
-  equiv_refl (add_equiv e l1 l2).
-Proof.
-  intros e l1 l2 Hrefl.
-  unfold equiv_refl in *.
-  intros l.
-  unfold add_equiv.
-  rewrite Hrefl.
-  reflexivity.
-Qed.
-
-(** Understand find_min_equiv behavior *)
-Example find_min_test : find_min_equiv empty_equiv 5 0 = 5.
-Proof.
-  compute.
-  reflexivity.
-Qed.
-
-(** ** Coordinate Equality Properties *)
-
-(** coord_eq is reflexive *)
-Lemma coord_eq_refl : forall c,
-  coord_eq c c = true.
-Proof.
-  intros c.
-  destruct c as [x y].
-  unfold coord_eq.
-  rewrite Nat.eqb_refl.
-  rewrite Nat.eqb_refl.
-  reflexivity.
-Qed.
-
-(** coord_eq is symmetric *)
-Lemma coord_eq_sym : forall c1 c2,
-  coord_eq c1 c2 = coord_eq c2 c1.
-Proof.
-  intros c1 c2.
-  destruct c1 as [x1 y1].
-  destruct c2 as [x2 y2].
-  unfold coord_eq.
-  rewrite Nat.eqb_sym.
-  rewrite (Nat.eqb_sym y1 y2).
-  reflexivity.
-Qed.
-
-(** coord_eq decides equality *)
-Lemma coord_eq_true_iff : forall c1 c2,
-  coord_eq c1 c2 = true <-> c1 = c2.
-Proof.
-  intros c1 c2.
-  split.
-  - intros H.
-    destruct c1 as [x1 y1], c2 as [x2 y2].
-    unfold coord_eq in H.
-    apply andb_prop in H. destruct H as [Hx Hy].
-    apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
-    subst. reflexivity.
-  - intros H. subst. apply coord_eq_refl.
-Qed.
-
-(** ** Pair Equality Properties *)
-
-(** Pairs are equal iff components are equal *)
-Lemma pair_eq_iff : forall (x1 y1 x2 y2 : nat),
-  pair x1 y1 = pair x2 y2 <-> x1 = x2 /\ y1 = y2.
-Proof.
-  intros x1 y1 x2 y2.
-  split.
-  - intros H. 
-    injection H as H1 H2.
-    split; assumption.
-  - intros [H1 H2].
-    subst. reflexivity.
-Qed.
-
-(** Pairs with different first components are not equal *)
-Lemma pair_neq_fst : forall (x1 x2 y : nat),
-  x1 <> x2 -> pair x1 y <> pair x2 y.
-Proof.
-  intros x1 x2 y Hneq Heq.
-  apply pair_eq_iff in Heq.
-  destruct Heq as [Hx _].
-  contradiction.
-Qed.
-
-(** Coordinates with different y values are not equal *)
-Lemma coord_neq_diff_y : forall x1 y1 x2 y2,
-  y1 <> y2 ->
-  (pair x1 y1 : coord) <> (pair x2 y2 : coord).
-Proof.
-  intros x1 y1 x2 y2 Hy Heq.
-  apply pair_eq_iff in Heq.
-  destruct Heq as [_ Heq_y].
-  contradiction.
-Qed.
-
-(** coord_eq returns false for coordinates with different y values *)
-Lemma coord_eq_diff_y : forall x1 y1 x2 y2,
-  y1 <> y2 ->
-  coord_eq (pair x1 y1) (pair x2 y2) = false.
-Proof.
-  intros x1 y1 x2 y2 Hy.
-  unfold coord_eq.
-  destruct (x1 =? x2) eqn:Hx; destruct (y1 =? y2) eqn:Heqy; simpl.
-  - apply Nat.eqb_eq in Heqy. contradiction.
-  - reflexivity.
-  - reflexivity.
-  - reflexivity.
-Qed.
-
-(** * Label Update Properties *)
-
-(** ** Basic Label Update Behavior *)
-
-(** Empty labeling assigns 0 everywhere *)
-Lemma empty_labeling_zero : forall c,
-  empty_labeling c = 0.
-Proof.
-  intro c. reflexivity.
-Qed.
-
-(** Labeling update preserves values for different coordinates *)
-Lemma label_update_preserves : forall (prev_labels : labeling) (c c' : coord) (label : nat),
-  c <> c' ->
-  (if coord_eq c c' then label else prev_labels c') = prev_labels c'.
-Proof.
-  intros prev_labels c c' label Hneq.
-  destruct (coord_eq c c') eqn:Heq.
-  - apply coord_eq_true_iff in Heq. contradiction.
-  - reflexivity.
-Qed.
-
-(** Label update at different coordinates preserves the value *)
-Lemma label_update_neq : forall (labels : labeling) (c c' : coord) (label : nat),
-  c <> c' ->
-  (fun c'' : coord => if coord_eq c c'' then label else labels c'') c' = labels c'.
-Proof.
-  intros labels c c' label Hneq.
-  simpl.
-  destruct (coord_eq c c') eqn:Heq.
-  - apply coord_eq_true_iff in Heq. contradiction.
-  - reflexivity.
-Qed.
-
-(** The labeling function only changes at specific coordinates *)
-Lemma label_update_spec : forall (labels : labeling) (c c' : coord) (label : nat),
-  (fun c'' : coord => if coord_eq c c'' then label else labels c'') c' =
-  if coord_eq c c' then label else labels c'.
-Proof.
-  intros. reflexivity.
-Qed.
-
-(** ** Row-Based Label Updates *)
-
-(** Label update on one row doesn't affect other rows *)
-Lemma label_update_diff_row : forall (labels : labeling) (x y x' y' : nat) (label : nat),
-  y <> y' ->
-  (fun c => if coord_eq (pair x y) c then label else labels c) (pair x' y') = labels (pair x' y').
-Proof.
-  intros labels x y x' y' label Hy.
-  apply label_update_neq.
-  apply coord_neq_diff_y.
-  exact Hy.
-Qed.
-
-(** The specific label update pattern used in first_pass_row *)
-Lemma first_pass_update_diff_row : forall (labels : labeling) (x y x' y' : nat) (label : nat),
-  y <> y' ->
-  (fun c' : coord => 
-    match c' with 
-    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
-    end) (pair x' y') = 
-  labels (pair x' y').
-Proof.
-  intros labels x y x' y' label Hy.
-  simpl.
-  destruct (x =? x') eqn:Hx; destruct (y =? y') eqn:Heqy; simpl.
-  - apply Nat.eqb_eq in Heqy. contradiction.
-  - reflexivity.
-  - reflexivity.
-  - reflexivity.
-Qed.
-
-(** The new_labels function in first_pass_row only differs at the current pixel *)
-Lemma first_pass_row_update_current_only :
-  forall (labels : labeling) (x y : nat) (label : nat) (x' y' : nat),
-  pair x y <> pair x' y' ->
-  (fun c' : coord => match c' with
-                     | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
-                     end) (pair x' y') = labels (pair x' y').
-Proof.
-  intros labels x y label x' y' Hneq.
-  simpl.
-  destruct (x =? x') eqn:Hx; destruct (y =? y') eqn:Hy; simpl.
-  - apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
-    subst. contradiction Hneq. reflexivity.
-  - reflexivity.
-  - reflexivity.
-  - reflexivity.
-Qed.
-
-(** The update function assigns the new label at the target coordinate *)
-Lemma label_update_at_target : forall (labels : labeling) x y label,
-  (fun c' : coord => 
-    match c' with 
-    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
-    end) (pair x y) = label.
-Proof.
-  intros labels x y label.
-  simpl.
-  rewrite Nat.eqb_refl. rewrite Nat.eqb_refl.
-  reflexivity.
-Qed.
-
-(** * First Pass Row Properties *)
-
-(** ** Termination and Boundary Conditions *)
-
-(** first_pass_row with fuel 0 returns inputs unchanged *)
-Lemma first_pass_row_fuel_0 : 
-  forall img adj labels equiv y x next_label,
-  first_pass_row img adj labels equiv y x 0 next_label = (labels, equiv, next_label).
-Proof.
-  intros. simpl. reflexivity.
-Qed.
-
-(** first_pass_row with x >= width returns inputs unchanged *)
-Lemma first_pass_row_out_of_bounds :
-  forall img adj labels equiv y x fuel next_label,
-  x >= width img ->
-  first_pass_row img adj labels equiv y x (S fuel) next_label = (labels, equiv, next_label).
-Proof.
-  intros img adj labels equiv y x fuel next_label Hwidth.
-  simpl.
-  assert (x <? width img = false).
-  { apply Nat.ltb_ge. exact Hwidth. }
-  rewrite H.
-  reflexivity.
-Qed.
-
-(** first_pass_row on background pixel recurses without changing labels *)
-Lemma first_pass_row_background_pixel :
-  forall img adj labels equiv y x fuel next_label,
-  x < width img ->
-  get_pixel img (pair x y) = false ->
-  first_pass_row img adj labels equiv y x (S fuel) next_label =
-  first_pass_row img adj labels equiv y (S x) fuel next_label.
-Proof.
-  intros img adj labels equiv y x fuel next_label Hlt Hpixel.
-  simpl.
-  rewrite (proj2 (Nat.ltb_lt _ _) Hlt).
-  rewrite Hpixel.
-  reflexivity.
-Qed.
-
-(** ** Label Preservation Across Rows *)
-
-(** first_pass_row preserves labels on different rows *)
-Lemma first_pass_row_preserves_diff_row :
-  forall fuel img adj labels equiv y x next_label y' x',
-  y' <> y ->
-  let result := first_pass_row img adj labels equiv y x fuel next_label in
-  let '(labels', _, _) := result in
-  labels' (pair x' y') = labels (pair x' y').
-Proof.
-  induction fuel as [|fuel IH]; intros img adj labels equiv y x next_label y' x' Hy.
-  - simpl. reflexivity.
-  - simpl.
-    destruct (x <? width img) eqn:Hlt; [|reflexivity].
-    destruct (get_pixel img (pair x y)) eqn:Hpixel.
-    + (* Foreground pixel *)
-      assert (Hy_sym: y <> y') by (intros H; apply Hy; symmetry; exact H).
-      destruct (x =? 0) eqn:Hx0;
-      destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
-      destruct (y =? 0) eqn:Hy0;
-      destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
-      try destruct (labels (pair (pred x) y)) eqn:Hleft;
-      try destruct (labels (pair x (pred y))) eqn:Hup;
-      (* Apply IH to the recursive call *)
-      match goal with
-      | |- context[first_pass_row img adj ?new_labels ?new_equiv y (S x) fuel ?new_next] =>
-        specialize (IH img adj new_labels new_equiv y (S x) new_next y' x' Hy);
-        remember (first_pass_row img adj new_labels new_equiv y (S x) fuel new_next) as rec_result;
-        destruct rec_result as [[rec_labels rec_equiv] rec_next];
-        simpl in IH; simpl;
-        rewrite IH;
-        apply first_pass_update_diff_row; exact Hy_sym
-      end.
-    + (* Background pixel *)
-      apply IH. exact Hy.
-Qed.
-
-(** first_pass_row preserves labels on different rows - cleaner version *)
-Lemma first_pass_row_preserves_diff_row_v2 :
-  forall fuel img adj labels equiv y x next_label labels' equiv' next' y' x',
-  y' <> y ->
-  first_pass_row img adj labels equiv y x fuel next_label = (labels', equiv', next') ->
-  labels' (pair x' y') = labels (pair x' y').
-Proof.
-  intros fuel img adj labels equiv y x next_label labels' equiv' next' y' x' Hy Heq.
-  generalize (first_pass_row_preserves_diff_row fuel img adj labels equiv y x next_label y' x' Hy).
-  rewrite Heq.
-  simpl.
-  intros H. exact H.
-Qed.
-
-(** ** Background Pixel Properties *)
-
-(** If a pixel is background, any label update at a different coordinate preserves its zero label *)
-Lemma background_label_update_preserves_zero : forall (img : bounded_image) (labels : labeling) x y label c,
-  get_pixel img c = false ->
-  labels c = 0 ->
-  coord_eq (pair x y) c = false ->
-  (fun c' : coord => 
-    match c' with 
-    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
-    end) c = 0.
-Proof.
-  intros img labels x y label c Hbg Hzero Hneq.
-  destruct c as [xc yc].
-  simpl.
-  destruct (x =? xc) eqn:Hx; destruct (y =? yc) eqn:Hy; simpl.
-  - (* x = xc and y = yc, but coord_eq says they're different - contradiction *)
-    unfold coord_eq in Hneq.
-    rewrite Hx in Hneq. rewrite Hy in Hneq.
-    simpl in Hneq. discriminate.
-  - exact Hzero.
-  - exact Hzero.
-  - exact Hzero.
-Qed.
-
-(** Label updates in first_pass_row preserve zero for background pixels *)
-Lemma foreground_update_preserves_background_zero : forall (img : bounded_image) (labels : labeling) x y label,
-  (forall c, get_pixel img c = false -> labels c = 0) ->
-  get_pixel img (pair x y) = true ->
-  forall c, get_pixel img c = false ->
-    (fun c' : coord => 
-      match c' with 
-      | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
-      end) c = 0.
-Proof.
-  intros img labels x y label Hinv Hfg c Hbg.
-  destruct c as [xc yc].
-  simpl.
-  destruct (x =? xc) eqn:Hx; destruct (y =? yc) eqn:Hy; simpl.
-  - (* x = xc and y = yc *)
-    apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
-    subst. rewrite Hbg in Hfg. discriminate.
-  - apply Hinv. exact Hbg.
-  - apply Hinv. exact Hbg.
-  - apply Hinv. exact Hbg.
-Qed.
-
-(** If we're updating at a foreground pixel, background pixels stay 0 *)
-Lemma update_at_foreground_preserves_background : forall img labels x y label c,
-  get_pixel img (pair x y) = true ->
-  get_pixel img c = false ->
-  (forall c', get_pixel img c' = false -> labels c' = 0) ->
-  match c with 
-  | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c
-  end = 0.
-Proof.
-  intros img labels x y label c Hfg Hbg Hinv.
-  destruct c as [xc yc].
-  destruct (x =? xc) eqn:Hx; destruct (y =? yc) eqn:Hy; simpl.
-  - (* x = xc and y = yc, so c = (x,y) *)
-    apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
-    subst. rewrite Hfg in Hbg. discriminate.
-  - apply Hinv. exact Hbg.
-  - apply Hinv. exact Hbg.
-  - apply Hinv. exact Hbg.
-Qed.
-
-(** Helper that matches the exact pattern in first_pass_row *)
-Lemma update_preserves_background_exact : forall img labels x y label c,
-  get_pixel img (pair x y) = true ->
-  get_pixel img c = false ->
-  (forall c', get_pixel img c' = false -> labels c' = 0) ->
-  (if let (x2, y2) := c in (x =? x2) && (y =? y2) then label else labels c) = 0.
-Proof.
-  intros img labels x y label c Hfg Hbg Hinv.
-  destruct c as [xc yc].
-  destruct (x =? xc) eqn:Hx; destruct (y =? yc) eqn:Hy; simpl.
-  - (* x = xc and y = yc, so c = (x,y) *)
-    apply Nat.eqb_eq in Hx. apply Nat.eqb_eq in Hy.
-    subst. rewrite Hfg in Hbg. discriminate.
-  - apply Hinv. exact Hbg.
-  - apply Hinv. exact Hbg.
-  - apply Hinv. exact Hbg.
-Qed.
-
-(** first_pass_row preserves zero labels for background pixels *)
-Lemma first_pass_row_preserves_background_zero_v2 :
-  forall fuel img adj labels equiv y x next_label,
-  (forall c, get_pixel img c = false -> labels c = 0) ->
-  let '(labels', _, _) := first_pass_row img adj labels equiv y x fuel next_label in
-  forall c, get_pixel img c = false -> labels' c = 0.
-Proof.
-  induction fuel as [|fuel IH]; intros img adj labels equiv y x next_label Hinv.
-  - simpl. exact Hinv.
-  - simpl.
-    destruct (x <? width img) eqn:Hwidth; [|exact Hinv].
-    destruct (get_pixel img (pair x y)) eqn:Hpixel.
-    + (* Foreground pixel case *)
-      destruct (x =? 0) eqn:Hx0;
-      destruct (y =? 0) eqn:Hy0;
-      try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
-      try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
-      try destruct (labels (pair (pred x) y)) eqn:Hleft;
-      try destruct (labels (pair x (pred y))) eqn:Hup;
-      apply IH;
-      intros c' Hbg';
-      apply update_preserves_background_exact with img;
-      assumption.
-    + (* Background pixel - just recurse *)
-      apply IH. exact Hinv.
-Qed.
-
-(** * Properties of Complete Passes *)
-
-(** ** First Pass Rows Properties *)
-
-(** first_pass_rows preserves labels on future rows *)
-Lemma first_pass_rows_preserves_future_rows :
-  forall fuel img adj labels equiv y next_label y' x',
-  y' >= y + fuel ->
-  let result := first_pass_rows img adj labels equiv y fuel next_label in
-  let '(labels', _, _) := result in
-  labels' (pair x' y') = labels (pair x' y').
-Proof.
-  induction fuel as [|fuel IH]; intros img adj labels equiv y next_label y' x' Hfuture.
-  - simpl. reflexivity.
-  - simpl.
-    destruct (y <? height img) eqn:Hlt; [|reflexivity].
-    assert (Hdiff: y' <> y) by lia.
-    unfold process_row.
-    destruct (first_pass_row img adj labels equiv y 0 (width img) next_label) as [[row_labels row_equiv] row_next] eqn:Hrow.
-    assert (Hpreserve: row_labels (pair x' y') = labels (pair x' y')).
-    { apply (first_pass_row_preserves_diff_row_v2 (width img) img adj labels equiv y 0 next_label row_labels row_equiv row_next y' x' Hdiff Hrow). }
-    specialize (IH img adj row_labels row_equiv (S y) row_next y' x').
-    assert (y' >= S y + fuel) by lia.
-    specialize (IH H).
-    destruct (first_pass_rows img adj row_labels row_equiv (S y) fuel row_next) as [[rec_labels rec_equiv] rec_next] eqn:Hrec.
-    simpl in IH. simpl.
-    rewrite IH. exact Hpreserve.
-Qed.
-
-(** first_pass_rows preserves zero labels for background pixels *)
-Lemma first_pass_rows_preserves_background_zero :
-  forall fuel img adj labels equiv y next_label,
-  (forall c, get_pixel img c = false -> labels c = 0) ->
-  let '(labels', _, _) := first_pass_rows img adj labels equiv y fuel next_label in
-  forall c, get_pixel img c = false -> labels' c = 0.
-Proof.
-  induction fuel as [|fuel IH]; intros img adj labels equiv y next_label Hinv.
-  - simpl. exact Hinv.
-  - simpl.
-    destruct (y <? height img) eqn:Hheight; [|exact Hinv].
-    unfold process_row.
-    destruct (first_pass_row img adj labels equiv y 0 (width img) next_label) as [[row_labels row_equiv] row_next] eqn:Hrow.
-    apply IH.
-    intros c Hbg.
-    generalize (first_pass_row_preserves_background_zero_v2 (width img) img adj labels equiv y 0 next_label Hinv).
-    rewrite Hrow. simpl.
-    intro H. apply H. exact Hbg.
-Qed.
-
-(** first_pass assigns 0 to background pixels *)
-Lemma first_pass_labels_background :
-  forall img adj,
-  let '(labels, _, _) := first_pass img adj in
-  forall c, get_pixel img c = false -> labels c = 0.
-Proof.
-  intros img adj.
-  unfold first_pass.
-  remember (first_pass_rows img adj empty_labeling empty_equiv 0 (height img) 1) as result.
-  destruct result as [[labels equiv] next].
-  intros c Hbg.
-  generalize (first_pass_rows_preserves_background_zero (height img) img adj empty_labeling empty_equiv 0 1).
-  rewrite <- Heqresult. simpl.
-  intro H.
-  apply H.
-  - intros c' _. apply empty_labeling_zero.
-  - exact Hbg.
-Qed.
-
-(** ** Next Label Monotonicity *)
-
-(** If a pixel at (x,y) is foreground, first_pass_row will give it a non-zero label *)
-Lemma first_pass_row_labels_current_pixel :
-  forall img adj labels equiv y x next_label,
-  x < width img ->
-  get_pixel img (pair x y) = true ->
-  next_label > 0 ->
-  let '(labels', _, _) := first_pass_row img adj labels equiv y x 1 next_label in
-  labels' (pair x y) > 0.
-Proof.
-  intros img adj labels equiv y x next_label Hwidth Hfg Hpos.
-  simpl.
-  rewrite (proj2 (Nat.ltb_lt _ _) Hwidth).
-  rewrite Hfg.
-  destruct (x =? 0) eqn:Hx0;
-  destruct (y =? 0) eqn:Hy0;
-  try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
-  try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
-  try destruct (labels (pair (pred x) y)) eqn:Hleft;
-  try destruct (labels (pair x (pred y))) eqn:Hup;
-  simpl; rewrite Nat.eqb_refl; rewrite Nat.eqb_refl; simpl;
-  try lia;
-  try (apply Nat.lt_0_succ);
-  try (apply Nat.min_glb_lt_iff; split; lia).
-Qed.
-
-(** next_label is always positive in first_pass_row *)
-Lemma first_pass_row_next_label_positive :
-  forall fuel img adj labels equiv y x next_label,
-  next_label > 0 ->
-  let '(_, _, next') := first_pass_row img adj labels equiv y x fuel next_label in
-  next' > 0.
-Proof.
-  induction fuel as [|fuel IH]; intros img adj labels equiv y x next_label Hpos.
-  - simpl. exact Hpos.
-  - simpl.
-    destruct (x <? width img) eqn:Hwidth; [|exact Hpos].
-    destruct (get_pixel img (pair x y)) eqn:Hpixel.
-    + (* Foreground pixel *)
-      destruct (x =? 0) eqn:Hx0;
-      destruct (y =? 0) eqn:Hy0;
-      try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
-      try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
-      try destruct (labels (pair (pred x) y)) eqn:Hleft;
-      try destruct (labels (pair x (pred y))) eqn:Hup;
-      apply IH; lia.
-    + (* Background pixel *)
-      apply IH. exact Hpos.
-Qed.
-
-(** first_pass_row never decreases next_label *)
-Lemma first_pass_row_next_label_monotone :
-  forall fuel img adj labels equiv y x next_label,
-  let '(_, _, next') := first_pass_row img adj labels equiv y x fuel next_label in
-  next' >= next_label.
-Proof.
-  induction fuel as [|fuel IH]; intros img adj labels equiv y x next_label.
-  - simpl. lia.
-  - simpl.
-    destruct (x <? width img) eqn:Hwidth; [|lia].
-    destruct (get_pixel img (pair x y)) eqn:Hpixel; [|apply IH].
-    (* Foreground pixel case *)
-    destruct (x =? 0) eqn:Hx0;
-    destruct (y =? 0) eqn:Hy0;
-    try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
-    try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
-    try destruct (labels (pair (pred x) y));
-    try destruct (labels (pair x (pred y)));
-    match goal with
-    | |- context[first_pass_row img adj ?new_labels ?new_equiv y (S x) fuel ?new_next] =>
-      specialize (IH img adj new_labels new_equiv y (S x) new_next);
-      destruct (first_pass_row img adj new_labels new_equiv y (S x) fuel new_next) as [[? ?] ?];
-      lia
-    end.
-Qed.
-
-(** ** Foreground Pixel Labeling Invariant *)
-
-(** Single step preserves positive labels for foreground pixels *)
-Lemma first_pass_row_single_step_preserves_positive :
-  forall img adj labels equiv y x next_label c,
-  x < width img ->
-  get_pixel img (pair x y) = true ->
-  (forall c', get_pixel img c' = true -> labels c' > 0) ->
-  next_label > 0 ->
-  get_pixel img c = true ->
-  let '(labels', _, _) := first_pass_row img adj labels equiv y x 1 next_label in
-  labels' c > 0.
-Proof.
-  intros img adj labels equiv y x next_label c Hlt Hpixel Hinv Hpos Hfg_c.
-  simpl.
-  rewrite (proj2 (Nat.ltb_lt _ _) Hlt).
-  rewrite Hpixel.
-  destruct (coord_eq (pair x y) c) eqn:Heq_coord.
-  - (* c = (x, y) - the current pixel *)
-    apply coord_eq_true_iff in Heq_coord. subst c.
-    destruct (x =? 0) eqn:Hx0;
-    destruct (y =? 0) eqn:Hy0;
-    try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
-    try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
-    try destruct (labels (pair (pred x) y)) eqn:Hleft;
-    try destruct (labels (pair x (pred y))) eqn:Hup;
-    simpl; rewrite Nat.eqb_refl; rewrite Nat.eqb_refl; simpl;
-    try lia;
-    try (apply Nat.min_glb_lt_iff; split; lia).
-  - (* c ≠ (x, y) - different pixel *)
-    destruct (x =? 0) eqn:Hx0;
-    destruct (y =? 0) eqn:Hy0;
-    try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
-    try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
-    try destruct (labels (pair (pred x) y)) eqn:Hleft;
-    try destruct (labels (pair x (pred y))) eqn:Hup;
-    destruct c as [xc yc]; simpl;
-    destruct (x =? xc) eqn:Hxc; destruct (y =? yc) eqn:Hyc; simpl;
-    try (apply Hinv; exact Hfg_c);
-    (* If x = xc and y = yc but coord_eq returned false, contradiction *)
-    try (apply Nat.eqb_eq in Hxc; apply Nat.eqb_eq in Hyc; subst;
-         unfold coord_eq in Heq_coord; simpl in Heq_coord;
-         rewrite Nat.eqb_refl in Heq_coord; rewrite Nat.eqb_refl in Heq_coord;
-         simpl in Heq_coord; discriminate).
-Qed.
-
-(** The main invariant: first_pass_row preserves positive labels for foreground pixels *)
-Lemma first_pass_row_preserves_positive_labels :
-  forall fuel img adj labels equiv y x next_label,
-  (forall c, get_pixel img c = true -> labels c > 0) ->
-  next_label > 0 ->
-  let '(labels', _, _) := first_pass_row img adj labels equiv y x fuel next_label in
-  forall c, get_pixel img c = true -> labels' c > 0.
-Proof.
-  induction fuel as [|fuel IH]; intros img adj labels equiv y x next_label Hinv Hpos.
-  - simpl. exact Hinv.
-  - simpl.
-    destruct (x <? width img) eqn:Hwidth; [|exact Hinv].
-    apply Nat.ltb_lt in Hwidth.
-    destruct (get_pixel img (pair x y)) eqn:Hpixel.
-    + (* Foreground pixel *)
-      destruct (x =? 0) eqn:Hx0;
-      destruct (y =? 0) eqn:Hy0;
-      try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
-      try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
-      try destruct (labels (pair (pred x) y)) eqn:Hleft;
-      try destruct (labels (pair x (pred y))) eqn:Hup;
-      (* Apply IH with the appropriate new_labels function *)
-      match goal with
-      | |- context[first_pass_row img adj ?new_labels ?new_equiv y (S x) fuel ?new_next] =>
-        apply IH; try lia;
-        intros c' Hfg';
-        (* Reason about the new_labels function *)
-        destruct c' as [xc' yc'];
-        simpl in *;
-        destruct (x =? xc') eqn:Hxc;
-        destruct (y =? yc') eqn:Hyc;
-        simpl;
-        try (apply Hinv; exact Hfg');
-        try (apply Nat.eqb_eq in Hxc; apply Nat.eqb_eq in Hyc; subst; simpl; lia)
-      end.
-    + (* Background pixel *)
-      apply IH; assumption.
-Qed.
-
-(** * Higher-Level Theorems *)
-
-(** ** Connectivity and Adjacency *)
-
-(** Adjacent foreground pixels are connected *)
-Theorem adjacent_implies_connected : forall img adj c1 c2,
+(** Every pair of adjacent coordinates forms a valid 2-element path *)
+Lemma adjacent_makes_path : forall img adj c1 c2,
   img c1 = true -> img c2 = true -> adj c1 c2 = true ->
-  connected img adj c1 c2.
+  valid_path img adj [c1; c2] = true.
 Proof.
   intros img adj c1 c2 H1 H2 Hadj.
-  apply connected_step with c1.
-  - apply connected_refl. exact H1.
-  - exact H2.
-  - exact Hadj.
+  unfold valid_path.
+  simpl.
+  rewrite H1, H2, Hadj.
+  simpl.
+  reflexivity.
 Qed.
 
-(** With symmetric adjacency, the connection is bidirectional *)
-Theorem adjacent_implies_bidirectional_connection : forall img adj c1 c2,
+(** ** 3.9 Connected Components *)
+
+(** A connected component is the set of all pixels connected to a given pixel *)
+Definition in_same_component (img : simple_image) (adj : coord -> coord -> bool) 
+                            (c1 c2 : coord) : Prop :=
+  connected img adj c1 c2.
+
+(** Being in the same component is decidable for finite images *)
+(* Note: We'll need additional machinery for decidability, 
+   so we just state the property for now *)
+
+(** Two components are either disjoint or identical *)
+Lemma component_disjoint_or_equal : forall img adj c1 c2 c3,
   (forall a b, adj a b = adj b a) ->
-  img c1 = true -> img c2 = true -> adj c1 c2 = true ->
-  connected img adj c1 c2 /\ connected img adj c2 c1.
+  connected img adj c1 c3 ->
+  connected img adj c2 c3 ->
+  connected img adj c1 c2.
 Proof.
-  intros img adj c1 c2 adj_sym H1 H2 Hadj.
-  split.
-  - apply adjacent_implies_connected; assumption.
-  - apply adjacent_implies_connected.
-    + exact H2.
-    + exact H1.
-    + rewrite adj_sym. exact Hadj.
+  intros img adj c1 c2 c3 adj_sym H13 H23.
+  apply connected_transitive with c3.
+  - exact H13.
+  - apply connected_symmetric.
+    + exact adj_sym.
+    + exact H23.
 Qed.
 
-(** ** Path-Connectivity Theorem *)
+(** ** 3.10 Properties of Components in Different Adjacencies *)
 
-(** Every valid path induces connectivity between endpoints *)
-Theorem valid_path_implies_connected : forall img adj path c1 cn,
-  valid_path img adj path = true ->
-  head path = Some c1 ->
-  last path cn = cn ->  (* last returns default if empty *)
-  path <> [] ->  (* path must be non-empty *)
-  connected img adj c1 cn.
-Proof.
-  intros img adj path.
-  induction path as [|c path' IH].
-  - (* Empty path *)
-    intros c1 cn Hvalid Hhead Hlast Hneq.
-    contradiction.
-  - intros c1 cn Hvalid Hhead Hlast Hneq.
-    simpl in Hhead. injection Hhead as Heq. subst c.
-    destruct path' as [|c' path''].
-    + (* Single element *)
-      simpl in Hlast. subst cn.
-      apply connected_refl.
-      unfold valid_path in Hvalid.
-      simpl in Hvalid.
-      unfold path_in_image in Hvalid.
-      simpl in Hvalid.
-      apply andb_prop in Hvalid. destruct Hvalid as [H _].
-      exact H.
-    + (* Multiple elements *)
-      unfold valid_path in Hvalid.
-      simpl in Hvalid.
-      apply andb_prop in Hvalid. destruct Hvalid as [Hpath Himg].
-      simpl in Hpath.
-      apply andb_prop in Hpath. destruct Hpath as [Hadj Hpath'].
-      unfold path_in_image in Himg.
-      simpl in Himg.
-      apply andb_prop in Himg. destruct Himg as [Hc1 Himg'].
-      (* Extract img c' = true from Himg' *)
-      assert (Hc': img c' = true).
-      { unfold path_in_image in Himg'.
-        simpl in Himg'.
-        apply andb_prop in Himg'. destruct Himg' as [H _].
-        exact H. }
-      assert (Hlast': last (c' :: path'') cn = cn).
-      { exact Hlast. }
-      apply connected_trans with c'.
-      * apply adjacent_implies_connected; assumption.
-      * apply IH.
-        -- unfold valid_path.
-           apply andb_true_intro. split.
-           ++ exact Hpath'.
-           ++ exact Himg'.
-        -- reflexivity.
-        -- exact Hlast'.
-        -- discriminate.
-Qed.
-
-(** ** Bounded Images and Connectivity *)
-
-(** Bounded images can be viewed as simple images *)
-Definition bounded_to_simple (img : bounded_image) : simple_image :=
-  fun c => get_pixel img c.
-
-(** Connectivity in bounded images respects bounds *)
-Theorem bounded_connected_in_bounds : forall bimg adj c1 c2,
-  connected (bounded_to_simple bimg) adj c1 c2 ->
-  in_bounds bimg c1 = true /\ in_bounds bimg c2 = true.
-Proof.
-  intros bimg adj c1 c2 H.
-  apply connected_implies_foreground in H.
-  destruct H as [H1 H2].
-  unfold bounded_to_simple in H1, H2.
-  unfold get_pixel in H1, H2.
-  split.
-  - destruct (in_bounds bimg c1) eqn:E1.
-    + reflexivity.
-    + discriminate.
-  - destruct (in_bounds bimg c2) eqn:E2.
-    + reflexivity.
-    + discriminate.
-Qed.
-
-(** ** Component Properties *)
-
-(** Labels partition foreground pixels into connected components *)
-Theorem label_partition : forall img adj l,
-  (forall a b, adj a b = adj b a) ->
-  correct_labeling img adj l ->
-  (forall c, img c = true -> l c <> O) ->  (* Add this assumption *)
-  forall c1 c2, img c1 = true -> img c2 = true ->
-    (l c1 = l c2 /\ l c1 <> O) <-> connected img adj c1 c2.
-Proof.
-  intros img adj l adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero c1 c2 H1 H2.
-  split.
-  - intros [Heq Hneq]. apply Hsep; assumption.
-  - intros Hconn. 
-    assert (l c1 = l c2) by (apply Hresp; assumption).
-    split; [exact H | apply Hfg_nonzero; exact H1].
-Qed.
-
-(** Components are maximal connected sets *)
-Theorem component_maximality : forall img adj l label,
-  (forall a b, adj a b = adj b a) ->
-  correct_labeling img adj l ->
-  (forall c, img c = true -> l c <> 0) ->
-  label <> 0 ->
-  forall c_out c_in,
-    img c_out = true ->
-    img c_in = true ->
-    l c_in = label ->
-    l c_out <> label ->
-    ~ connected img adj c_out c_in.
-Proof.
-  intros img adj l label adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero Hlabel_nonzero.
-  intros c_out c_in Hout_fg Hin_fg Hin_label Hout_diff Hconn.
-  (* If they're connected, they must have the same label *)
-  assert (l c_out = l c_in).
-  { apply Hresp; assumption. }
-  (* But we know they have different labels *)
-  congruence.
-Qed.
-
-(** Components partition the foreground pixels *)
-Theorem component_partition : forall img adj l,
-  (forall a b, adj a b = adj b a) ->
-  correct_labeling img adj l ->
-  (forall c, img c = true -> l c <> 0) ->
-  forall c1 c2,
-    img c1 = true ->
-    img c2 = true ->
-    (l c1 = l c2) \/ ~ connected img adj c1 c2.
-Proof.
-  intros img adj l adj_sym Hcorrect Hfg_nonzero c1 c2 H1 H2.
-  destruct (Nat.eq_dec (l c1) (l c2)).
-  - left. assumption.
-  - right. intros Hconn.
-    destruct Hcorrect as [Hbg [Hresp Hsep]].
-    assert (l c1 = l c2) by (apply Hresp; assumption).
-    contradiction.
-Qed.
-
-(** ** Adjacency Type Comparison *)
-
-(** When switching from 4-adjacency to 8-adjacency, components can only merge *)
-Theorem component_collapse : forall c1 c2,
-  adjacent_4 c1 c2 = true -> adjacent_8 c1 c2 = true.
-Proof.
-  intros [x1 y1] [x2 y2] H4.
-  unfold adjacent_4 in H4.
-  unfold adjacent_8.
-  simpl in *.
-  destruct (x1 =? x2) eqn:Heqx.
-  - (* Same x coordinate *)
-    apply Nat.eqb_eq in Heqx. subst x2.
-    assert (abs_diff x1 x1 = 0).
-    { unfold abs_diff. rewrite Nat.leb_refl. lia. }
-    rewrite H.
-    simpl.
-    assert (abs_diff y1 y2 = 1).
-    { destruct (Nat.eqb (abs_diff y1 y2) 1) eqn:E.
-      - apply Nat.eqb_eq in E. exact E.
-      - simpl in H4. congruence. }
-    rewrite H0.
-    simpl.
-    reflexivity.
-  - (* Different x, must have same y *)
-    apply andb_prop in H4. destruct H4 as [Heqy H1].
-    apply Nat.eqb_eq in Heqy. subst y2.
-    assert (abs_diff y1 y1 = 0).
-    { unfold abs_diff. rewrite Nat.leb_refl. lia. }
-    rewrite H.
-    assert (abs_diff x1 x2 = 1).
-    { apply Nat.eqb_eq in H1. exact H1. }
-    rewrite H0.
-    simpl.
-    apply Nat.eqb_neq in Heqx.
-    destruct (Nat.eq_dec x1 x2); [contradiction|].
-    simpl. reflexivity.
-Qed.
-
-(** This implies connectivity can only increase *)
-Theorem connectivity_monotone : forall img c1 c2,
+(** 4-connectivity implies 8-connectivity *)
+Theorem connected_4_implies_8 : forall img c1 c2,
   connected img adjacent_4 c1 c2 ->
   connected img adjacent_8 c1 c2.
 Proof.
@@ -1527,130 +722,370 @@ Proof.
   - apply connected_step with c2.
     + exact IHconnected.
     + exact H0.
-    + apply component_collapse. exact H1.
+    + apply adjacent_4_implies_8. exact H1.
 Qed.
 
-(** ** Component Boundaries *)
+(** ** 3.11 Maximal Connectivity *)
 
-(** A pixel is on the boundary of its component if it has an adjacent pixel
-    that is either background or in a different component *)
-Definition on_component_boundary (img : simple_image) (adj : coord -> coord -> bool) 
-                                 (l : labeling) (c : coord) : Prop :=
-  img c = true /\ 
-  exists c', adj c c' = true /\ 
-             (img c' = false \/ (img c' = true /\ l c <> l c')).
+(** A pixel is maximally connected to another if they share the same component *)
+Definition maximally_connected (img : simple_image) (adj : coord -> coord -> bool)
+                              (c1 c2 : coord) : Prop :=
+  connected img adj c1 c2.
 
-(** Boundary pixels connect different components *)
-Theorem boundary_bridges_components : forall img adj l c c1 c2,
+(** Components are maximal connected sets *)
+Theorem component_maximality : forall img adj c1 c2 c3,
   (forall a b, adj a b = adj b a) ->
-  correct_labeling img adj l ->
-  (forall c, img c = true -> l c <> 0) ->
-  on_component_boundary img adj l c ->
-  adj c c1 = true -> adj c c2 = true ->
-  img c1 = true -> img c2 = true ->
-  l c = l c1 -> l c <> l c2 ->
-  ~ connected img adj c1 c2.
-Proof.
-  intros img adj l c c1 c2 adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero.
-  intros [Hc_fg [c' [Hadj_c' Hc']]] Hadj1 Hadj2 H1 H2 Heq1 Hneq2 Hconn.
-  (* If c1 and c2 were connected, they'd have the same label *)
-  assert (l c1 = l c2) by (apply Hresp; assumption).
-  (* But c has the same label as c1 and different from c2 *)
-  congruence.
-Qed.
-
-(** A pixel with a background neighbor is on the boundary *)
-Theorem background_neighbor_is_boundary : forall img adj l c c',
-  img c = true ->
-  adj c c' = true ->
-  img c' = false ->
-  on_component_boundary img adj l c.
-Proof.
-  intros img adj l c c' Hc Hadj Hc'.
-  unfold on_component_boundary.
-  split; [assumption|].
-  exists c'.
-  split; [assumption|].
-  left. assumption.
-Qed.
-
-(** Components are separated by boundaries or background *)
-Theorem component_separation : forall img adj l c1 c2,
-  (forall a b, adj a b = adj b a) ->
-  correct_labeling img adj l ->
-  (forall c, img c = true -> l c <> 0) ->
   img c1 = true ->
   img c2 = true ->
-  l c1 <> l c2 ->
-  ~ adj c1 c2 = true.
+  img c3 = true ->
+  connected img adj c1 c2 ->
+  ~ connected img adj c1 c3 ->
+  ~ connected img adj c2 c3.
 Proof.
-  intros img adj l c1 c2 adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero H1 H2 Hneq Hadj.
-  (* If they were adjacent, we could connect them *)
-  assert (connected img adj c1 c2).
-  { apply adjacent_implies_connected; assumption. }
-  (* But then they'd have the same label *)
-  assert (l c1 = l c2).
-  { apply Hresp; assumption. }
-  contradiction.
+  intros img adj c1 c2 c3 adj_sym H1 H2 H3 H12 H13 H23.
+  apply H13.
+  apply connected_transitive with c2.
+  - exact H12.
+  - exact H23.
 Qed.
 
-(** ** Label Count Properties *)
+(** * Section 4: Labeling Specifications
+    
+    This section defines what it means for a labeling to be correct.
+    We establish the key properties that any correct connected component
+    labeling must satisfy, independent of any particular algorithm. *)
 
-(** A label is "used" if some foreground pixel has that label *)
-Definition label_used (img : simple_image) (l : labeling) (label : nat) : Prop :=
-  exists c, img c = true /\ l c = label.
+(** ** 4.1 Core Properties of Labelings *)
 
-(** The minimum label theorem: you can't correctly label n components with fewer than n labels *)
-Theorem minimum_labels_needed : forall img adj l c1 c2,
+(** Background pixels must be labeled 0 *)
+Definition labels_background (img : simple_image) (l : labeling) : Prop :=
+  forall c, img c = false -> l c = 0.
+
+(** Connected pixels must have the same label *)
+Definition respects_connectivity (img : simple_image) (adj : coord -> coord -> bool) 
+                                (l : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+                connected img adj c1 c2 -> l c1 = l c2.
+
+(** Pixels with the same positive label must be connected *)
+Definition separates_components (img : simple_image) (adj : coord -> coord -> bool)
+                               (l : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+                l c1 = l c2 -> l c1 <> 0 -> connected img adj c1 c2.
+
+(** ** 4.2 Correct Labeling Definition *)
+
+(** A correct labeling satisfies all four properties *)
+Definition correct_labeling (img : simple_image) (adj : coord -> coord -> bool)
+                           (l : labeling) : Prop :=
+  labels_background img l /\
+  respects_connectivity img adj l /\
+  separates_components img adj l /\
+  (forall c, img c = true -> l c <> 0).  (* Foreground pixels get positive labels *)
+
+(** ** 4.3 Basic Properties of Correct Labelings *)
+
+(** In a correct labeling, foreground pixels get positive labels *)
+Lemma correct_labeling_foreground_positive : forall img adj l c,
+  correct_labeling img adj l ->
+  img c = true ->
+  l c <> 0.
+Proof.
+  intros img adj l c [Hbg [Hresp [Hsep Hfg_pos]]] Hfg.
+  apply Hfg_pos. exact Hfg.
+Qed.
+
+(** Connected pixels have equal labels *)
+Lemma correct_labeling_connected_same : forall img adj l c1 c2,
+  correct_labeling img adj l ->
+  connected img adj c1 c2 ->
+  l c1 = l c2.
+Proof.
+  intros img adj l c1 c2 [Hbg [Hresp [Hsep Hfg_pos]]] Hconn.
+  assert (H := connected_implies_foreground img adj c1 c2 Hconn).
+  destruct H as [H1 H2].
+  apply Hresp; [exact H1 | exact H2 | exact Hconn].
+Qed.
+
+(** Pixels with same positive label are connected *)
+Lemma correct_labeling_same_label_connected : forall img adj l c1 c2,
+  correct_labeling img adj l ->
+  img c1 = true -> img c2 = true ->
+  l c1 = l c2 -> l c1 <> 0 ->
+  connected img adj c1 c2.
+Proof.
+  intros img adj l c1 c2 [Hbg [Hresp Hsep]] H1 H2 Heq Hneq.
+  apply Hsep; assumption.
+Qed.
+
+(** ** 4.4 Uniqueness Properties *)
+
+(** Labels partition the foreground pixels *)
+Theorem label_partition : forall img adj l,
   (forall a b, adj a b = adj b a) ->
   correct_labeling img adj l ->
-  (forall c, img c = true -> l c <> 0) ->
-  img c1 = true /\ img c2 = true /\ ~ connected img adj c1 c2 ->
-  l c1 <> l c2.
+  forall c1 c2, img c1 = true -> img c2 = true ->
+    (l c1 = l c2) <-> (connected img adj c1 c2).
 Proof.
-  intros img adj l c1 c2 adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero [H1 [H2 Hnconn]].
-  intros Heq.
-  assert (l c1 <> 0) by (apply Hfg_nonzero; assumption).
-  assert (connected img adj c1 c2) by (apply Hsep; assumption).
-  contradiction.
+  intros img adj l adj_sym Hcorrect c1 c2 H1 H2.
+  split.
+  - intros Heq.
+    destruct (Nat.eq_dec (l c1) 0).
+    + (* l c1 = 0, contradiction with foreground *)
+      exfalso.
+      apply (correct_labeling_foreground_positive img adj l c1 Hcorrect H1).
+      exact e.
+    + (* l c1 <> 0 *)
+      apply correct_labeling_same_label_connected with l; assumption.
+  - intros Hconn.
+    apply correct_labeling_connected_same with img adj; assumption.
 Qed.
 
-(** Each component gets exactly one label *)
-Theorem one_label_per_component : forall img adj l label1 label2,
+(** ** 4.5 Label Equivalence *)
+
+(** Two labelings are equivalent if they assign the same label to connected pixels *)
+Definition labelings_equivalent (img : simple_image) (adj : coord -> coord -> bool)
+                               (l1 l2 : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+    (l1 c1 = l1 c2 <-> l2 c1 = l2 c2).
+
+(** Correct labelings are unique up to relabeling *)
+Theorem correct_labelings_equivalent : forall img adj l1 l2,
   (forall a b, adj a b = adj b a) ->
-  correct_labeling img adj l ->
-  (forall c, img c = true -> l c <> 0) ->
-  label1 <> 0 ->
-  label2 <> 0 ->
-  label_used img l label1 ->
-  label_used img l label2 ->
-  (exists c1 c2, l c1 = label1 /\ l c2 = label2 /\ connected img adj c1 c2) ->
-  label1 = label2.
+  correct_labeling img adj l1 ->
+  correct_labeling img adj l2 ->
+  labelings_equivalent img adj l1 l2.
 Proof.
-  intros img adj l label1 label2 adj_sym [Hbg [Hresp Hsep]] Hfg_nonzero.
-  intros Hl1_nonzero Hl2_nonzero [c1 [H1c1 Hl1]] [c2 [H2c2 Hl2]] [c1' [c2' [Heq1 [Heq2 Hconn]]]].
-  (* c1' and c2' are connected and have labels label1 and label2 respectively *)
-  (* By correctness, they must have the same label *)
-  assert (Hfg: img c1' = true /\ img c2' = true).
-  { apply connected_implies_foreground with adj. exact Hconn. }
-  destruct Hfg as [Hc1'_fg Hc2'_fg].
-  assert (l c1' = l c2').
-  { apply Hresp; assumption. }
-  (* But l c1' = label1 and l c2' = label2 *)
-  congruence.
-Qed.
-
-(** The empty equivalence table has no equivalences *)
-Lemma empty_equiv_empty : forall l1 l2,
-  empty_equiv l1 l2 = false.
-Proof.
-  intros l1 l2.
+  intros img adj l1 l2 adj_sym Hcorr1 Hcorr2.
+  intros c1 c2 H1 H2.
+  rewrite (label_partition img adj l1 adj_sym Hcorr1 c1 c2 H1 H2).
+  rewrite (label_partition img adj l2 adj_sym Hcorr2 c1 c2 H1 H2).
   reflexivity.
 Qed.
 
-(** An equivalence table is symmetric *)
+(** ** 4.6 Properties of Component Labels *)
+
+(** A label is used if some foreground pixel has that label *)
+Definition label_used (img : simple_image) (l : labeling) (label : nat) : Prop :=
+  exists c, img c = true /\ l c = label.
+
+(** In a correct labeling, label 0 is only for background *)
+Lemma label_zero_only_background : forall img adj l,
+  correct_labeling img adj l ->
+  ~ label_used img l 0.
+Proof.
+  intros img adj l Hcorr [c [Hfg Hzero]].
+  apply (correct_labeling_foreground_positive img adj l c Hcorr Hfg).
+  exact Hzero.
+Qed.
+
+(** Each component gets exactly one label *)
+Theorem one_label_per_component : forall img adj l c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling img adj l ->
+  connected img adj c1 c2 ->
+  l c1 = l c2.
+Proof.
+  intros img adj l c1 c2 adj_sym Hcorr Hconn.
+  apply correct_labeling_connected_same with img adj; assumption.
+Qed.
+
+(** * Section 5: Abstract Algorithm Specification
+    
+    This section specifies what any connected component labeling algorithm
+    must accomplish, independent of implementation details. We define the
+    invariants and properties that characterize correct algorithms. *)
+
+(** ** 5.1 Algorithm Input and Output Specification *)
+
+(** An algorithm takes an image and adjacency relation, produces a labeling *)
+Definition ccl_algorithm : Type :=
+  forall (img : bounded_image) (adj : coord -> coord -> bool), labeling.
+
+(** An algorithm is correct if it always produces correct labelings *)
+Definition algorithm_correct (alg : ccl_algorithm) : Prop :=
+  forall img adj, 
+    (forall a b, adj a b = adj b a) ->
+    correct_labeling (bounded_to_simple img) adj (alg img adj).
+
+(** ** 5.2 Progressive Labeling Invariants *)
+
+(** When processing pixels in order, we maintain partial labelings.
+    A partial labeling is correct for processed pixels. *)
+
+(** A region of pixels (e.g., those processed so far) *)
+Definition pixel_region : Type := coord -> bool.
+
+(** Restriction of a labeling to a region *)
+Definition restrict_labeling (l : labeling) (region : pixel_region) : labeling :=
+  fun c => if region c then l c else 0.
+
+(** Restriction of an image to a region *)
+Definition restrict_image (img : simple_image) (region : pixel_region) : simple_image :=
+  fun c => if region c then img c else false.
+
+(** Helper: get pixel for simple images *)
+Definition get_pixel_simple (img : simple_image) (c : coord) : bool := img c.
+
+(** A labeling is correct on a region *)
+Definition correct_on_region (img : simple_image) (adj : coord -> coord -> bool)
+                            (l : labeling) (region : pixel_region) : Prop :=
+  correct_labeling (restrict_image img region) adj (restrict_labeling l region).
+
+(** ** 5.3 Monotonicity Properties *)
+
+(** When we extend the processed region, correctness is preserved *)
+Definition region_subset (r1 r2 : pixel_region) : Prop :=
+  forall c, r1 c = true -> r2 c = true.
+
+(** Extending a region preserves correctness if done properly *)
+Definition preserves_correctness (img : simple_image) (adj : coord -> coord -> bool)
+                                (extend : labeling -> pixel_region -> coord -> labeling) : Prop :=
+  forall l region c,
+    correct_on_region img adj l region ->
+    region c = false ->
+    get_pixel_simple img c = true ->
+    correct_on_region img adj (extend l region c) 
+                     (fun c' => orb (region c') (coord_eqb c c')).
+
+(** ** 5.4 Label Assignment Strategies *)
+
+(** When assigning a label to a new pixel, we must maintain correctness *)
+Definition valid_label_assignment (img : simple_image) (adj : coord -> coord -> bool)
+                                 (l : labeling) (c : coord) (label : nat) : Prop :=
+  (* If c is adjacent to a labeled pixel, they must get the same label if connected *)
+  forall c', img c' = true -> adj c c' = true -> l c' <> 0 ->
+    (connected img adj c c' -> label = l c').
+
+(** ** 5.5 Equivalence Management *)
+
+(** When we discover two labels should be the same (they label connected pixels),
+    we need to track this equivalence *)
+
+(** Label equivalence relation *)
+Definition label_equiv : Type := nat -> nat -> Prop.
+
+(** A valid equivalence respects connectivity *)
+Definition valid_equiv (img : simple_image) (adj : coord -> coord -> bool)
+                      (l : labeling) (equiv : label_equiv) : Prop :=
+  forall l1 l2, equiv l1 l2 ->
+    exists c1 c2, l c1 = l1 /\ l c2 = l2 /\ connected img adj c1 c2.
+
+(** ** 5.6 Algorithm Progress Properties *)
+
+(** An algorithm makes progress by processing pixels *)
+Definition makes_progress (process : labeling -> coord -> labeling) : Prop :=
+  forall l c, l c = 0 -> (process l c) c <> 0.
+
+(** After processing all pixels, all foreground pixels are labeled *)
+Definition complete_labeling (img : simple_image) (l : labeling) : Prop :=
+  forall c, img c = true -> l c <> 0.
+
+(** ** 5.7 Two-Phase Algorithm Structure *)
+
+(** Many algorithms follow a two-phase structure:
+    1. Initial labeling with possible equivalences
+    2. Resolving equivalences to final labels *)
+
+(** Phase 1 produces preliminary labels and equivalences *)
+Definition phase1_correct (img : simple_image) (adj : coord -> coord -> bool)
+                         (l : labeling) (equiv : label_equiv) : Prop :=
+  (* All foreground pixels are labeled *)
+  complete_labeling img l /\
+  (* Labels respect adjacency *)
+  (forall c1 c2, img c1 = true -> img c2 = true -> 
+                 adj c1 c2 = true -> l c1 <> 0 -> l c2 <> 0 ->
+                 equiv (l c1) (l c2)) /\
+  (* Equivalence is valid *)
+  valid_equiv img adj l equiv.
+
+(** Phase 2 resolves equivalences *)
+Definition phase2_correct (l_initial : labeling) (equiv : label_equiv) 
+                         (l_final : labeling) : Prop :=
+  forall c, l_initial c <> 0 ->
+    (forall c', equiv (l_initial c) (l_initial c') -> 
+                l_final c = l_final c').
+
+(** ** 5.8 Scan-Line Processing Invariants *)
+
+(** For algorithms that process pixels row by row *)
+Definition processed_up_to (width : nat) (row col : nat) : pixel_region :=
+  fun c => match c with
+  | (x, y) => orb (Nat.ltb y row) 
+                  (andb (Nat.eqb y row) (Nat.ltb x col))
+  end.
+
+(** Invariant maintained during row processing *)
+Definition row_scan_invariant (img : bounded_image) (adj : coord -> coord -> bool)
+                             (l : labeling) (row col : nat) : Prop :=
+  correct_on_region (bounded_to_simple img) adj l 
+                   (processed_up_to (width img) row col).
+
+(** ** 5.9 Algorithm Termination *)
+
+(** Algorithms must terminate on bounded images *)
+Definition algorithm_terminates (alg : ccl_algorithm) : Prop :=
+  (* Since we're in Coq, all functions terminate by construction.
+     This property is automatically satisfied. *)
+  True.
+
+(** ** 5.10 Determinism and Uniqueness *)
+
+(** An algorithm is deterministic - same input gives same output *)
+Definition algorithm_deterministic (alg : ccl_algorithm) : Prop :=
+  forall img adj, alg img adj = alg img adj.  (* Trivially true in Coq *)
+
+(** While labelings aren't unique, the partition they induce is *)
+Definition induces_same_partition (img : simple_image) (adj : coord -> coord -> bool)
+                                 (l1 l2 : labeling) : Prop :=
+  forall c1 c2, img c1 = true -> img c2 = true ->
+    (l1 c1 = l1 c2 <-> l2 c1 = l2 c2).
+
+(** Correct algorithms induce the same partition *)
+Theorem correct_algorithms_equivalent : forall alg1 alg2 img adj,
+  (forall a b, adj a b = adj b a) ->
+  algorithm_correct alg1 ->
+  algorithm_correct alg2 ->
+  induces_same_partition (bounded_to_simple img) adj (alg1 img adj) (alg2 img adj).
+Proof.
+  intros alg1 alg2 img adj adj_sym Hcorr1 Hcorr2.
+  apply correct_labelings_equivalent.
+  - exact adj_sym.
+  - apply Hcorr1. exact adj_sym.
+  - apply Hcorr2. exact adj_sym.
+Qed.
+
+(** * Section 6: Two-Pass Algorithm Implementation
+    
+    This section implements the classical two-pass connected component labeling
+    algorithm. The first pass assigns preliminary labels and records equivalences,
+    while the second pass resolves these equivalences to produce final labels. *)
+
+(** ** 6.1 Equivalence Table for Label Merging *)
+
+(** An equivalence table tracks which labels should be merged *)
+Definition equiv_table := nat -> nat -> bool.
+
+(** Empty equivalence table - no labels are equivalent *)
+Definition empty_equiv : equiv_table := fun _ _ => false.
+
+(** Add an equivalence between two labels *)
+Definition add_equiv (e : equiv_table) (l1 l2 : nat) : equiv_table :=
+  fun a b => orb (e a b) (orb (andb (Nat.eqb a l1) (Nat.eqb b l2))
+                              (andb (Nat.eqb a l2) (Nat.eqb b l1))).
+
+(** ** 6.2 Equivalence Table Properties *)
+
+(** Symmetry of equivalence tables *)
 Definition equiv_sym (e : equiv_table) : Prop :=
   forall a b, e a b = e b a.
+
+(** Empty table is symmetric *)
+Lemma empty_equiv_sym : equiv_sym empty_equiv.
+Proof.
+  unfold equiv_sym, empty_equiv.
+  reflexivity.
+Qed.
 
 (** add_equiv preserves symmetry *)
 Lemma add_equiv_preserves_sym : forall e l1 l2,
@@ -1658,9 +1093,8 @@ Lemma add_equiv_preserves_sym : forall e l1 l2,
   equiv_sym (add_equiv e l1 l2).
 Proof.
   intros e l1 l2 He.
-  unfold equiv_sym in *.
+  unfold equiv_sym, add_equiv.
   intros a b.
-  unfold add_equiv.
   rewrite He.
   f_equal.
   rewrite orb_comm.
@@ -1669,464 +1103,400 @@ Proof.
   - apply andb_comm.
 Qed.
 
-(** The empty equivalence table is symmetric *)
-Lemma empty_equiv_sym : equiv_sym empty_equiv.
-Proof.
-  unfold equiv_sym, empty_equiv.
-  intros a b.
-  reflexivity.
-Qed.
-
-(** An equivalence table is transitive *)
-Definition equiv_trans (e : equiv_table) : Prop :=
-  forall a b c, e a b = true -> e b c = true -> e a c = true.
-
-(** An equivalence table is reflexive on non-zero labels *)
-Definition equiv_refl_nonzero (e : equiv_table) : Prop :=
-  forall l, l <> 0 -> e l l = true.
-
-(** The empty equivalence table has no reflexive non-zero labels *)
-Lemma empty_equiv_not_refl_nonzero : forall l,
-  l <> 0 -> empty_equiv l l = false.
-Proof.
-  intros l Hneq.
-  unfold empty_equiv.
-  reflexivity.
-Qed.
-
-(** add_equiv makes l1 and l2 equivalent *)
-Lemma add_equiv_makes_equiv : forall e l1 l2,
-  l1 <> 0 -> l2 <> 0 ->
-  add_equiv e l1 l2 l1 l2 = true.
-Proof.
-  intros e l1 l2 H1 H2.
-  unfold add_equiv.
-  rewrite Nat.eqb_refl.
-  rewrite Nat.eqb_refl.
-  simpl.
-  rewrite orb_true_r.
-  reflexivity.
-Qed.
-
-(** add_equiv creates symmetric equivalence *)
-Lemma add_equiv_makes_equiv_sym : forall e l1 l2,
-  l1 <> 0 -> l2 <> 0 ->
-  add_equiv e l1 l2 l2 l1 = true.
-Proof.
-  intros e l1 l2 H1 H2.
-  unfold add_equiv.
-  destruct (e l2 l1); simpl.
-  - reflexivity.
-  - destruct ((l2 =? l1) && (l1 =? l2)); simpl.
-    + reflexivity.
-    + rewrite Nat.eqb_refl. rewrite Nat.eqb_refl. simpl. reflexivity.
-Qed.
-
-(** Helper lemma: scanning with empty_equiv returns l *)
-Lemma scan_labels_empty : forall l n,
-  (fix scan_labels n :=
-    match n with
-    | O => l
-    | S n' => if empty_equiv l n' then
-                Nat.min n' (scan_labels n')
-              else scan_labels n'
-    end) n = l.
-Proof.
-  intros l n.
-  induction n as [|n' IH].
-  - reflexivity.
-  - simpl. unfold empty_equiv. exact IH.
-Qed.
-
-(** The second pass preserves zero labels *)
-Lemma second_pass_preserves_zero : forall labels equiv max_label c,
-  labels c = 0 ->
-  second_pass labels equiv max_label c = 0.
-Proof.
-  intros labels equiv max_label c H.
-  unfold second_pass.
-  rewrite H.
-  reflexivity.
-Qed.
-
-(** Label 0 is never equivalent to positive labels in a well-formed equiv table *)
+(** Well-formedness: label 0 is never equivalent to positive labels *)
 Definition equiv_well_formed (e : equiv_table) : Prop :=
-  forall l, l > 0 -> e l 0 = false.
+  forall l, l > 0 -> e l 0 = false /\ e 0 l = false.
 
-(** Nat.min preserves positivity when at least one argument is positive *)
-Lemma Nat_min_positive : forall a b,
-  a > 0 -> b > 0 -> Nat.min a b > 0.
+(** Empty table is well-formed *)
+Lemma empty_equiv_well_formed : equiv_well_formed empty_equiv.
 Proof.
-  intros a b Ha Hb.
-  destruct a, b.
-  - lia.
-  - lia.
-  - lia.
-  - simpl. apply Nat.lt_0_succ.
+  unfold equiv_well_formed, empty_equiv.
+  intros l Hl.
+  split; reflexivity.
 Qed.
 
-(** scan_labels returns positive values for positive l with well-formed equiv *)
-Lemma scan_labels_positive_wf : forall e l n,
-  equiv_well_formed e ->
-  l > 0 ->
-  (fix scan_labels n :=
-    match n with
-    | O => l
-    | S n' => if e l n' then
-                Nat.min n' (scan_labels n')
-              else scan_labels n'
-    end) n > 0.
-Proof.
-  intros e l n Hwf Hl.
-  induction n as [|n' IH].
-  - simpl. exact Hl.
-  - simpl. 
-    case_eq (e l n'); intro Heq.
-    + destruct n'.
-      * unfold equiv_well_formed in Hwf.
-        specialize (Hwf l Hl).
-        congruence.
-      * apply Nat_min_positive.
-        -- apply Nat.lt_0_succ.
-        -- exact IH.
-    + exact IH.
-Qed.
+(** ** 6.3 Finding Minimum Equivalent Label *)
 
-(** Helper: when labels are adjacent and equivalent, min preserves structure *)
-Lemma min_adjacent_positive : forall n,
-  Nat.min n (S n) > 0 \/ n = 0.
-Proof.
-  intros n.
-  destruct n.
-  - right. reflexivity.
-  - left. simpl. apply Nat.lt_0_succ.
-Qed.
-
-(** A valid equivalence table for connected component labeling *)
-Definition equiv_valid_ccl (e : equiv_table) : Prop :=
-  equiv_sym e /\ 
-  equiv_well_formed e /\
-  (forall l1 l2, e l1 l2 = true -> l1 > 0 /\ l2 > 0).
-
-(** The empty equivalence table is valid for CCL *)
-Lemma empty_equiv_valid_ccl : equiv_valid_ccl empty_equiv.
-Proof.
-  unfold equiv_valid_ccl.
-  split; [|split].
-  - exact empty_equiv_sym.
-  - unfold equiv_well_formed, empty_equiv.
-    intros l Hl.
-    reflexivity.
-  - intros l1 l2 H.
-    unfold empty_equiv in H.
-    discriminate.
-Qed.
-
-(** add_equiv preserves validity for CCL *)
-Lemma add_equiv_preserves_valid_ccl : forall e l1 l2,
-  equiv_valid_ccl e ->
-  l1 > 0 -> l2 > 0 ->
-  equiv_valid_ccl (add_equiv e l1 l2).
-Proof.
-  intros e l1 l2 [Hsym [Hwf Hpos]] Hl1 Hl2.
-  unfold equiv_valid_ccl.
-  split; [|split].
-  - apply add_equiv_preserves_sym. exact Hsym.
-  - unfold equiv_well_formed in *.
-    intros l Hl.
-    unfold add_equiv.
-    rewrite Hwf; [|exact Hl].
-    simpl.
-    destruct (l =? l1) eqn:Heq1; destruct (0 =? l2) eqn:Heq2; simpl.
-    + apply Nat.eqb_eq in Heq2. lia.
-    + destruct l2.
-      * lia.
-      * simpl. destruct l1.
-        -- lia.
-        -- simpl. rewrite andb_false_r. reflexivity.
-    + apply Nat.eqb_eq in Heq2. lia.
-    + destruct l1.
-      * lia.
-      * simpl. rewrite andb_false_r. reflexivity.
-  - intros a b H.
-    unfold add_equiv in H.
-    apply orb_prop in H.
-    destruct H as [H | H].
-    + apply Hpos. exact H.
-    + apply orb_prop in H.
-      destruct H as [H | H].
-      * apply andb_prop in H.
-        destruct H as [Ha Hb].
-        apply Nat.eqb_eq in Ha.
-        apply Nat.eqb_eq in Hb.
-        subst. split; assumption.
-      * apply andb_prop in H.
-        destruct H as [Ha Hb].
-        apply Nat.eqb_eq in Ha.
-        apply Nat.eqb_eq in Hb.
-        subst. split; assumption.
-Qed.
-
-(** two_pass_ccl assigns 0 to background pixels *)
-Lemma two_pass_ccl_labels_background : forall img adj c,
-  get_pixel img c = false ->
-  two_pass_ccl img adj c = 0.
-Proof.
-  intros img adj c Hbg.
-  unfold two_pass_ccl.
-  destruct (first_pass img adj) as [[labels equiv] max_label] eqn:Hfirst.
-  apply second_pass_preserves_zero.
-  generalize (first_pass_labels_background img adj).
-  rewrite Hfirst.
-  simpl.
-  intro H.
-  apply H.
-  exact Hbg.
-Qed.
-
-(** first_pass assigns positive labels to foreground pixels - row level *)
-Lemma first_pass_row_labels_foreground : forall img adj labels equiv y x fuel next_label c,
-  get_pixel img c = true ->
-  (forall c', get_pixel img c' = true -> labels c' > 0) ->
-  next_label > 0 ->
-  let '(labels', _, next') := first_pass_row img adj labels equiv y x fuel next_label in
-  labels' c > 0.
-Proof.
-  intros img adj labels equiv y x fuel next_label c Hfg Hinv Hpos.
-  generalize (first_pass_row_preserves_positive_labels fuel img adj labels equiv y x next_label Hinv Hpos).
-  destruct (first_pass_row img adj labels equiv y x fuel next_label) as [[labels' equiv'] next'].
-  simpl.
-  intro H.
-  apply H.
-  exact Hfg.
-Qed.
-
-(** first_pass_rows assigns positive labels to foreground pixels *)
-Lemma first_pass_rows_labels_foreground : forall fuel img adj labels equiv y next_label c,
-  get_pixel img c = true ->
-  (forall c', get_pixel img c' = true -> labels c' > 0) ->
-  next_label > 0 ->
-  let '(labels', _, next') := first_pass_rows img adj labels equiv y fuel next_label in
-  labels' c > 0.
-Proof.
-  induction fuel as [|fuel' IH]; intros img adj labels equiv y next_label c Hfg Hinv Hpos.
-  - simpl. apply Hinv. exact Hfg.
-  - simpl.
-    destruct (y <? height img) eqn:Hheight.
-    + unfold process_row.
-      assert (Hrow_next: let '(_, _, next') := first_pass_row img adj labels equiv y 0 (width img) next_label in next' > 0).
-      { apply first_pass_row_next_label_positive. exact Hpos. }
-      destruct (first_pass_row img adj labels equiv y 0 (width img) next_label) as [[row_labels row_equiv] row_next] eqn:Hrow.
-      apply IH.
-      * exact Hfg.
-      * intros c' Hfg'.
-        generalize (first_pass_row_labels_foreground img adj labels equiv y 0 (width img) next_label c' Hfg' Hinv Hpos).
-        rewrite Hrow.
-        simpl.
-        intro H. exact H.
-      * simpl in Hrow_next. exact Hrow_next.
-    + apply Hinv. exact Hfg.
-Qed.
-
-(** A coordinate is in a processed region *)
-Definition in_processed_region (y : nat) (c : coord) : Prop :=
-  snd_coord c < y.
-
-(** A coordinate is processed in the current row *)
-Definition in_processed_row (y x : nat) (c : coord) : Prop :=
-  snd_coord c = y /\ fst_coord c < x.
-
-(** Label update at current pixel gives positive value *)
-Lemma label_update_current_positive : forall labels x y label,
-  label > 0 ->
-  (fun c' : coord => 
-    match c' with 
-    | pair x2 y2 => if (x =? x2) && (y =? y2) then label else labels c'
-    end) (pair x y) = label.
-Proof.
-  intros labels x y label Hpos.
-  simpl.
-  rewrite Nat.eqb_refl.
-  rewrite Nat.eqb_refl.
-  reflexivity.
-Qed.
-
-(** Find minimum equivalent label - FIXED *)
-Fixpoint find_min_equiv_fixed (e : equiv_table) (l : nat) (fuel : nat) {struct fuel} : nat :=
+(** Find the minimum label equivalent to l *)
+Fixpoint find_min_equiv (e : equiv_table) (l : nat) (fuel : nat) {struct fuel} : nat :=
   match fuel with
   | O => l
   | S fuel' => 
-    let scan := fix scan_labels n :=
+    let fix scan_labels (n : nat) : nat :=
       match n with
       | O => l
       | S n' => if e l n' then
                   Nat.min n' (scan_labels n')
                 else scan_labels n'
       end
-    in Nat.min l (scan l)
+    in Nat.min l (scan_labels l)
   end.
 
-(** Now the base case will work *)
-Lemma find_min_equiv_fixed_zero : forall e l,
-  find_min_equiv_fixed e l 0 = l.
+(** find_min_equiv returns input when fuel is 0 *)
+Lemma find_min_equiv_fuel_zero : forall e l,
+  find_min_equiv e l 0 = l.
 Proof.
-  intros e l.
   reflexivity.
 Qed.
 
-(** Updated second pass with fixed find_min_equiv *)
-Definition second_pass_fixed (labels : coord -> nat) (equiv : equiv_table) (max_label : nat) : coord -> nat :=
+(** ** 6.4 First Pass - Row Processing *)
+
+(** Process a single pixel in the first pass *)
+Definition process_pixel (img : bounded_image) (adj : coord -> coord -> bool)
+                        (labels : labeling) (equiv : equiv_table)
+                        (c : coord) (next_label : nat) 
+                        : (labeling * equiv_table * nat) :=
+  if get_pixel img c then
+    let x := coord_x c in
+    let y := coord_y c in
+    (* Check left neighbor *)
+    let left := if x =? 0 then 0 else 
+                if adj (x - 1, y) c then labels (x - 1, y) else 0 in
+    (* Check up neighbor *)
+    let up := if y =? 0 then 0 else
+              if adj (x, y - 1) c then labels (x, y - 1) else 0 in
+    match left, up with
+    | 0, 0 => 
+        (* No labeled neighbors - assign new label *)
+        ((fun c' => if coord_eqb c c' then next_label else labels c'),
+         equiv,
+         S next_label)
+    | l, 0 | 0, l => 
+        (* One labeled neighbor - use its label *)
+        ((fun c' => if coord_eqb c c' then l else labels c'),
+         equiv,
+         next_label)
+    | l1, l2 =>
+        (* Two labeled neighbors *)
+        let label := Nat.min l1 l2 in
+        let new_labels := fun c' => if coord_eqb c c' then label else labels c' in
+        let new_equiv := if Nat.eqb l1 l2 then equiv else add_equiv equiv l1 l2 in
+        (new_labels, new_equiv, next_label)
+    end
+  else
+    (labels, equiv, next_label).
+
+(** Process a row of pixels *)
+Fixpoint process_row (img : bounded_image) (adj : coord -> coord -> bool)
+                     (labels : labeling) (equiv : equiv_table)
+                     (y : nat) (x : nat) (width : nat) (next_label : nat)
+                     : (labeling * equiv_table * nat) :=
+  match width with
+  | O => (labels, equiv, next_label)
+  | S width' =>
+      if x <? S width' then
+        let '(labels', equiv', next') := 
+          process_pixel img adj labels equiv (x, y) next_label in
+        process_row img adj labels' equiv' y (S x) width' next'
+      else
+        (labels, equiv, next_label)
+  end.
+
+(** Process all rows *)
+Fixpoint process_all_rows (img : bounded_image) (adj : coord -> coord -> bool)
+                          (labels : labeling) (equiv : equiv_table)
+                          (y : nat) (height : nat) (next_label : nat)
+                          : (labeling * equiv_table * nat) :=
+  match height with
+  | O => (labels, equiv, next_label)
+  | S height' =>
+      if y <? S height' then
+        let '(labels', equiv', next') :=
+          process_row img adj labels equiv y 0 (width img) next_label in
+        process_all_rows img adj labels' equiv' (S y) height' next'
+      else
+        (labels, equiv, next_label)
+  end.
+
+(** Complete first pass *)
+Definition first_pass (img : bounded_image) (adj : coord -> coord -> bool) 
+                     : (labeling * equiv_table * nat) :=
+  process_all_rows img adj empty_labeling empty_equiv 0 (height img) 1.
+
+(** ** 6.5 Second Pass - Resolve Equivalences *)
+
+Definition second_pass (labels : labeling) (equiv : equiv_table) (max_label : nat) 
+                      : labeling :=
   fun c => 
     let l := labels c in
-    if Nat.eqb l O then O
-    else find_min_equiv_fixed equiv l max_label.
+    if Nat.eqb l 0 then 0
+    else find_min_equiv equiv l max_label.
 
-(** Now we can prove the positivity lemma *)
-Lemma find_min_equiv_fixed_positive : forall e l fuel,
-  equiv_well_formed e ->
-  l > 0 ->
-  find_min_equiv_fixed e l fuel > 0.
+(** ** 6.6 Complete Two-Pass Algorithm *)
+
+Definition two_pass_ccl (img : bounded_image) (adj : coord -> coord -> bool) : labeling :=
+  let '(labels, equiv, max_label) := first_pass img adj in
+  second_pass labels equiv max_label.
+
+(** * Section 7: Algorithm Invariants
+    
+    This section establishes the key invariants maintained by the two-pass
+    algorithm. We prove properties about how labels and equivalences evolve
+    during processing. *)
+
+(** ** 7.1 Label Update Properties *)
+
+(** Updating a label at one coordinate doesn't affect others *)
+Lemma label_update_other : forall (labels : labeling) (c c' : coord) (label : nat),
+  c <> c' ->
+  (fun x => if coord_eqb c x then label else labels x) c' = labels c'.
 Proof.
-  intros e l fuel Hwf Hl.
-  destruct fuel as [|fuel'].
-  - (* Base case: fuel = 0 *)
-    simpl.
-    exact Hl.
-  - (* Inductive case *)
-    simpl.
-    apply Nat_min_positive.
-    + exact Hl.
-    + apply scan_labels_positive_wf; assumption.
+  intros labels c c' label Hneq.
+  simpl.
+  destruct (coord_eqb c c') eqn:Heq.
+  - apply coord_eqb_true_iff in Heq. 
+    contradiction.
+  - reflexivity.
 Qed.
 
-(** second_pass_fixed preserves positive labels for foreground pixels *)
-Lemma second_pass_fixed_preserves_positive : forall labels equiv max_label c,
-  equiv_well_formed equiv ->
-  labels c > 0 ->
-  second_pass_fixed labels equiv max_label c > 0.
+(** Updating a label at a coordinate gives the new label *)
+Lemma label_update_same : forall (labels : labeling) (c : coord) (label : nat),
+  (fun x => if coord_eqb c x then label else labels x) c = label.
 Proof.
-  intros labels equiv max_label c Hwf Hpos.
-  unfold second_pass_fixed.
-  destruct (labels c) eqn:Hl.
-  - (* labels c = 0 *)
+  intros labels c label.
+  simpl.
+  rewrite coord_eqb_refl.
+  reflexivity.
+Qed.
+
+(** ** 7.2 Equivalence Table Evolution *)
+
+(** Adding an equivalence preserves existing equivalences *)
+Lemma add_equiv_preserves : forall e l1 l2 a b,
+  e a b = true -> add_equiv e l1 l2 a b = true.
+Proof.
+  intros e l1 l2 a b H.
+  unfold add_equiv.
+  rewrite H.
+  reflexivity.
+Qed.
+
+(** Adding an equivalence creates the intended equivalence *)
+Lemma add_equiv_creates : forall e l1 l2,
+  add_equiv e l1 l2 l1 l2 = true.
+Proof.
+  intros e l1 l2.
+  unfold add_equiv.
+  rewrite !Nat.eqb_refl.
+  simpl.
+  rewrite orb_true_r.
+  reflexivity.
+Qed.
+
+(** Adding an equivalence creates symmetric equivalence *)
+Lemma add_equiv_creates_sym : forall e l1 l2,
+  add_equiv e l1 l2 l2 l1 = true.
+Proof.
+  intros e l1 l2.
+  unfold add_equiv.
+  (* We have: e l2 l1 || ((l2 =? l1) && (l1 =? l2) || (l2 =? l2) && (l1 =? l1)) *)
+  (* Since l2 =? l2 = true and l1 =? l1 = true, the last term is true *)
+  rewrite !Nat.eqb_refl.
+  (* Now: e l2 l1 || ((l2 =? l1) && (l1 =? l2) || true && true) *)
+  simpl.
+  (* true && true = true, so: e l2 l1 || ((l2 =? l1) && (l1 =? l2) || true) *)
+  (* For any X, X || true = true *)
+  destruct ((l2 =? l1) && (l1 =? l2)); simpl; 
+  rewrite orb_true_r; reflexivity.
+Qed.
+
+(** ** 7.3 Process Pixel Properties *)
+
+(** Background pixels remain unlabeled *)
+Lemma process_pixel_background : forall img adj labels equiv c next_label,
+  get_pixel img c = false ->
+  process_pixel img adj labels equiv c next_label = (labels, equiv, next_label).
+Proof.
+  intros img adj labels equiv c next_label Hbg.
+  unfold process_pixel.
+  rewrite Hbg.
+  reflexivity.
+Qed.
+
+(** Processing preserves labels at other coordinates *)
+Lemma process_pixel_preserves_other : forall img adj labels equiv c c' next_label,
+  c <> c' ->
+  let '(labels', _, _) := process_pixel img adj labels equiv c next_label in
+  labels' c' = labels c'.
+Proof.
+  intros img adj labels equiv c c' next_label Hneq.
+  unfold process_pixel.
+  destruct (get_pixel img c) eqn:Hpix; [|reflexivity].
+  (* Now we need to be careful with the pattern matching *)
+  remember (if coord_x c =? 0 then 0 else 
+            if adj (coord_x c - 1, coord_y c) c then labels (coord_x c - 1, coord_y c) else 0) as left.
+  remember (if coord_y c =? 0 then 0 else
+            if adj (coord_x c, coord_y c - 1) c then labels (coord_x c, coord_y c - 1) else 0) as up.
+  destruct left; destruct up; simpl; apply label_update_other; assumption.
+Qed.
+
+(** ** 7.4 Next Label Monotonicity *)
+
+(** Next label never decreases *)
+Lemma process_pixel_next_label_mono : forall img adj labels equiv c next_label,
+  let '(_, _, next') := process_pixel img adj labels equiv c next_label in
+  next' >= next_label.
+Proof.
+  intros img adj labels equiv c next_label.
+  unfold process_pixel.
+  destruct (get_pixel img c) eqn:Hpix.
+  - (* get_pixel img c = true *)
+    remember (if coord_x c =? 0 then 0 else 
+              if adj (coord_x c - 1, coord_y c) c then labels (coord_x c - 1, coord_y c) else 0) as left.
+    remember (if coord_y c =? 0 then 0 else
+              if adj (coord_x c, coord_y c - 1) c then labels (coord_x c, coord_y c - 1) else 0) as up.
+    destruct left; destruct up; simpl; lia.
+  - (* get_pixel img c = false *)
+    simpl. lia.
+Qed.
+
+(** Next label is positive if it starts positive *)
+Lemma process_pixel_next_label_positive : forall img adj labels equiv c next_label,
+  next_label > 0 ->
+  let '(_, _, next') := process_pixel img adj labels equiv c next_label in
+  next' > 0.
+Proof.
+  intros img adj labels equiv c next_label Hpos.
+  pose proof (process_pixel_next_label_mono img adj labels equiv c next_label).
+  destruct (process_pixel img adj labels equiv c next_label) as [[? ?] next'].
+  lia.
+Qed.
+
+(** ** 7.5 Row Processing Invariants *)
+
+(** Processing a row preserves next_label monotonicity *)
+Lemma process_row_next_label_mono : forall img adj labels equiv y x width next_label,
+  let '(_, _, next') := process_row img adj labels equiv y x width next_label in
+  next' >= next_label.
+Proof.
+  intros img adj labels equiv y x width.
+  revert x labels equiv.
+  induction width as [|width' IH]; intros x labels equiv next_label.
+  - simpl. lia.
+  - simpl.
+    destruct (x <? S width') eqn:Hlt; [|lia].
+    destruct (process_pixel img adj labels equiv (x, y) next_label) as [[labels' equiv'] next'] eqn:Hpix.
+    pose proof (process_pixel_next_label_mono img adj labels equiv (x, y) next_label).
+    rewrite Hpix in H.
+    pose proof (IH (S x) labels' equiv' next') as H1.
+    destruct (process_row img adj labels' equiv' y (S x) width' next') as [[l e] next''].
     lia.
-  - (* labels c = S n *)
-    destruct (Nat.eqb (S n) 0) eqn:Heq.
-    + (* S n = 0, impossible *)
-      apply Nat.eqb_eq in Heq.
-      discriminate.
-    + (* S n ≠ 0 *)
-      apply find_min_equiv_fixed_positive.
-      * exact Hwf.
-      * lia.
 Qed.
 
-(** Add equiv preserves well-formedness *)
+(** ** 7.6 Coordinate Bounds *)
+
+(** Processing respects image bounds *)
+Definition coords_in_bounds (img : bounded_image) (c : coord) : Prop :=
+  coord_x c < width img /\ coord_y c < height img.
+
+(** process_pixel only modifies in-bounds coordinates *)
+Lemma process_pixel_out_of_bounds : forall img c,
+  ~ coords_in_bounds img c ->
+  get_pixel img c = false.
+Proof.
+  intros img c Hout.
+  unfold get_pixel, in_bounds, coords_in_bounds in *.
+  destruct (coord_x c <? width img) eqn:Hx;
+  destruct (coord_y c <? height img) eqn:Hy;
+  simpl.
+  - apply Nat.ltb_lt in Hx, Hy. exfalso. apply Hout. split; assumption.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+Qed.
+
+(** ** 7.7 Empty Labeling Properties *)
+
+(** Empty labeling assigns 0 everywhere *)
+Lemma empty_labeling_is_zero : forall c,
+  empty_labeling c = 0.
+Proof.
+  reflexivity.
+Qed.
+
+(** ** 7.8 Well-Formed Equivalence Preservation *)
+
+(** add_equiv preserves well-formedness when adding positive labels *)
 Lemma add_equiv_preserves_well_formed : forall e l1 l2,
   equiv_well_formed e ->
-  l1 > 0 ->
-  l2 > 0 ->
+  l1 > 0 -> l2 > 0 ->
   equiv_well_formed (add_equiv e l1 l2).
 Proof.
   intros e l1 l2 Hwf Hl1 Hl2.
   unfold equiv_well_formed in *.
   intros l Hl.
   unfold add_equiv.
-  rewrite Hwf; [|exact Hl].
-  simpl.
-  destruct (l =? l1) eqn:Heq1; destruct (0 =? l2) eqn:Heq2; simpl.
-  - (* l = l1 and 0 = l2 *)
-    apply Nat.eqb_eq in Heq2. lia.
-  - (* l = l1 and 0 ≠ l2 *)
-    destruct l2; [lia|].
-    simpl. destruct l1; [lia|].
-    simpl. rewrite andb_false_r. reflexivity.
-  - (* l ≠ l1 and 0 = l2 *)
-    apply Nat.eqb_eq in Heq2. lia.
-  - (* l ≠ l1 and 0 ≠ l2 *)
-    destruct (l =? l2) eqn:Heq3; simpl.
-    + destruct (0 =? l1) eqn:Heq4.
-      * apply Nat.eqb_eq in Heq4. lia.
-      * destruct l1; [lia|]. reflexivity.
-    + reflexivity.
+  destruct (Hwf l Hl) as [H1 H2].
+  split.
+  - rewrite H1. simpl.
+    destruct (l =? l1) eqn:Heq1.
+    + apply Nat.eqb_eq in Heq1. subst.
+      destruct l1.
+      * lia.
+      * simpl. 
+        destruct l2.
+        -- lia.
+        -- simpl. rewrite andb_false_r. reflexivity.
+    + destruct (l =? l2) eqn:Heq2.
+      * apply Nat.eqb_eq in Heq2. subst.
+        destruct l1.
+        -- lia.
+        -- simpl. reflexivity.
+      * reflexivity.
+  - rewrite H2. simpl.
+    destruct l1.
+    + lia.
+    + destruct l2.
+      * lia.
+      * simpl. reflexivity.
 Qed.
 
-(** first_pass_row preserves equiv well-formedness *)
-Lemma first_pass_row_preserves_equiv_well_formed : forall fuel img adj labels equiv y x next_label,
-  equiv_well_formed equiv ->
-  next_label > 0 ->
-  let '(_, equiv', _) := first_pass_row img adj labels equiv y x fuel next_label in
-  equiv_well_formed equiv'.
+(** ** 7.9 Basic Properties of find_min_equiv *)
+
+(** find_min_equiv never returns 0 for positive input *)
+Lemma find_min_equiv_positive : forall e l fuel,
+  equiv_well_formed e ->
+  l > 0 ->
+  find_min_equiv e l fuel > 0.
 Proof.
-  induction fuel as [|fuel' IH]; intros img adj labels equiv y x next_label Hwf Hpos.
-  - simpl. exact Hwf.
+  intros e l fuel Hwf Hl.
+  induction fuel as [|fuel' IH].
+  - exact Hl.
   - simpl.
-    destruct (x <? width img) eqn:Hlt; [|exact Hwf].
-    destruct (get_pixel img (pair x y)) eqn:Hpixel.
-    + (* Foreground pixel - need to check all cases *)
-      destruct (x =? 0) eqn:Hx0;
-      destruct (y =? 0) eqn:Hy0;
-      try destruct (adj (pair (pred x) y) (pair x y)) eqn:Hadj_left;
-      try destruct (adj (pair x (pred y)) (pair x y)) eqn:Hadj_up;
-      try destruct (labels (pair (pred x) y)) eqn:Hleft;
-      try destruct (labels (pair x (pred y))) eqn:Hup;
-      try (apply IH; [exact Hwf | lia]);
-      try (apply IH; [apply add_equiv_preserves_well_formed; [exact Hwf | lia | lia] | lia]).
-      (* Handle the case where both neighbors have positive labels *)
-      destruct (S n =? S n0) eqn:Heq.
-      * (* Labels are equal, equiv unchanged *)
-        apply IH; assumption.
-      * (* Labels are different, add equivalence *)
-        apply IH.
-        -- apply add_equiv_preserves_well_formed.
-           ++ exact Hwf.
-           ++ lia.
-           ++ lia.
-        -- exact Hpos.
-    + (* Background pixel *)
-      apply IH; assumption.
-Qed.
-
-(** first_pass_rows preserves equiv well-formedness *)
-Lemma first_pass_rows_preserves_equiv_well_formed : forall fuel img adj labels equiv y next_label,
-  equiv_well_formed equiv ->
-  next_label > 0 ->
-  let '(_, equiv', _) := first_pass_rows img adj labels equiv y fuel next_label in
-  equiv_well_formed equiv'.
-Proof.
-  induction fuel as [|fuel' IH]; intros img adj labels equiv y next_label Hwf Hpos.
-  - simpl. exact Hwf.
-  - simpl.
-    destruct (y <? height img) eqn:Hlt; [|exact Hwf].
-    unfold process_row.
-    destruct (first_pass_row img adj labels equiv y 0 (width img) next_label) as [[labels' equiv'] next'] eqn:Hrow.
-    apply IH.
-    + (* Use the specific result *)
-      assert (equiv_well_formed equiv').
-      { generalize (first_pass_row_preserves_equiv_well_formed (width img) img adj labels equiv y 0 next_label Hwf Hpos).
-        rewrite Hrow.
-        simpl.
-        intro H. exact H. }
-      exact H.
-    + (* next_label stays positive *)
-      assert (next' > 0).
-      { generalize (first_pass_row_next_label_positive (width img) img adj labels equiv y 0 next_label Hpos).
-        rewrite Hrow.
-        simpl.
-        intro H. exact H. }
-      exact H.
-Qed.
-
-(** first_pass produces a well-formed equiv table *)
-Lemma first_pass_equiv_well_formed : forall img adj,
-  let '(_, equiv, _) := first_pass img adj in
-  equiv_well_formed equiv.
-Proof.
-  intros img adj.
-  unfold first_pass.
-  apply first_pass_rows_preserves_equiv_well_formed.
-  - unfold equiv_well_formed, empty_equiv.
-    intros l Hl.
-    reflexivity.
-  - lia.
+    (* The minimum of positive numbers is positive *)
+    assert (forall a b, a > 0 -> b > 0 -> Nat.min a b > 0).
+    { intros a b Ha Hb. 
+      destruct a.
+      - lia.
+      - destruct b.
+        + lia.
+        + simpl. lia. }
+    apply H.
+    + exact Hl.
+    + (* Need to prove scan_labels returns positive *)
+      clear H IH.
+      assert (forall n, 
+        (fix scan_labels (n : nat) : nat :=
+          match n with
+          | 0 => l
+          | S n' => if e l n' then Nat.min n' (scan_labels n') else scan_labels n'
+          end) n > 0).
+      { intro n.
+        induction n as [|n' IHn].
+        - exact Hl.
+        - simpl.
+          destruct (e l n') eqn:Heq.
+          + destruct n'.
+            * destruct (Hwf l Hl) as [Hwf1 _].
+              rewrite Heq in Hwf1. discriminate.
+            * assert (S n' > 0) by lia.
+              (* Apply the min lemma to S n' and the recursive call *)
+              assert (forall a b, a > 0 -> b > 0 -> Nat.min a b > 0).
+              { intros a b Ha Hb. 
+                destruct a; [lia|].
+                destruct b; [lia|].
+                simpl. lia. }
+              apply H0; [exact H|exact IHn].
+          + exact IHn. }
+      apply H.
 Qed.
