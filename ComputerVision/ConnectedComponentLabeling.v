@@ -1900,3 +1900,30 @@ Proof.
   apply H.
   exact Hfg.
 Qed.
+
+(** first_pass_rows assigns positive labels to foreground pixels *)
+Lemma first_pass_rows_labels_foreground : forall fuel img adj labels equiv y next_label c,
+  get_pixel img c = true ->
+  (forall c', get_pixel img c' = true -> labels c' > 0) ->
+  next_label > 0 ->
+  let '(labels', _, next') := first_pass_rows img adj labels equiv y fuel next_label in
+  labels' c > 0.
+Proof.
+  induction fuel as [|fuel' IH]; intros img adj labels equiv y next_label c Hfg Hinv Hpos.
+  - simpl. apply Hinv. exact Hfg.
+  - simpl.
+    destruct (y <? height img) eqn:Hheight.
+    + unfold process_row.
+      assert (Hrow_next: let '(_, _, next') := first_pass_row img adj labels equiv y 0 (width img) next_label in next' > 0).
+      { apply first_pass_row_next_label_positive. exact Hpos. }
+      destruct (first_pass_row img adj labels equiv y 0 (width img) next_label) as [[row_labels row_equiv] row_next] eqn:Hrow.
+      apply IH.
+      * exact Hfg.
+      * intros c' Hfg'.
+        generalize (first_pass_row_labels_foreground img adj labels equiv y 0 (width img) next_label c' Hfg' Hinv Hpos).
+        rewrite Hrow.
+        simpl.
+        intro H. exact H.
+      * simpl in Hrow_next. exact Hrow_next.
+    + apply Hinv. exact Hfg.
+Qed.
