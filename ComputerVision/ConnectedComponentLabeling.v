@@ -1796,6 +1796,45 @@ Proof.
     lia.
 Qed.
 
+
+(** Helper: process_row preserves positive labels *)
+Lemma process_row_next_label_positive : forall img adj labels equiv y x width next_label,
+  next_label > 0 ->
+  let '(_, _, next') := process_row img adj labels equiv y x width next_label in
+  next' > 0.
+Proof.
+  intros img adj labels equiv y x width.
+  revert x labels equiv.
+  induction width as [|width' IH]; intros x labels equiv next_label Hpos.
+  - simpl. exact Hpos.
+  - simpl.
+    destruct (x <? S width') eqn:Hlt.
+    + destruct (process_pixel img adj labels equiv (x, y) next_label) as [[labels' equiv'] next'] eqn:Hpix.
+      pose proof (process_pixel_next_label_positive img adj labels equiv (x, y) next_label Hpos) as H.
+      rewrite Hpix in H.
+      apply IH. exact H.
+    + exact Hpos.
+Qed.
+
+(** Helper: process_all_rows preserves positive labels *)
+Lemma process_all_rows_next_label_positive : forall img adj labels equiv y height next_label,
+  next_label > 0 ->
+  let '(_, _, next') := process_all_rows img adj labels equiv y height next_label in
+  next' > 0.
+Proof.
+  intros img adj labels equiv y height.
+  revert y labels equiv.
+  induction height as [|height' IH]; intros y labels equiv next_label Hpos.
+  - simpl. exact Hpos.
+  - simpl.
+    destruct (y <? S height') eqn:Hlt.
+    + destruct (process_row img adj labels equiv y 0 (width img) next_label) as [[labels' equiv'] next'] eqn:Hrow.
+      pose proof (process_row_next_label_positive img adj labels equiv y 0 (width img) next_label Hpos) as H.
+      rewrite Hrow in H.
+      apply IH. exact H.
+    + exact Hpos.
+Qed.
+
 (** ** 8.4 All Rows Processing Bounds *)
 
 (** Helper: Empty height means no processing *)
@@ -1850,27 +1889,6 @@ Proof.
       reflexivity.
 Qed.
 
-(** ** 8.5 Row Processing Preserves Positive Labels *)
-
-(** Helper: process_row preserves positive labels *)
-Lemma process_row_next_label_positive : forall img adj labels equiv y x width next_label,
-  next_label > 0 ->
-  let '(_, _, next') := process_row img adj labels equiv y x width next_label in
-  next' > 0.
-Proof.
-  intros img adj labels equiv y x width.
-  revert x labels equiv.
-  induction width as [|width' IH]; intros x labels equiv next_label Hpos.
-  - simpl. exact Hpos.
-  - simpl.
-    destruct (x <? S width') eqn:Hlt.
-    + destruct (process_pixel img adj labels equiv (x, y) next_label) as [[labels' equiv'] next'] eqn:Hpix.
-      pose proof (process_pixel_next_label_positive img adj labels equiv (x, y) next_label Hpos) as H.
-      rewrite Hpix in H.
-      apply IH. exact H.
-    + exact Hpos.
-Qed.
-
 (** ** 8.6 Foreground Pixel Label Assignment *)
 
 (** Foreground pixels get positive labels after processing *)
@@ -1894,4 +1912,19 @@ Proof.
   - rewrite label_update_same. 
     unfold Nat.min.
     destruct (left_label <=? up_label); lia.
+Qed.
+
+(** ** 8.7 First Pass Label Positivity *)
+
+(** First pass assigns positive labels *)
+Lemma first_pass_labels_positive : forall img adj,
+  let '(_, _, max_label) := first_pass img adj in
+  max_label > 0.
+Proof.
+  intros img adj.
+  unfold first_pass.
+  assert (1 > 0) by lia.
+  pose proof (process_all_rows_next_label_positive img adj empty_labeling empty_equiv 0 (height img) 1 H) as Hpos.
+  destruct (process_all_rows img adj empty_labeling empty_equiv 0 (height img) 1) as [[? ?] max_label].
+  exact Hpos.
 Qed.
