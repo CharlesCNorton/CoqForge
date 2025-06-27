@@ -1928,3 +1928,17 @@ Proof.
   destruct (process_all_rows img adj empty_labeling empty_equiv 0 (height img) 1) as [[? ?] max_label].
   exact Hpos.
 Qed.
+
+(** ** 8.8 Background Pixels Remain Unlabeled *)
+
+(** Background pixels stay labeled as 0 *)
+Lemma process_pixel_background_stays_zero : forall img adj labels equiv c next_label,
+  get_pixel img c = false ->
+  let '(labels', _, _) := process_pixel img adj labels equiv c next_label in
+  labels' c = labels c.
+Proof.
+  intros img adj labels equiv c next_label Hbg.
+  unfold process_pixel.
+  rewrite Hbg.
+  reflexivity.
+Qed.
