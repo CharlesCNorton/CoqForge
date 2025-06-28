@@ -3657,4 +3657,165 @@ Proof.
   - intro H. exact H.
   - apply NoDup_nil.
 Qed.
-      
+
+(** Helper: Initial BFS state has NoDup visited *)
+Lemma bfs_initial_nodup_visited :
+  NoDup ([] : list coord).
+Proof.
+  apply NoDup_nil.
+Qed.
+
+(** Helper: BFS state maintains NoDup property *)
+Definition bfs_nodup (s : bfs_state) : Prop :=
+  NoDup (visited s) /\ NoDup (frontier s).
+
+(** Initial BFS state has NoDup *)
+Lemma bfs_initial_nodup : forall start,
+  bfs_nodup (mkBFSState [] [start]).
+Proof.
+  intros start.
+  unfold bfs_nodup. simpl.
+  split.
+  - apply bfs_initial_nodup_visited.
+  - apply bfs_initial_nodup_frontier.
+Qed.
+
+(** Helper: NoDup preserved when appending disjoint lists *)
+Lemma NoDup_app_disjoint : forall {A : Type} (l1 l2 : list A),
+  NoDup l1 ->
+  NoDup l2 ->
+  (forall x, In x l1 -> ~ In x l2) ->
+  NoDup (l1 ++ l2).
+Proof.
+  intros A l1 l2 H1 H2 Hdisj.
+  induction l1 as [|a l1' IH].
+  - simpl. exact H2.
+  - simpl. apply NoDup_cons.
+    + intro H.
+      apply in_app_or in H.
+      destruct H as [H | H].
+      * inversion H1. subst. contradiction.
+      * apply (Hdisj a).
+        -- simpl. left. reflexivity.
+        -- exact H.
+    + apply IH.
+      * inversion H1. exact H4.
+      * intros x Hin.
+        apply Hdisj.
+        simpl. right. exact Hin.
+Qed.
+
+(** Helper: seq produces distinct elements *)
+Lemma seq_NoDup : forall start len,
+  NoDup (seq start len).
+Proof.
+  intros start len.
+  generalize dependent start.
+  induction len as [|len' IH]; intros start.
+  - simpl. apply NoDup_nil.
+  - simpl. apply NoDup_cons.
+    + intro H. apply in_seq in H.
+      destruct H as [Hle Hlt].
+      lia.
+    + apply IH.
+Qed.
+
+(** Helper: map with injective function preserves NoDup *)
+Lemma map_NoDup_inj : forall {A B : Type} (f : A -> B) (l : list A),
+  (forall x y, In x l -> In y l -> f x = f y -> x = y) ->
+  NoDup l ->
+  NoDup (map f l).
+Proof.
+  intros A B f l Hinj HNoDup.
+  induction HNoDup as [|a l' Hnot_in HNoDup' IH].
+  - simpl. apply NoDup_nil.
+  - simpl. apply NoDup_cons.
+    + intro H. apply in_map_iff in H.
+      destruct H as [x [Heq Hin]].
+      (* f a = f x and x ∈ l', so by injectivity a = x *)
+      assert (a = x).
+      { apply Hinj.
+        - left. reflexivity.
+        - right. exact Hin.
+        - symmetry. exact Heq. }
+      subst x.
+      contradiction.
+    + apply IH.
+      intros x y Hx Hy.
+      apply Hinj.
+      * right. exact Hx.
+      * right. exact Hy.
+Qed.
+
+(** Helper: Pairing with fixed second component is injective *)
+Lemma pair_fixed_second_inj : forall {A B : Type} (b : B) (l : list A),
+  forall x y, In x l -> In y l -> (x, b) = (y, b) -> x = y.
+Proof.
+  intros A B b l x y _ _ H.
+  assert (x = fst (x, b)) by reflexivity.
+  assert (y = fst (y, b)) by reflexivity.
+  rewrite H0, H1.
+  rewrite H.
+  reflexivity.
+Qed.
+
+(** Helper: coords_up_to produces NoDup list *)
+Lemma coords_up_to_NoDup : forall width height,
+  NoDup (coords_up_to width height).
+Proof.
+  intros width height.
+  induction height as [|h' IH].
+  - simpl. apply NoDup_nil.
+  - simpl. apply NoDup_app_disjoint.
+    + exact IH.
+    + (* NoDup (map (fun x => (x, h')) (seq 0 width)) *)
+      apply map_NoDup_inj.
+      * apply pair_fixed_second_inj.
+      * apply seq_NoDup.
+    + (* Disjointness: different y-coordinates *)
+      intros c Hin1 Hin2.
+      destruct c as [x y].
+      apply coords_up_to_sound in Hin1.
+      apply in_map_iff in Hin2.
+      destruct Hin2 as [x' [Heq Hin_seq]].
+      (* Heq : (x', h') = (x, y) *)
+      inversion Heq. subst x' y.
+      destruct Hin1 as [_ Hy_bound].
+      (* h' < h', contradiction *)
+      apply (Nat.lt_irrefl h' Hy_bound).
+Qed.
+
+(** image_coords produces NoDup list *)
+Lemma image_coords_NoDup : forall img,
+  NoDup (image_coords img).
+Proof.
+  intros img.
+  unfold image_coords.
+  apply coords_up_to_NoDup.
+Qed.
+
+(** Helper: filter preserves NoDup *)
+Lemma filter_NoDup : forall {A : Type} (f : A -> bool) (l : list A),
+  NoDup l -> NoDup (filter f l).
+Proof.
+  intros A f l HNoDup.
+  induction HNoDup as [|a l' Hnot_in HNoDup' IH].
+  - simpl. apply NoDup_nil.
+  - simpl. destruct (f a) eqn:Hfa.
+    + apply NoDup_cons.
+      * intro H. apply filter_In in H.
+        destruct H as [Hin _].
+        contradiction.
+      * exact IH.
+    + exact IH.
+Qed.
+
+(** unexplored_neighbors produces NoDup list *)
+Lemma unexplored_neighbors_NoDup : forall img adj s c,
+  NoDup (unexplored_neighbors img adj s c).
+Proof.
+  intros img adj s c.
+  unfold unexplored_neighbors.
+  apply filter_NoDup.
+  apply image_coords_NoDup.
+Qed.
