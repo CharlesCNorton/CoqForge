@@ -2511,3 +2511,134 @@ Proof.
   destruct (process_row img adj labels equiv y 0 (width img) next_label) as [[? ?] next'].
   lia.
 Qed.
+
+(** * Section 10: Finite Image Properties
+    
+    This section establishes the finiteness properties of bounded images.
+    We prove that bounded images have finitely many foreground pixels,
+    finitely many possible adjacencies, and that connectivity is decidable. *)
+
+(** ** 10.1 Coordinate Enumeration *)
+
+(** Generate all coordinates within bounds *)
+Fixpoint coords_up_to (width height : nat) : list coord :=
+  match height with
+  | 0 => []
+  | S h' => coords_up_to width h' ++ 
+            map (fun x => (x, h')) (seq 0 width)
+  end.
+
+(** coords_up_to generates exactly width * height coordinates *)
+Lemma coords_up_to_length : forall width height,
+  length (coords_up_to width height) = width * height.
+Proof.
+  intros width height.
+  induction height as [|h' IH].
+  - simpl. rewrite Nat.mul_0_r. reflexivity.
+  - simpl.
+    rewrite length_app.
+    rewrite IH.
+    rewrite length_map.
+    rewrite length_seq.
+    rewrite Nat.mul_succ_r.
+    rewrite Nat.add_comm.
+    reflexivity.
+Qed.
+
+(** Every coordinate in bounds appears in coords_up_to *)
+Lemma coords_up_to_complete : forall width height x y,
+  x < width -> y < height ->
+  In (x, y) (coords_up_to width height).
+Proof.
+  intros width height x y Hx Hy.
+  induction height as [|h' IH].
+  - (* height = 0, contradicts y < 0 *)
+    lia.
+  - (* height = S h' *)
+    simpl.
+    apply in_or_app.
+    destruct (Nat.lt_decidable y h') as [Hlt | Hge].
+    + (* y < h' *)
+      left. apply IH. exact Hlt.
+    + (* y >= h', so y = h' since y < S h' *)
+      right.
+      assert (y = h') by lia.
+      subst y.
+      apply in_map_iff.
+      exists x.
+      split.
+      * reflexivity.
+      * apply in_seq.
+        split; [lia | exact Hx].
+Qed.
+
+(** Every coordinate in coords_up_to is within bounds *)
+Lemma coords_up_to_sound : forall width height c,
+  In c (coords_up_to width height) ->
+  coord_x c < width /\ coord_y c < height.
+Proof.
+  intros width height c H.
+  induction height as [|h' IH].
+  - simpl in H. contradiction.
+  - simpl in H.
+    apply in_app_or in H.
+    destruct H as [H | H].
+    + (* c is in coords_up_to width h' *)
+      specialize (IH H).
+      split.
+      * exact (proj1 IH).
+      * apply Nat.lt_lt_succ_r. exact (proj2 IH).
+    + (* c is in map (fun x => (x, h')) (seq 0 width) *)
+      apply in_map_iff in H.
+      destruct H as [x [Heq Hin]].
+      subst c. simpl.
+      apply in_seq in Hin.
+      split.
+      * exact (proj2 Hin).
+      * lia.
+Qed.
+
+(** ** 10.2 Bounded Image Coordinates *)
+
+(** All coordinates of a bounded image *)
+Definition image_coords (img : bounded_image) : list coord :=
+  coords_up_to (width img) (height img).
+
+(** image_coords contains exactly the in-bounds coordinates *)
+Lemma image_coords_iff_in_bounds : forall img c,
+  In c (image_coords img) <-> 
+  coord_x c < width img /\ coord_y c < height img.
+Proof.
+  intros img c.
+  unfold image_coords.
+  split.
+  - apply coords_up_to_sound.
+  - intros [Hx Hy].
+    destruct c as [x y]. simpl in *.
+    apply coords_up_to_complete; assumption.
+Qed.
+
+(** Number of coordinates in a bounded image *)
+Lemma image_coords_length : forall img,
+  length (image_coords img) = width img * height img.
+Proof.
+  intros img.
+  unfold image_coords.
+  apply coords_up_to_length.
+Qed.
+
+(** ** 10.3 Foreground Pixels *)
+
+(** Extract all foreground pixels from an image *)
+Definition foreground_pixels (img : bounded_image) : list coord :=
+  filter (fun c => get_pixel img c) (image_coords img).
+
+(** Foreground pixels are a subset of all coordinates *)
+Lemma foreground_pixels_subset : forall img c,
+  In c (foreground_pixels img) -> In c (image_coords img).
+Proof.
+  intros img c H.
+  unfold foreground_pixels in H.
+  apply filter_In in H.
+  exact (proj1 H).
+Qed.
