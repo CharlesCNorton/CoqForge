@@ -2642,3 +2642,52 @@ Proof.
   apply filter_In in H.
   exact (proj1 H).
 Qed.
+
+(** Foreground pixels have true pixel values *)
+Lemma foreground_pixels_true : forall img c,
+  In c (foreground_pixels img) -> get_pixel img c = true.
+Proof.
+  intros img c H.
+  unfold foreground_pixels in H.
+  apply filter_In in H.
+  exact (proj2 H).
+Qed.
+
+(** A coordinate is in foreground_pixels iff it's in bounds and foreground *)
+Lemma foreground_pixels_iff : forall img c,
+  In c (foreground_pixels img) <-> 
+  (coord_x c < width img /\ coord_y c < height img /\ get_pixel img c = true).
+Proof.
+  intros img c.
+  unfold foreground_pixels.
+  split.
+  - intros H.
+    apply filter_In in H.
+    destruct H as [Hin Hpix].
+    apply image_coords_iff_in_bounds in Hin.
+    split; [exact (proj1 Hin) | split; [exact (proj2 Hin) | exact Hpix]].
+  - intros [Hx [Hy Hpix]].
+    apply filter_In.
+    split.
+    + apply image_coords_iff_in_bounds. split; assumption.
+    + exact Hpix.
+Qed.
+
+(** The number of foreground pixels is bounded by total pixels *)
+Lemma foreground_pixels_finite : forall img,
+  length (foreground_pixels img) <= width img * height img.
+Proof.
+  intros img.
+  unfold foreground_pixels.
+  rewrite <- image_coords_length.
+  (* We need to show: length (filter _ _) <= length _ *)
+  assert (forall {A} (f : A -> bool) (l : list A),
+    length (filter f l) <= length l).
+  { intros A f l.
+    induction l as [|a l' IH].
+    - simpl. lia.
+    - simpl. destruct (f a).
+      + simpl. lia.
+      + lia. }
+  apply H.
+Qed.
