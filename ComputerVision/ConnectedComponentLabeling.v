@@ -2823,3 +2823,95 @@ Proof.
   rewrite !image_coords_length in H.
   exact H.
 Qed.
+
+(** ** 10.5 Decidability of Connectivity *)
+
+(** Check if there's a path between two coordinates using BFS *)
+Fixpoint reachable_from (img : bounded_image) (adj : coord -> coord -> bool) 
+                        (visited : list coord) (frontier : list coord) 
+                        (target : coord) (fuel : nat) : bool :=
+  match fuel with
+  | 0 => false
+  | S fuel' =>
+      if existsb (coord_eqb target) frontier then true
+      else
+        let neighbors c := 
+          filter (fun c' => andb (get_pixel img c') 
+                                (andb (adj c c') 
+                                      (negb (existsb (coord_eqb c') visited))))
+                 (image_coords img) in
+        let new_frontier := 
+          flat_map neighbors frontier in
+        let new_visited := visited ++ frontier in
+        match new_frontier with
+        | [] => false
+        | _ => reachable_from img adj new_visited new_frontier target fuel'
+        end
+  end.
+
+(** Decide connectivity between two pixels *)
+Definition connected_dec (img : bounded_image) (adj : coord -> coord -> bool) 
+                        (c1 c2 : coord) : bool :=
+  andb (get_pixel img c1)
+       (andb (get_pixel img c2)
+             (reachable_from img adj [] [c1] c2 (width img * height img))).
+
+(** connected_dec returns false for background pixels *)
+Lemma connected_dec_background : forall img adj c1 c2,
+  get_pixel img c1 = false \/ get_pixel img c2 = false ->
+  connected_dec img adj c1 c2 = false.
+Proof.
+  intros img adj c1 c2 H.
+  unfold connected_dec.
+  destruct H as [H | H].
+  - rewrite H. simpl. reflexivity.
+  - rewrite H. rewrite andb_false_r. reflexivity.
+Qed.
+
+(** If reachable_from finds target, then there's a path *)
+Lemma reachable_from_sound : forall img adj visited frontier target fuel,
+  reachable_from img adj visited frontier target fuel = true ->
+  existsb (coord_eqb target) frontier = true \/
+  exists c, In c frontier /\ 
+            exists c', get_pixel img c' = true /\ 
+                      adj c c' = true /\ 
+                      negb (existsb (coord_eqb c') visited) = true.
+Proof.
+  intros img adj visited frontier target fuel.
+  revert visited frontier.
+  induction fuel as [|fuel' IH]; intros visited frontier H.
+  - simpl in H. discriminate.
+  - simpl in H.
+    destruct (existsb (coord_eqb target) frontier) eqn:Htarget.
+    + left. reflexivity.
+    + right.
+      remember (flat_map 
+                 (fun c => filter 
+                   (fun c' => andb (get_pixel img c') 
+                                  (andb (adj c c') 
+                                        (negb (existsb (coord_eqb c') visited))))
+                   (image_coords img)) 
+                 frontier) as new_frontier.
+      destruct new_frontier as [|c' rest].
+      * (* new_frontier = [] *)
+        simpl in H. discriminate.
+      * (* new_frontier = c' :: rest *)
+        (* Since new_frontier is non-empty, some c in frontier has a neighbor *)
+        assert (In c' (flat_map 
+                        (fun c => filter 
+                          (fun c' => andb (get_pixel img c') 
+                                         (andb (adj c c') 
+                                               (negb (existsb (coord_eqb c') visited))))
+                          (image_coords img)) 
+                        frontier)).
+        { rewrite <- Heqnew_frontier. simpl. left. reflexivity. }
+        apply in_flat_map in H0.
+        destruct H0 as [c [Hc_in Hc'_in]].
+        exists c. split. exact Hc_in.
+        apply filter_In in Hc'_in.
+        destruct Hc'_in as [_ Hfilter].
+        rewrite !andb_true_iff in Hfilter.
+        destruct Hfilter as [Hpixel [Hadj Hnot_visited]].
+        exists c'. split; [exact Hpixel | split; [exact Hadj | exact Hnot_visited]].
+Qed.
+ 
