@@ -3054,3 +3054,70 @@ Proof.
            exact (proj1 Hprop).
         -- exact H.
 Qed.
+
+(** More general frontier expansion that works with any visited list *)
+Lemma frontier_expansion_connected_general : forall img adj c_start frontier visited,
+  (forall a b, adj a b = adj b a) ->
+  (forall c, In c frontier -> connected (bounded_to_simple img) adj c_start c) ->
+  forall c', In c' (flat_map 
+                     (fun c => filter 
+                       (fun c' => andb (get_pixel img c') 
+                                      (andb (adj c c') 
+                                            (negb (existsb (coord_eqb c') visited))))
+                       (image_coords img)) 
+                     frontier) ->
+  connected (bounded_to_simple img) adj c_start c'.
+Proof.
+  intros img adj c_start frontier visited adj_sym Hfront c' H.
+  apply flat_map_filter_adjacent in H.
+  destruct H as [c [Hc_in [Hadj Hpix]]].
+  apply connected_step_preserves with c.
+  - exact adj_sym.
+  - apply Hfront. exact Hc_in.
+  - exact Hpix.
+  - exact Hadj.
+Qed.
+
+(** Core invariant: all elements in frontier are connected to start *)
+Lemma reachable_from_invariant : forall img adj visited frontier target fuel c_start,
+  (forall a b, adj a b = adj b a) ->
+  get_pixel img c_start = true ->
+  (forall c, In c frontier -> connected (bounded_to_simple img) adj c_start c) ->
+  reachable_from img adj visited frontier target fuel = true ->
+  connected (bounded_to_simple img) adj c_start target.
+Proof.
+  intros img adj visited frontier target fuel.
+  revert visited frontier target.
+  induction fuel as [|fuel' IH]; intros visited frontier target c_start adj_sym Hstart Hinv H.
+  - simpl in H. discriminate.
+  - simpl in H.
+    destruct (existsb (coord_eqb target) frontier) eqn:Htarget.
+    + (* target in frontier - use invariant *)
+      apply existsb_coord_eqb in Htarget.
+      apply Hinv. exact Htarget.
+    + (* recurse with expanded frontier *)
+      match type of H with
+      | context[match ?expanded with | [] => _ | _ => _ end] =>
+        destruct expanded as [|c' rest] eqn:Hexpanded
+      end.
+      * simpl in H. discriminate.
+      * (* Apply IH with new invariant *)
+        eapply IH.
+        -- exact adj_sym.
+        -- exact Hstart.
+        -- (* Prove new invariant *)
+           intros c Hin.
+           assert (In c (flat_map 
+                         (fun c => filter 
+                           (fun c' => andb (get_pixel img c') 
+                                          (andb (adj c c') 
+                                                (negb (existsb (coord_eqb c') visited))))
+                           (image_coords img)) 
+                         frontier)).
+           { rewrite Hexpanded. exact Hin. }
+           apply frontier_expansion_connected_general with frontier visited.
+           ++ exact adj_sym.
+           ++ exact Hinv.
+           ++ exact H0.
+        -- exact H.
+Qed.
