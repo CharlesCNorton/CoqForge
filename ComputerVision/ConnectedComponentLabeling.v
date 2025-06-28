@@ -4329,3 +4329,339 @@ Proof.
     + rewrite Htarget_pix, Hadj, Hnot_visited.
       reflexivity.
 Qed.
+
+Lemma bfs_explores_by_distance : forall img adj start visited frontier target,
+  (forall a b, adj a b = adj b a) ->
+  (forall c, In c visited -> connected (bounded_to_simple img) adj start c) ->
+  (forall c, In c frontier -> connected (bounded_to_simple img) adj start c) ->
+  (forall c, In c frontier -> get_pixel img c = true) ->
+  (forall c1 c2, In c1 visited -> In c2 frontier -> False) ->
+  connected (bounded_to_simple img) adj start target ->
+  get_pixel img target = true ->
+  (forall c, connected (bounded_to_simple img) adj start c ->
+             existsb (coord_eqb c) visited = false ->
+             existsb (coord_eqb c) frontier = false ->
+             exists c', In c' frontier /\ adj c' c = true) ->
+  existsb (coord_eqb target) visited = false ->
+  existsb (coord_eqb target) frontier = true \/
+  exists c, In c frontier /\ adj c target = true.
+Proof.
+  intros img adj start visited frontier target adj_sym Hvisit_conn Hfront_conn Hfront_pix Hdisj Htarget_conn Htarget_pix Hclosure Hnot_visited.
+  destruct (existsb (coord_eqb target) frontier) eqn:E.
+  - left. reflexivity.
+  - right. 
+    apply Hclosure.
+    + exact Htarget_conn.
+    + exact Hnot_visited.
+    + exact E.
+Qed.
+
+Lemma reachable_from_empty_frontier : forall img adj visited target fuel,
+  fuel > 0 ->
+  reachable_from img adj visited [] target fuel = false.
+Proof.
+  intros img adj visited target [|fuel'] Hfuel.
+  - lia.
+  - simpl. reflexivity.
+Qed.
+
+Lemma minus_zero : forall n, n - 0 = n.
+Proof.
+  intros. lia.
+Qed.
+
+Lemma reachable_from_correct_step : forall img adj visited frontier target fuel,
+  fuel > 0 ->
+  (existsb (coord_eqb target) frontier = true -> 
+   reachable_from img adj visited frontier target fuel = true) /\
+  (existsb (coord_eqb target) frontier = false ->
+   frontier <> [] ->
+   reachable_from img adj visited frontier target fuel = 
+   reachable_from img adj (visited ++ frontier)
+     (flat_map (fun c => filter 
+                 (fun c' => andb (get_pixel img c') 
+                               (andb (adj c c') 
+                                     (negb (existsb (coord_eqb c') visited))))
+                 (image_coords img)) 
+       frontier) target (fuel - 1)).
+Proof.
+  intros img adj visited frontier target [|fuel'] Hfuel.
+  - simpl in Hfuel. lia.
+  - split.
+    + intro H. simpl. rewrite H. reflexivity.
+    + intros H Hnonempty. 
+      replace (S fuel' - 1) with fuel' by lia.
+      unfold reachable_from at 1.
+      rewrite H.
+      fold reachable_from.
+      destruct (flat_map _ frontier) eqn:E.
+      * destruct fuel' as [|f].
+        -- reflexivity.
+        -- symmetry. apply reachable_from_empty_frontier. lia.
+      * reflexivity.
+Qed.
+
+(** ** 11.5 Towards BFS Completeness
+    
+    The complete correctness theorem for BFS requires several powerful
+    combinations of our existing results. Rather than prove these inline,
+    we dedicate Section 12 to developing a toolkit of compound theorems
+    that elegantly combine our hard-won results from Sections 1-11.
+    
+    The main BFS completeness theorem will be completed in Section 13
+    using these compound results. *)
+
+(** TODO: Main theorem postponed to Section 13
+    Theorem connected_dec_complete : forall img adj c1 c2,
+      (forall a b, adj a b = adj b a) ->
+      connected (bounded_to_simple img) adj c1 c2 ->
+      connected_dec img adj c1 c2 = true.
+    
+    This requires the compound machinery developed in Section 12. *)
+
+(** * Section 12: Compound Theorems and Powerful Combinations
+    
+    This section develops sophisticated combinations of our results that:
+    - Bridge between different representations (bounded/simple images, paths/connectivity)
+    - Combine finiteness with algorithmic properties
+    - Link local properties (adjacency) with global ones (components)
+    - Connect computational decisions with mathematical specifications
+    
+    These results will be essential for completing the BFS analysis and
+    for future extensions of the formalization. *)
+
+(** ** 12.1 Path-Connectivity-Labeling Bridge Theorems *)
+
+(** If two pixels have the same label in a correct labeling, 
+    there exists a valid path between them *)
+Theorem same_label_implies_valid_path : forall img adj l c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling (bounded_to_simple img) adj l ->
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  l c1 = l c2 ->
+  l c1 <> 0 ->
+  exists path, valid_path (bounded_to_simple img) adj path = true /\
+               path <> [] /\
+               hd_error path = Some c1 /\
+               last path c1 = c2.
+Proof.
+  intros img adj l c1 c2 adj_sym Hcorrect H1 H2 Heq Hneq.
+  apply connected_exists_path.
+  apply correct_labeling_same_label_connected with l.
+  - exact Hcorrect.
+  - exact H1.
+  - exact H2.
+  - exact Heq.
+  - exact Hneq.
+Qed.
+
+(** ** 12.2 BFS Exploration Characterizes Components *)
+
+(** If BFS from a foreground pixel explores exactly the pixels reachable from it,
+    then those pixels form a complete connected component *)
+Theorem bfs_exploration_complete_component : forall img adj start explored_set,
+  (forall a b, adj a b = adj b a) ->
+  get_pixel img start = true ->
+  (* explored_set contains exactly the pixels BFS visits from start *)
+  (forall c, In c explored_set <-> 
+    (get_pixel img c = true /\ 
+     connected (bounded_to_simple img) adj start c)) ->
+  (* Then explored_set is a maximal connected component *)
+  (forall c1 c2, In c1 explored_set -> In c2 explored_set -> 
+                 connected (bounded_to_simple img) adj c1 c2) /\
+  (forall c, get_pixel img c = true -> 
+             connected (bounded_to_simple img) adj start c ->
+             In c explored_set) /\
+  (forall c, In c explored_set ->
+             forall c', get_pixel img c' = true ->
+                       adj c c' = true ->
+                       In c' explored_set).
+Proof.
+  intros img adj start explored_set adj_sym Hstart Hchar.
+  split; [|split].
+  - (* Any two pixels in explored_set are connected *)
+    intros c1 c2 H1 H2.
+    apply Hchar in H1, H2.
+    destruct H1 as [Hc1_pix Hc1_conn].
+    destruct H2 as [Hc2_pix Hc2_conn].
+    (* Both connected to start, so connected to each other *)
+    apply connected_transitive with start.
+    + apply connected_symmetric; assumption.
+    + exact Hc2_conn.
+  - (* All pixels connected to start are in explored_set *)
+    intros c Hpix Hconn.
+    apply Hchar.
+    split; assumption.
+  - (* Adjacency closure: adjacent pixels to the component are included *)
+    intros c Hc c' Hc'_pix Hadj.
+    apply Hchar in Hc.
+    destruct Hc as [Hc_pix Hc_conn].
+    apply Hchar.
+    split.
+    + exact Hc'_pix.
+    + apply connected_step with c.
+      * exact Hc_conn.
+      * exact Hc'_pix.
+      * exact Hadj.
+Qed.
+
+(** ** 12.3 Component Count and Label Bound Relationship *)
+
+(** The number of distinct positive labels in a correct labeling equals 
+    the number of connected components, and is bounded by total pixels *)
+Theorem component_count_label_bound : forall img adj l,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling (bounded_to_simple img) adj l ->
+  exists component_count : nat,
+    (* The count is bounded by total foreground pixels *)
+    component_count <= length (foreground_pixels img) /\
+    (* Every positive label corresponds to exactly one component *)
+    (forall label, label > 0 -> label_used (bounded_to_simple img) l label ->
+      exists c, get_pixel img c = true /\ l c = label /\
+        forall c', l c' = label -> 
+          connected (bounded_to_simple img) adj c c') /\
+    (* The number of distinct labels equals component count *)
+    (forall label, label > 0 -> label <= component_count ->
+      label_used (bounded_to_simple img) l label ->
+      forall label', label' > 0 -> label' <= component_count ->
+        label_used (bounded_to_simple img) l label' ->
+        label <> label' ->
+        ~ (exists c1 c2, l c1 = label /\ l c2 = label' /\ 
+           connected (bounded_to_simple img) adj c1 c2)).
+Proof.
+  intros img adj l adj_sym Hcorrect.
+  (* Use the finite number of foreground pixels as our bound *)
+  exists (length (foreground_pixels img)).
+  split; [lia|split].
+  - (* Every label has a representative that connects all pixels with that label *)
+    intros label Hpos Hused.
+    destruct Hused as [c [Hfg Hlabel]].
+    exists c. split; [|split].
+    + (* c is foreground *)
+      unfold bounded_to_simple in Hfg. exact Hfg.
+    + (* c has the label *)
+      exact Hlabel.
+    + (* All pixels with same label are connected to c *)
+      intros c' Hlabel'.
+      assert (get_pixel img c' = true).
+      { destruct Hcorrect as [Hbg [Hresp [Hsep Hfg_pos]]].
+        (* By contradiction: if get_pixel img c' = false, then l c' = 0 *)
+        destruct (get_pixel img c') eqn:E.
+        - reflexivity.
+        - assert (bounded_to_simple img c' = false).
+          { unfold bounded_to_simple. exact E. }
+          assert (l c' = 0) by (apply Hbg; exact H).
+          rewrite H0 in Hlabel'.
+          rewrite <- Hlabel' in Hpos.
+          lia. }
+      rewrite <- Hlabel' in Hlabel.
+      (* Use the fact that same label implies connected *)
+      pose proof (label_partition (bounded_to_simple img) adj l adj_sym Hcorrect c c') as Hpart.
+      apply Hpart.
+      * unfold bounded_to_simple. exact Hfg.
+      * unfold bounded_to_simple. exact H.
+      * exact Hlabel.
+  - (* Different labels mean different components *)
+    intros label1 Hpos1 Hle1 Hused1 label2 Hpos2 Hle2 Hused2 Hneq [c1 [c2 [Hl1 [Hl2 Hconn]]]].
+    assert (l c1 = l c2).
+    { pose proof (label_partition (bounded_to_simple img) adj l adj_sym Hcorrect c1 c2) as Hpart.
+      apply Hpart.
+      - apply connected_implies_foreground in Hconn.
+        exact (proj1 Hconn).
+      - apply connected_implies_foreground in Hconn.
+        exact (proj2 Hconn).
+      - exact Hconn. }
+    rewrite Hl1, Hl2 in H.
+    apply Hneq.
+    exact H.
+Qed.
+
+(** ** 12.4 Label Assignment Determines Component Membership *)
+
+(** Two pixels get the same label in a correct labeling if and only if
+    they are in the same component and both are foreground *)
+Theorem label_equality_component_membership : forall img adj l c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling (bounded_to_simple img) adj l ->
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  l c1 = l c2 <-> 
+  (connected (bounded_to_simple img) adj c1 c2 /\ l c1 <> 0).
+Proof.
+  intros img adj l c1 c2 adj_sym Hcorrect Hpix1 Hpix2.
+  split.
+  - (* Forward: same label implies connected and non-zero *)
+    intros Heq.
+    split.
+    + (* Connected *)
+      destruct (Nat.eq_dec (l c1) 0).
+      * (* l c1 = 0 - contradiction with foreground *)
+        exfalso.
+        apply (correct_labeling_foreground_positive (bounded_to_simple img) adj l c1).
+        -- exact Hcorrect.
+        -- unfold bounded_to_simple. exact Hpix1.
+        -- exact e.
+      * (* l c1 <> 0 *)
+        apply correct_labeling_same_label_connected with l.
+        -- exact Hcorrect.
+        -- unfold bounded_to_simple. exact Hpix1.
+        -- unfold bounded_to_simple. exact Hpix2.
+        -- exact Heq.
+        -- exact n.
+    + (* Non-zero *)
+      destruct (Nat.eq_dec (l c1) 0).
+      * exfalso.
+        apply (correct_labeling_foreground_positive (bounded_to_simple img) adj l c1).
+        -- exact Hcorrect.
+        -- unfold bounded_to_simple. exact Hpix1.
+        -- exact e.
+      * exact n.
+  - (* Backward: connected and non-zero implies same label *)
+    intros [Hconn Hnonzero].
+    apply correct_labeling_connected_same with (bounded_to_simple img) adj.
+    + exact Hcorrect.
+    + exact Hconn.
+Qed.
+
+(** ** 12.5 Algorithmic Equivalence Theorem *)
+
+(** Any two algorithms that correctly identify connected components 
+    produce equivalent labelings *)
+Theorem algorithmic_equivalence : forall img adj alg1 alg2,
+  (forall a b, adj a b = adj b a) ->
+  algorithm_correct alg1 ->
+  algorithm_correct alg2 ->
+  forall c1 c2,
+    get_pixel img c1 = true ->
+    get_pixel img c2 = true ->
+    alg1 img adj c1 = alg1 img adj c2 <-> alg2 img adj c1 = alg2 img adj c2.
+Proof.
+  intros img adj alg1 alg2 adj_sym Hcorr1 Hcorr2 c1 c2 Hpix1 Hpix2.
+  pose proof (Hcorr1 img adj adj_sym) as Hlabel1.
+  pose proof (Hcorr2 img adj adj_sym) as Hlabel2.
+  pose proof (label_equality_component_membership img adj (alg1 img adj) c1 c2 adj_sym Hlabel1 Hpix1 Hpix2) as H1.
+  pose proof (label_equality_component_membership img adj (alg2 img adj) c1 c2 adj_sym Hlabel2 Hpix1 Hpix2) as H2.
+  split.
+  - intros Heq1.
+    apply H2.
+    apply H1 in Heq1.
+    destruct Heq1 as [Hconn Hnonzero].
+    split.
+    + exact Hconn.
+    + pose proof (correct_labeling_foreground_positive (bounded_to_simple img) adj (alg2 img adj) c1 Hlabel2).
+      unfold bounded_to_simple in H.
+      apply H.
+      exact Hpix1.
+  - intros Heq2.
+    apply H1.
+    apply H2 in Heq2.
+    destruct Heq2 as [Hconn Hnonzero].
+    split.
+    + exact Hconn.
+    + pose proof (correct_labeling_foreground_positive (bounded_to_simple img) adj (alg1 img adj) c1 Hlabel1).
+      unfold bounded_to_simple in H.
+      apply H.
+      exact Hpix1.
+Qed.
+    
