@@ -3121,3 +3121,166 @@ Proof.
            ++ exact H0.
         -- exact H.
 Qed.
+
+(** If c_start is foreground and reachable_from succeeds, target is connected to c_start *)
+Lemma reachable_from_implies_connected : forall img adj c_start target fuel,
+  (forall a b, adj a b = adj b a) ->
+  get_pixel img c_start = true ->
+  reachable_from img adj [] [c_start] target fuel = true ->
+  connected (bounded_to_simple img) adj c_start target.
+Proof.
+  intros img adj c_start target fuel adj_sym Hstart H.
+  apply reachable_from_invariant with [] [c_start] fuel.
+  - exact adj_sym.
+  - exact Hstart.
+  - intros c Hin.
+    simpl in Hin. destruct Hin.
+    + subst c. apply connected_refl. unfold bounded_to_simple. exact Hstart.
+    + contradiction.
+  - exact H.
+Qed.
+
+(** connected_dec correctly decides connectivity - soundness direction *)
+Theorem connected_dec_sound : forall img adj c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  connected_dec img adj c1 c2 = true ->
+  connected (bounded_to_simple img) adj c1 c2.
+Proof.
+  intros img adj c1 c2 adj_sym H.
+  unfold connected_dec in H.
+  rewrite !andb_true_iff in H.
+  destruct H as [Hc1 [Hc2 Hreach]].
+  apply reachable_from_implies_connected with (width img * height img).
+  - exact adj_sym.
+  - exact Hc1.
+  - exact Hreach.
+Qed.
+
+(** * Section 11: BFS Correctness and Completeness
+    
+    This section proves that our BFS-based reachability algorithm correctly
+    decides connectivity. We establish that BFS systematically explores all
+    reachable nodes within bounded steps. *)
+
+(** ** 11.1 BFS State and Invariants *)
+
+(** BFS maintains visited nodes and a frontier *)
+Record bfs_state : Type := mkBFSState {
+  visited : list coord;
+  frontier : list coord
+}.
+
+(** A node is explored if it's in visited or frontier *)
+Definition explored (s : bfs_state) (c : coord) : bool :=
+  orb (existsb (coord_eqb c) (visited s))
+      (existsb (coord_eqb c) (frontier s)).
+
+(** BFS invariant: all frontier nodes are connected to start *)
+Definition bfs_invariant (img : bounded_image) (adj : coord -> coord -> bool) 
+                        (start : coord) (s : bfs_state) : Prop :=
+  (forall c, In c (frontier s) -> 
+    get_pixel img c = true /\ 
+    connected (bounded_to_simple img) adj start c) /\
+  (forall c, In c (visited s) -> 
+    get_pixel img c = true /\ 
+    connected (bounded_to_simple img) adj start c).
+
+(** Initial state satisfies invariant *)
+Lemma bfs_initial_invariant : forall img adj start,
+  get_pixel img start = true ->
+  bfs_invariant img adj start (mkBFSState [] [start]).
+Proof.
+  intros img adj start Hstart.
+  unfold bfs_invariant. simpl.
+  split.
+  - intros c H. destruct H as [H | H].
+    + subst c. split.
+      * exact Hstart.
+      * apply connected_refl. unfold bounded_to_simple. exact Hstart.
+    + contradiction.
+  - intros c H. contradiction.
+Qed.
+
+(** ** 11.2 BFS Expansion Properties *)
+
+(** Neighbors of a node that haven't been explored *)
+Definition unexplored_neighbors (img : bounded_image) (adj : coord -> coord -> bool)
+                               (s : bfs_state) (c : coord) : list coord :=
+  filter (fun c' => andb (get_pixel img c')
+                        (andb (adj c c')
+                              (negb (explored s c'))))
+         (image_coords img).
+
+(** One step of BFS expansion *)
+Definition bfs_step (img : bounded_image) (adj : coord -> coord -> bool)
+                   (s : bfs_state) : bfs_state :=
+  match frontier s with
+  | [] => s  (* No more nodes to explore *)
+  | _ => mkBFSState 
+           (visited s ++ frontier s)
+           (flat_map (unexplored_neighbors img adj s) (frontier s))
+  end.
+
+(** Helper: unexplored_neighbors produces foreground pixels *)
+Lemma unexplored_neighbors_foreground : forall img adj s c c',
+  In c' (unexplored_neighbors img adj s c) ->
+  get_pixel img c' = true.
+Proof.
+  intros img adj s c c' H.
+  unfold unexplored_neighbors in H.
+  apply filter_In in H.
+  destruct H as [_ Hprop].
+  rewrite !andb_true_iff in Hprop.
+  destruct Hprop as [Hpix _].
+  exact Hpix.
+Qed.
+
+(** Helper: unexplored_neighbors are adjacent to source *)
+Lemma unexplored_neighbors_adjacent : forall img adj s c c',
+  In c' (unexplored_neighbors img adj s c) ->
+  adj c c' = true.
+Proof.
+  intros img adj s c c' H.
+  unfold unexplored_neighbors in H.
+  apply filter_In in H.
+  destruct H as [_ Hprop].
+  rewrite !andb_true_iff in Hprop.
+  destruct Hprop as [_ [Hadj _]].
+  exact Hadj.
+Qed.
+
+(** Helper: new frontier nodes are connected via frontier nodes *)
+Lemma new_frontier_connected : forall img adj start s c',
+  (forall a b, adj a b = adj b a) ->
+  bfs_invariant img adj start s ->
+  In c' (flat_map (unexplored_neighbors img adj s) (frontier s)) ->
+  connected (bounded_to_simple img) adj start c'.
+Proof.
+  intros img adj start s c' adj_sym Hinv H.
+  apply in_flat_map in H.
+  destruct H as [c [Hc_front Hc'_unexplored]].
+  destruct Hinv as [Hfront_inv _].
+  assert (Hc_prop := Hfront_inv c Hc_front).
+  destruct Hc_prop as [_ Hc_conn].
+  assert (Hc'_pix := unexplored_neighbors_foreground img adj s c c' Hc'_unexplored).
+  assert (Hc'_adj := unexplored_neighbors_adjacent img adj s c c' Hc'_unexplored).
+  unfold bounded_to_simple.
+  apply connected_step with c.
+  - exact Hc_conn.
+  - exact Hc'_pix.
+  - exact Hc'_adj.
+Qed.
+
+(** Helper: extended visited maintains invariant *)
+Lemma extended_visited_invariant : forall img adj start s c,
+  bfs_invariant img adj start s ->
+  In c (visited s ++ frontier s) ->
+  get_pixel img c = true /\ connected (bounded_to_simple img) adj start c.
+Proof.
+  intros img adj start s c Hinv H.
+  destruct Hinv as [Hfront_inv Hvisit_inv].
+  apply in_app_or in H.
+  destruct H as [H | H].
+  - apply Hvisit_inv. exact H.
+  - apply Hfront_inv. exact H.
+Qed.
