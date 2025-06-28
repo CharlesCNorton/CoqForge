@@ -2742,3 +2742,84 @@ Proof.
   - (* adj c1 c2 = true *)
     exact Hadj.
 Qed.
+
+(** Helper: If (a,b) is in cartesian product, then a is in l1 and b is in l2 *)
+Lemma cartesian_product_in : forall {A B : Type} (a : A) (b : B) (l1 : list A) (l2 : list B),
+  In (a, b) (cartesian_product l1 l2) -> In a l1 /\ In b l2.
+Proof.
+  intros A B a b l1 l2 H.
+  induction l1 as [|x l1' IH].
+  - simpl in H. contradiction.
+  - simpl in H.
+    apply in_app_or in H.
+    destruct H as [H | H].
+    + (* (a,b) in map (fun b => (x, b)) l2 *)
+      apply in_map_iff in H.
+      destruct H as [b' [Heq Hin]].
+      injection Heq as Ha Hb.
+      subst x b'.
+      split.
+      * simpl. left. reflexivity.
+      * exact Hin.
+    + (* (a,b) in cartesian_product l1' l2 *)
+      apply IH in H.
+      destruct H as [Ha Hb].
+      split.
+      * simpl. right. exact Ha.
+      * exact Hb.
+Qed.
+
+(** Only in-bounds coordinates can be adjacent *)
+Lemma all_adjacencies_sound : forall img adj p,
+  In p (all_adjacencies img adj) ->
+  let (c1, c2) := p in
+  coord_x c1 < width img /\ coord_y c1 < height img /\
+  coord_x c2 < width img /\ coord_y c2 < height img /\
+  adj c1 c2 = true.
+Proof.
+  intros img adj p H.
+  unfold all_adjacencies in H.
+  apply filter_In in H.
+  destruct H as [Hin Hadj].
+  destruct p as [c1 c2]. simpl in Hadj.
+  apply cartesian_product_in in Hin.
+  destruct Hin as [H1 H2].
+  apply image_coords_iff_in_bounds in H1.
+  apply image_coords_iff_in_bounds in H2.
+  split; [exact (proj1 H1) | split; [exact (proj2 H1) |
+  split; [exact (proj1 H2) | split; [exact (proj2 H2) | exact Hadj]]]].
+Qed.
+
+(** Helper: Length of cartesian product *)
+Lemma cartesian_product_length : forall {A B : Type} (l1 : list A) (l2 : list B),
+  length (cartesian_product l1 l2) = length l1 * length l2.
+Proof.
+  intros A B l1 l2.
+  induction l1 as [|a l1' IH].
+  - simpl. reflexivity.
+  - simpl. rewrite length_app.
+    rewrite length_map.
+    rewrite IH.
+    simpl. reflexivity.
+Qed.
+
+(** The number of adjacencies is finite *)
+Lemma all_adjacencies_finite : forall img adj,
+  length (all_adjacencies img adj) <= (width img * height img) * (width img * height img).
+Proof.
+  intros img adj.
+  unfold all_adjacencies.
+  assert (length (filter (fun p : coord * coord => let (c1, c2) := p in adj c1 c2)
+                        (cartesian_product (image_coords img) (image_coords img))) <= 
+          length (cartesian_product (image_coords img) (image_coords img))).
+  { generalize (cartesian_product (image_coords img) (image_coords img)).
+    intros l.
+    induction l as [|p l' IH].
+    - simpl. lia.
+    - simpl. destruct (let (c1, c2) := p in adj c1 c2).
+      + simpl. lia.
+      + lia. }
+  rewrite cartesian_product_length in H.
+  rewrite !image_coords_length in H.
+  exact H.
+Qed.
