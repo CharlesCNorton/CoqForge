@@ -4664,4 +4664,309 @@ Proof.
       apply H.
       exact Hpix1.
 Qed.
-    
+
+(** ** 12.6 Component Labeling Determines Partition *)
+
+(** A correct labeling induces a partition of foreground pixels into
+    equivalence classes, where each class is a connected component *)
+Theorem labeling_induces_partition : forall img adj l,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling (bounded_to_simple img) adj l ->
+  (* The equivalence relation induced by labels *)
+  let equiv := fun c1 c2 => l c1 = l c2 in
+  (* Is exactly the connectivity relation on foreground pixels *)
+  forall c1 c2,
+    get_pixel img c1 = true ->
+    get_pixel img c2 = true ->
+    (equiv c1 c2 <-> connected (bounded_to_simple img) adj c1 c2).
+Proof.
+  intros img adj l adj_sym Hcorrect equiv c1 c2 Hc1 Hc2.
+  unfold equiv.
+  split.
+  - (* Same label implies connected *)
+    intros Heq.
+    destruct (Nat.eq_dec (l c1) 0).
+    + (* l c1 = 0 contradicts foreground *)
+      exfalso.
+      apply (correct_labeling_foreground_positive (bounded_to_simple img) adj l c1).
+      * exact Hcorrect.
+      * unfold bounded_to_simple. exact Hc1.
+      * exact e.
+    + (* l c1 <> 0 *)
+      apply correct_labeling_same_label_connected with l.
+      * exact Hcorrect.
+      * unfold bounded_to_simple. exact Hc1.
+      * unfold bounded_to_simple. exact Hc2.
+      * exact Heq.
+      * exact n.
+  - (* Connected implies same label *)
+    intros Hconn.
+    apply correct_labeling_connected_same with (bounded_to_simple img) adj.
+    + exact Hcorrect.
+    + exact Hconn.
+Qed.
+
+(** Corollary: Components are maximal connected sets *)
+Corollary components_are_maximal : forall img adj l c,
+  (forall a b, adj a b = adj b a) ->
+  correct_labeling (bounded_to_simple img) adj l ->
+  get_pixel img c = true ->
+  let component := fun c' => get_pixel img c' = true /\ l c' = l c in
+  (* The component is exactly the connected pixels *)
+  forall c', component c' <-> 
+    (get_pixel img c' = true /\ connected (bounded_to_simple img) adj c c').
+Proof.
+  intros img adj l c adj_sym Hcorrect Hc component c'.
+  unfold component.
+  split.
+  - intros [Hc' Heq].
+    split.
+    + exact Hc'.
+    + pose proof (labeling_induces_partition img adj l adj_sym Hcorrect c c' Hc Hc') as Hpart.
+      apply Hpart.
+      symmetry. exact Heq.
+  - intros [Hc' Hconn].
+    split.
+    + exact Hc'.
+    + pose proof (labeling_induces_partition img adj l adj_sym Hcorrect c c' Hc Hc') as Hpart.
+      symmetry.
+      apply Hpart.
+      exact Hconn.
+Qed.
+
+(** * Section 13: Two-Pass Algorithm Correctness *)
+
+(** ** 13.1 First Pass Adjacency Invariant *)
+
+(** When process_pixel finds a labeled left neighbor, what happens? *)
+Lemma process_pixel_uses_left_label : forall img adj labels equiv c next_label,
+  get_pixel img c = true ->
+  coord_x c > 0 ->
+  adj (coord_x c - 1, coord_y c) c = true ->
+  labels (coord_x c - 1, coord_y c) > 0 ->
+  coord_y c = 0 ->  (* No up neighbor to complicate things *)
+  let '(labels', _, _) := process_pixel img adj labels equiv c next_label in
+  labels' c = labels (coord_x c - 1, coord_y c).
+Proof.
+  intros img adj labels equiv c next_label Hfg Hx_pos Hadj_left Hlabel_left Hy_zero.
+  unfold process_pixel.
+  rewrite Hfg.
+  
+  (* x > 0, so left check happens *)
+  assert (coord_x c =? 0 = false).
+  { apply Nat.eqb_neq. lia. }
+  rewrite H.
+  
+  (* y = 0, so the up check returns false *)
+  assert (coord_y c =? 0 = true).
+  { apply Nat.eqb_eq. exact Hy_zero. }
+  rewrite H0.
+  
+  (* Left is adjacent and labeled *)
+  simpl.
+  rewrite Hadj_left.
+  destruct (labels (coord_x c - 1, coord_y c)) eqn:E.
+  - (* Contradiction: Hlabel_left is now 0 > 0 *)
+    lia.
+  - (* labels (left) = S n *)
+    simpl.
+    rewrite label_update_same.
+    reflexivity.
+Qed.
+
+(** When process_pixel finds a labeled up neighbor, what happens? *)
+Lemma process_pixel_uses_up_label : forall img adj labels equiv c next_label,
+  get_pixel img c = true ->
+  coord_y c > 0 ->
+  adj (coord_x c, coord_y c - 1) c = true ->
+  labels (coord_x c, coord_y c - 1) > 0 ->
+  coord_x c = 0 ->  (* No left neighbor to complicate things *)
+  let '(labels', _, _) := process_pixel img adj labels equiv c next_label in
+  labels' c = labels (coord_x c, coord_y c - 1).
+Proof.
+  intros img adj labels equiv c next_label Hfg Hy_pos Hadj_up Hlabel_up Hx_zero.
+  unfold process_pixel.
+  rewrite Hfg.
+  
+  (* x = 0, so no left check *)
+  assert (coord_x c =? 0 = true).
+  { apply Nat.eqb_eq. exact Hx_zero. }
+  rewrite H.
+  
+  (* y > 0, so up check happens *)
+  assert (coord_y c =? 0 = false).
+  { apply Nat.eqb_neq. lia. }
+  rewrite H0.
+  
+  (* Up is adjacent and labeled *)
+  simpl.
+  rewrite Hadj_up.
+  destruct (labels (coord_x c, coord_y c - 1)) eqn:E.
+  - (* Contradiction: Hlabel_up is now 0 > 0 *)
+    lia.
+  - (* labels (up) = S n *)
+    simpl.
+    rewrite label_update_same.
+    reflexivity.
+Qed.
+
+(** When both neighbors exist and have the same label *)
+Lemma process_pixel_both_neighbors_same_label : forall img adj labels equiv c next_label,
+  get_pixel img c = true ->
+  coord_x c > 0 ->
+  coord_y c > 0 ->
+  adj (coord_x c - 1, coord_y c) c = true ->
+  adj (coord_x c, coord_y c - 1) c = true ->
+  labels (coord_x c - 1, coord_y c) > 0 ->
+  labels (coord_x c, coord_y c - 1) > 0 ->
+  labels (coord_x c - 1, coord_y c) = labels (coord_x c, coord_y c - 1) ->
+  let '(labels', _, _) := process_pixel img adj labels equiv c next_label in
+  labels' c = labels (coord_x c - 1, coord_y c).
+Proof.
+  intros img adj labels equiv c next_label Hfg Hx_pos Hy_pos Hadj_left Hadj_up 
+         Hlabel_left Hlabel_up Hsame.
+  unfold process_pixel.
+  rewrite Hfg.
+  
+  (* x > 0 and y > 0 *)
+  assert (coord_x c =? 0 = false).
+  { apply Nat.eqb_neq. lia. }
+  rewrite H.
+  assert (coord_y c =? 0 = false).
+  { apply Nat.eqb_neq. lia. }
+  rewrite H0.
+  
+  (* Both neighbors are adjacent and labeled *)
+  simpl.
+  rewrite Hadj_left, Hadj_up.
+  destruct (labels (coord_x c - 1, coord_y c)) eqn:Eleft.
+  - (* Contradiction *)
+    lia.
+  - destruct (labels (coord_x c, coord_y c - 1)) eqn:Eup.
+    + (* Contradiction *)
+      lia.
+    + (* Both labeled: S n and S n0 *)
+      (* Hsame is already S n = S n0 after the destructs *)
+      injection Hsame as Heq.
+      subst n0.
+      simpl.
+      rewrite coord_eqb_refl.
+      simpl.
+      (* Goal: S (Nat.min n n) = S n *)
+      f_equal.
+      apply Nat.min_idempotent.
+Qed.
+
+(** When both neighbors exist with different labels, equivalence is recorded *)
+Lemma process_pixel_both_neighbors_different_labels : forall img adj labels equiv c next_label,
+  get_pixel img c = true ->
+  coord_x c > 0 ->
+  coord_y c > 0 ->
+  adj (coord_x c - 1, coord_y c) c = true ->
+  adj (coord_x c, coord_y c - 1) c = true ->
+  labels (coord_x c - 1, coord_y c) > 0 ->
+  labels (coord_x c, coord_y c - 1) > 0 ->
+  labels (coord_x c - 1, coord_y c) <> labels (coord_x c, coord_y c - 1) ->
+  let '(labels', equiv', _) := process_pixel img adj labels equiv c next_label in
+  labels' c = Nat.min (labels (coord_x c - 1, coord_y c)) 
+                      (labels (coord_x c, coord_y c - 1)) /\
+  equiv' (labels (coord_x c - 1, coord_y c)) 
+         (labels (coord_x c, coord_y c - 1)) = true.
+Proof.
+  intros img adj labels equiv c next_label Hfg Hx_pos Hy_pos Hadj_left Hadj_up 
+         Hlabel_left Hlabel_up Hdiff.
+  unfold process_pixel.
+  rewrite Hfg.
+  
+  (* x > 0 and y > 0 *)
+  assert (coord_x c =? 0 = false).
+  { apply Nat.eqb_neq. lia. }
+  rewrite H.
+  assert (coord_y c =? 0 = false).
+  { apply Nat.eqb_neq. lia. }
+  rewrite H0.
+  
+  (* Both neighbors are adjacent and labeled *)
+  simpl.
+  rewrite Hadj_left, Hadj_up.
+  destruct (labels (coord_x c - 1, coord_y c)) eqn:Eleft.
+  - (* Contradiction *)
+    lia.
+  - destruct (labels (coord_x c, coord_y c - 1)) eqn:Eup.
+    + (* Contradiction *)
+      lia.
+    + (* Both labeled: S n and S n0 *)
+      assert (S n <> S n0).
+      { intro H1. injection H1 as H1. subst n0.
+        apply Hdiff. reflexivity. }
+      assert (Nat.eqb (S n) (S n0) = false).
+      { apply Nat.eqb_neq. exact H1. }
+      rewrite H2.
+      simpl.
+      split.
+      * rewrite coord_eqb_refl. reflexivity.
+      * apply add_equiv_creates.
+Qed.
+
+(** Helper: When left neighbor check returns 0 *)
+Lemma left_neighbor_check_zero : forall adj labels c,
+  coord_x c = 0 \/ adj (coord_x c - 1, coord_y c) c = false \/ 
+  labels (coord_x c - 1, coord_y c) = 0 ->
+  (if coord_x c =? 0 then 0 else 
+   if adj (coord_x c - 1, coord_y c) c then labels (coord_x c - 1, coord_y c) else 0) = 0.
+Proof.
+  intros adj labels c H.
+  destruct H as [Hx0 | [Hno_adj | Hno_label]].
+  - rewrite Hx0. simpl. reflexivity.
+  - destruct (coord_x c =? 0) eqn:E.
+    + reflexivity.
+    + rewrite Hno_adj. reflexivity.
+  - destruct (coord_x c =? 0) eqn:E.
+    + reflexivity.
+    + destruct (adj (coord_x c - 1, coord_y c) c) eqn:E2.
+      * rewrite Hno_label. reflexivity.
+      * reflexivity.
+Qed.
+
+(** Helper: When up neighbor check returns 0 *)
+Lemma up_neighbor_check_zero : forall adj labels c,
+  coord_y c = 0 \/ adj (coord_x c, coord_y c - 1) c = false \/ 
+  labels (coord_x c, coord_y c - 1) = 0 ->
+  (if coord_y c =? 0 then 0 else 
+   if adj (coord_x c, coord_y c - 1) c then labels (coord_x c, coord_y c - 1) else 0) = 0.
+Proof.
+  intros adj labels c H.
+  destruct H as [Hy0 | [Hno_adj | Hno_label]].
+  - rewrite Hy0. simpl. reflexivity.
+  - destruct (coord_y c =? 0) eqn:E.
+    + reflexivity.
+    + rewrite Hno_adj. reflexivity.
+  - destruct (coord_y c =? 0) eqn:E.
+    + reflexivity.
+    + destruct (adj (coord_x c, coord_y c - 1) c) eqn:E2.
+      * rewrite Hno_label. reflexivity.
+      * reflexivity.
+Qed.
+
+(** Now the main lemma is simple *)
+Lemma process_pixel_no_neighbors_new_label : forall img adj labels equiv c next_label,
+  get_pixel img c = true ->
+  next_label > 0 ->
+  (coord_x c = 0 \/ adj (coord_x c - 1, coord_y c) c = false \/ 
+   labels (coord_x c - 1, coord_y c) = 0) ->
+  (coord_y c = 0 \/ adj (coord_x c, coord_y c - 1) c = false \/ 
+   labels (coord_x c, coord_y c - 1) = 0) ->
+  let '(labels', equiv', next') := process_pixel img adj labels equiv c next_label in
+  labels' c = next_label /\ equiv' = equiv /\ next' = S next_label.
+Proof.
+  intros img adj labels equiv c next_label Hfg Hnext_pos Hleft_none Hup_none.
+  unfold process_pixel.
+  rewrite Hfg.
+  rewrite left_neighbor_check_zero by exact Hleft_none.
+  rewrite up_neighbor_check_zero by exact Hup_none.
+  simpl.
+  split; [|split].
+  - rewrite label_update_same. reflexivity.
+  - reflexivity.
+  - reflexivity.
+Qed.
