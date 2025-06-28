@@ -4734,7 +4734,7 @@ Proof.
       exact Hconn.
 Qed.
 
-(** * Section 13: Two-Pass Algorithm Correctness *)
+(** * Section 13: Two-Pass Algorithm Correctness Resumed *)
 
 (** ** 13.1 First Pass Adjacency Invariant *)
 
@@ -5343,4 +5343,99 @@ Proof.
   - (* get_pixel img c = false *)
     injection Heq as <- <- <-.
     exact H.
+Qed.
+
+(** process_pixel preserves positive labels at other coordinates *)
+Lemma process_pixel_preserves_positive_labels : forall img adj labels equiv c c' next_label labels' equiv' next',
+  process_pixel img adj labels equiv c next_label = (labels', equiv', next') ->
+  c <> c' ->
+  labels c' > 0 ->
+  labels' c' > 0.
+Proof.
+  intros img adj labels equiv c c' next_label labels' equiv' next' Heq Hneq Hpos.
+  pose proof (process_pixel_preserves_other img adj labels equiv c c' next_label Hneq) as H.
+  destruct (process_pixel img adj labels equiv c next_label) as [[l e] n] eqn:E.
+  injection Heq as <- <- <-.
+  rewrite H.
+  exact Hpos.
+Qed.
+
+(** When process_pixel assigns a label, it's always positive *)
+Lemma process_pixel_assigns_positive : forall img adj labels equiv c next_label labels' equiv' next',
+  process_pixel img adj labels equiv c next_label = (labels', equiv', next') ->
+  get_pixel img c = true ->
+  next_label > 0 ->
+  labels' c > 0.
+Proof.
+  intros img adj labels equiv c next_label labels' equiv' next' Heq Hfg Hnext_pos.
+  pose proof (process_pixel_foreground_gets_label img adj labels equiv c next_label Hfg Hnext_pos) as H.
+  destruct (process_pixel img adj labels equiv c next_label) as [[l e] n] eqn:E.
+  injection Heq as <- <- <-.
+  exact H.
+Qed.
+
+(** Equivalence relation includes reflexivity for all positive labels *)
+Lemma equiv_reflexive_positive : forall equiv l,
+  l > 0 ->
+  equiv l l = true \/ equiv l l = false.
+Proof.
+  intros equiv l Hpos.
+  destruct (equiv l l); [left | right]; reflexivity.
+Qed.
+
+(** process_row preserves labels outside its range *)
+Lemma process_row_preserves_outside : forall img adj labels equiv y x w next_label labels' equiv' next',
+  process_row img adj labels equiv y x w next_label = (labels', equiv', next') ->
+  forall c, coord_y c <> y \/ coord_x c < x \/ coord_x c >= x + w ->
+            labels' c = labels c.
+Proof.
+  intros img adj labels equiv y x w.
+  revert x labels equiv.
+  induction w as [|w' IH]; intros x labels equiv next_label labels' equiv' next' Heq c Hout.
+  - (* w = 0 *)
+    simpl in Heq. injection Heq as <- <- <-. reflexivity.
+  - (* w = S w' *)
+    simpl in Heq.
+    destruct (x <? S w') eqn:Hlt.
+    + (* x < S w' *)
+      destruct (process_pixel img adj labels equiv (x, y) next_label) as [[labels1 equiv1] next1] eqn:Hpix.
+      destruct c as [cx cy].
+      destruct Hout as [Hy | [Hx_lo | Hx_hi]].
+      * (* cy ≠ y *)
+        pose proof (process_pixel_preserves_other img adj labels equiv (x, y) (cx, cy) next_label) as H.
+        assert (Hneq: (x, y) <> (cx, cy)).
+        { intro Heq'. inversion Heq'. subst. simpl in Hy. contradiction. }
+        specialize (H Hneq).
+        rewrite Hpix in H.
+        rewrite <- H.
+        apply IH with (c := (cx, cy)) in Heq.
+        -- exact Heq.
+        -- left. simpl. exact Hy.
+      * (* cx < x *)
+        pose proof (process_pixel_preserves_other img adj labels equiv (x, y) (cx, cy) next_label) as H.
+        assert (Hneq: (x, y) <> (cx, cy)).
+        { intro Heq'. inversion Heq'. simpl in Hx_lo. lia. }
+        specialize (H Hneq).
+        rewrite Hpix in H.
+        rewrite <- H.
+        apply IH with (c := (cx, cy)) in Heq.
+        -- exact Heq.
+        -- right. left. simpl in Hx_lo. simpl. lia.
+      * (* cx >= x + S w' *)
+        simpl in Hx_hi.
+        destruct (Nat.eq_dec cx x).
+        -- (* cx = x *)
+           subst cx. lia.
+        -- (* cx ≠ x *)
+           pose proof (process_pixel_preserves_other img adj labels equiv (x, y) (cx, cy) next_label) as H.
+           assert (Hneq: (x, y) <> (cx, cy)).
+           { intro Heq'. inversion Heq'. subst. contradiction. }
+           specialize (H Hneq).
+           rewrite Hpix in H.
+           rewrite <- H.
+           apply IH with (c := (cx, cy)) in Heq.
+           ++ exact Heq.
+           ++ right. right. simpl. lia.
+    + (* x >= S w' *)
+      injection Heq as <- <- <-. reflexivity.
 Qed.
