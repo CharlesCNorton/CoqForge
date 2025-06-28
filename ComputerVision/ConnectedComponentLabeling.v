@@ -3985,4 +3985,196 @@ Proof.
       intros x y.
       apply coord_eqb_true_iff.
 Qed.
-            
+
+Lemma bfs_step_dedup_preserves_disjoint : forall img adj s,
+  bfs_disjoint s ->
+  bfs_disjoint (bfs_step_dedup img adj s).
+Proof.
+  intros img adj s Hdisj.
+  unfold bfs_step_dedup.
+  destruct (frontier s) as [|c cs] eqn:Hfront.
+  - exact Hdisj.
+  - unfold bfs_disjoint.
+    intros c' [Hvisit' Hfront'].
+    apply in_app_or in Hvisit'.
+    destruct Hvisit' as [Hvisit' | Hvisit'].
+    + assert (explored s c' = false).
+      { apply remove_dups_subset in Hfront'.
+        apply in_flat_map in Hfront'.
+        destruct Hfront' as [c0 [_ Hc'_unexplored]].
+        apply unexplored_neighbors_not_explored with img adj c0.
+        exact Hc'_unexplored. }
+      unfold explored in H.
+      rewrite orb_false_iff in H.
+      destruct H as [Hvisit_false _].
+      assert (existsb (coord_eqb c') (visited s) = true).
+      { apply existsb_exists. exists c'. split.
+        - exact Hvisit'.
+        - apply coord_eqb_refl. }
+      rewrite H in Hvisit_false. discriminate.
+    + assert (explored s c' = false).
+      { apply remove_dups_subset in Hfront'.
+        apply in_flat_map in Hfront'.
+        destruct Hfront' as [c0 [_ Hc'_unexplored]].
+        apply unexplored_neighbors_not_explored with img adj c0.
+        exact Hc'_unexplored. }
+      unfold explored in H.
+      rewrite orb_false_iff in H.
+      destruct H as [_ Hfront_false].
+      assert (existsb (coord_eqb c') (frontier s) = true).
+      { apply existsb_exists. exists c'. split.
+        - rewrite Hfront. exact Hvisit'.
+        - apply coord_eqb_refl. }
+      rewrite H in Hfront_false. discriminate.
+Qed.
+
+Lemma bfs_step_dedup_preserves_invariant : forall img adj start s,
+  (forall a b, adj a b = adj b a) ->
+  bfs_invariant img adj start s ->
+  bfs_invariant img adj start (bfs_step_dedup img adj s).
+Proof.
+  intros img adj start s adj_sym Hinv.
+  unfold bfs_step_dedup.
+  destruct (frontier s) as [|c cs] eqn:Hfront.
+  - exact Hinv.
+  - unfold bfs_invariant in *.
+    destruct Hinv as [Hfront_inv Hvisit_inv].
+    split.
+    + intros c' Hin.
+      apply remove_dups_subset in Hin.
+      apply in_flat_map in Hin.
+      destruct Hin as [c0 [Hc0_in Hc'_unexplored]].
+      split.
+      * apply unexplored_neighbors_foreground with adj s c0.
+        exact Hc'_unexplored.
+      * assert (Hc0_prop := Hfront_inv c0).
+        rewrite Hfront in Hc0_prop.
+        specialize (Hc0_prop Hc0_in).
+        destruct Hc0_prop as [_ Hc0_conn].
+        unfold bounded_to_simple.
+        apply connected_step with c0.
+        -- exact Hc0_conn.
+        -- apply unexplored_neighbors_foreground with adj s c0.
+           exact Hc'_unexplored.
+        -- apply unexplored_neighbors_adjacent with img s.
+           exact Hc'_unexplored.
+    + intros c' Hin.
+      apply in_app_or in Hin.
+      destruct Hin as [Hin | Hin].
+      * apply Hvisit_inv. exact Hin.
+      * assert (In c' (frontier s)).
+        { rewrite Hfront. exact Hin. }
+        apply Hfront_inv. exact H.
+Qed.
+
+Lemma is_adjacent_path_app_single : forall adj path c,
+  path <> [] ->
+  is_adjacent_path adj path = true ->
+  adj (last path c) c = true ->
+  is_adjacent_path adj (path ++ [c]) = true.
+Proof.
+  intros adj path c Hnonempty Hadj_path Hadj_last.
+  induction path as [|p ps IH].
+  - contradiction.
+  - destruct ps as [|p' ps'].
+    + simpl in *.
+      rewrite Hadj_last.
+      reflexivity.
+    + simpl in *.
+      rewrite andb_true_iff in *.
+      destruct Hadj_path as [Hadj1 Hadj2].
+      split.
+      * exact Hadj1.
+      * apply IH.
+        -- discriminate.
+        -- exact Hadj2.
+        -- exact Hadj_last.
+Qed.
+
+Lemma last_default_irrelevant : forall {A : Type} (l : list A) (d1 d2 : A),
+  l <> [] ->
+  last l d1 = last l d2.
+Proof.
+  intros A l d1 d2 Hnonempty.
+  induction l as [|a l' IH].
+  - contradiction.
+  - destruct l' as [|b l''].
+    + simpl. reflexivity.
+    + simpl. apply IH. discriminate.
+Qed.
+
+Lemma all_foreground_app_single : forall img path c,
+  all_foreground img path = true ->
+  img c = true ->
+  all_foreground img (path ++ [c]) = true.
+Proof.
+  intros img path c Hall Hc.
+  induction path as [|p ps IH].
+  - simpl. rewrite Hc. reflexivity.
+  - simpl in *.
+    rewrite andb_true_iff in *.
+    destruct Hall as [Hp Hps].
+    split.
+    + exact Hp.
+    + apply IH. exact Hps.
+Qed.
+
+Lemma last_app : forall {A : Type} (l1 l2 : list A) (d : A),
+  l2 <> [] ->
+  last (l1 ++ l2) d = last l2 d.
+Proof.
+  intros A l1 l2 d Hnonempty.
+  induction l1 as [|a l1' IH].
+  - simpl. reflexivity.
+  - simpl. 
+    destruct l1'.
+    + simpl. destruct l2; [contradiction | reflexivity].
+    + rewrite IH. reflexivity.
+Qed.
+
+Theorem connected_exists_path : forall img adj c1 c2,
+  connected (bounded_to_simple img) adj c1 c2 ->
+  exists path, valid_path (bounded_to_simple img) adj path = true /\
+               path <> [] /\
+               hd_error path = Some c1 /\
+               last path c1 = c2.
+Proof.
+  intros img adj c1 c2 H.
+  induction H.
+  - exists [c]. split.
+    + unfold valid_path. simpl. rewrite H, andb_true_r. reflexivity.
+    + split.
+      * discriminate.
+      * split; reflexivity.
+  - destruct IHconnected as [path [Hvalid [Hnonempty [Hhd Hlast]]]].
+    exists (path ++ [c3]). split.
+    + unfold valid_path.
+      rewrite andb_true_iff.
+      split.
+      * (* is_adjacent_path adj (path ++ [c3]) = true *)
+        apply is_adjacent_path_app_single.
+        -- exact Hnonempty.
+        -- unfold valid_path in Hvalid.
+           rewrite andb_true_iff in Hvalid.
+           exact (proj1 Hvalid).
+        -- assert (last path c3 = c2).
+           { rewrite last_default_irrelevant with (d2 := c1).
+             - exact Hlast.
+             - exact Hnonempty. }
+           rewrite H2. exact H1.
+      * (* all_foreground (bounded_to_simple img) (path ++ [c3]) = true *)
+        apply all_foreground_app_single.
+        -- unfold valid_path in Hvalid.
+           rewrite andb_true_iff in Hvalid.
+           exact (proj2 Hvalid).
+        -- exact H0.
+    + split.
+      * destruct path; discriminate.
+      * split.
+        -- destruct path.
+           ++ contradiction.
+           ++ simpl. exact Hhd.
+        -- rewrite last_app.
+           ++ simpl. reflexivity.
+           ++ discriminate.
+Qed.
