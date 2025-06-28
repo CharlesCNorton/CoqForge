@@ -2118,3 +2118,301 @@ Proof.
   - reflexivity.
   - exact Hle.
 Qed.
+
+(** ** 9.6 Specific Patterns for All Rows Processing *)
+
+(** Key relationship for consecutive row indices *)
+Lemma consecutive_row_difference : forall height y,
+  S (S y) <= height ->
+  height - S (S y) = height - S y - 1.
+Proof.
+  intros height y Hle.
+  lia.
+Qed.
+
+(** Specific case for height' - S y' when S (S y') <= height' *)
+Lemma height_double_succ_relation : forall height' y' width,
+  S (S y') <= height' ->
+  (height' - S (S y')) * width + width = (height' - S y') * width.
+Proof.
+  intros height' y' width Hle.
+  rewrite consecutive_row_difference by exact Hle.
+  rewrite mul_sub_distr_r.
+  - rewrite Nat.mul_1_l.
+    assert (height' - S y' >= 1).
+    { lia. }
+    assert ((height' - S y') * width >= width).
+    { destruct (height' - S y') as [|n].
+      - lia.
+      - simpl. lia. }
+    lia.
+  - lia.
+Qed.
+
+(** ** 9.7 Operational Lemmas for All Rows Processing *)
+
+(** When y = 0, the match expression gives S height' *)
+Lemma process_all_rows_from_zero : forall height' width,
+  match 0 with
+  | 0 => S height'
+  | S y' => height' - y'
+  end * width = S height' * width.
+Proof.
+  intros height' width.
+  reflexivity.
+Qed.
+
+(** When y = S y', the match expression gives height' - y' *)
+Lemma process_all_rows_from_succ : forall height' y' width,
+  match S y' with
+  | 0 => S height'
+  | S y'' => height' - y''
+  end * width = (height' - y') * width.
+Proof.
+  intros height' y' width.
+  reflexivity.
+Qed.
+
+(** Processing exactly one row *)
+Lemma process_single_row_bound : forall img adj labels equiv y next_label,
+  let '(_, _, next') := process_row img adj labels equiv y 0 (width img) next_label in
+  next' <= next_label + width img.
+Proof.
+  intros img adj labels equiv y next_label.
+  pose proof (process_row_increment_bound img adj labels equiv y 0 (width img) next_label) as H.
+  assert (0 <= width img) by lia.
+  specialize (H H0).
+  rewrite process_from_zero in H.
+  exact H.
+Qed.
+
+(** ** 9.8 Compound Properties for Iteration *)
+
+(** Match expression directly to multiplication *)
+Lemma match_to_mult : forall height y width,
+  y <= height ->
+  match y with
+  | 0 => S height
+  | S y' => height - y'
+  end * width = (S height - y) * width.
+Proof.
+  intros height y width Hle.
+  rewrite <- match_sub_form.
+  reflexivity.
+Qed.
+
+(** Combining single row bound with remaining rows *)
+Lemma split_rows_bound : forall width height y,
+  y < height ->
+  width + (height - S y) * width = (height - y) * width.
+Proof.
+  intros width height y Hlt.
+  assert (height - y = S (height - S y)) by (apply height_iter_step; exact Hlt).
+  rewrite H.
+  rewrite succ_mul_expand.
+  reflexivity.
+Qed.
+
+(** Transitivity of bounds through row processing *)
+Lemma bound_transitivity : forall base row_increment remaining_increment total,
+  row_increment + remaining_increment <= total ->
+  base + row_increment + remaining_increment <= base + total.
+Proof.
+  intros.
+  lia.
+Qed.
+
+(** Decomposing bounds for the IH case *)
+Lemma decompose_row_bound : forall width height y next_label next' next'',
+  y < height ->
+  next' <= next_label + width ->
+  next'' <= next' + (height - S y) * width ->
+  next'' <= next_label + (height - y) * width.
+Proof.
+  intros width height y next_label next' next'' Hlt H1 H2.
+  assert (width + (height - S y) * width = (height - y) * width).
+  { apply split_rows_bound. exact Hlt. }
+  rewrite <- H in *.
+  lia.
+Qed.
+
+(** Edge case when processing the last row *)
+Lemma last_row_bound : forall width,
+  1 * width = width.
+Proof.
+  intros. 
+  apply Nat.mul_1_l.
+Qed.
+
+(** Relationship between height' and S height' bounds *)
+Lemma height_succ_bound_relation : forall width height' y,
+  y <= height' ->
+  (S height' - y) * width = width + (height' - y) * width.
+Proof.
+  intros width height' y Hle.
+  rewrite height_sub_arithmetic.
+  - rewrite succ_mul_expand. reflexivity.
+  - lia.
+Qed.
+
+(** Zero multiplication simplification *)
+Lemma zero_mult_bound : forall width next_label,
+  next_label + 0 * width = next_label.
+Proof.
+  intros.
+  rewrite Nat.mul_0_l.
+  rewrite Nat.add_0_r.
+  reflexivity.
+Qed.
+
+(** When y equals height, we get 0 remaining rows *)
+Lemma no_rows_when_equal : forall height,
+  height - height = 0.
+Proof.
+  intros.
+  apply Nat.sub_diag.
+Qed.
+
+(** Bound preservation through empty processing *)
+Lemma empty_processing_bound : forall next_label,
+  next_label <= next_label + 0.
+Proof.
+  intros.
+  lia.
+Qed.
+
+(** ** 9.9 Decomposing the Main Bound *)
+
+(** Case 1: Empty height *)
+Lemma process_all_rows_bound_empty : forall img adj labels equiv y next_label,
+  let '(_, _, next') := process_all_rows img adj labels equiv y 0 next_label in
+  next' = next_label.
+Proof.
+  intros. reflexivity.
+Qed.
+
+(** Case 2: Out of bounds *)
+Lemma process_all_rows_bound_out : forall img adj labels equiv h next_label,
+  let '(_, _, next') := process_all_rows img adj labels equiv (S h) (S h) next_label in
+  next' = next_label.
+Proof.
+  intros. simpl.
+  assert (S h <? S h = false) by (apply Nat.ltb_irrefl).
+  rewrite H. reflexivity.
+Qed.
+
+(** Case 3: Single row (y = height) *)
+Lemma process_all_rows_bound_single : forall img adj labels equiv h next_label,
+  let '(_, _, next') := process_all_rows img adj labels equiv h (S h) next_label in
+  next' <= next_label + width img.
+Proof.
+  intros. simpl.
+  assert (h <? S h = true) by (apply Nat.ltb_lt; lia).
+  rewrite H.
+  destruct (process_row img adj labels equiv h 0 (width img) next_label) as [[labels' equiv'] next'] eqn:Hrow.
+  assert (S h >= h) by lia.
+  rewrite (process_all_rows_out_of_bounds img adj labels' equiv' (S h) h next' H0).
+  pose proof (process_single_row_bound img adj labels equiv h next_label) as Hbound.
+  rewrite Hrow in Hbound.
+  exact Hbound.
+Qed.
+
+(** Main theorem using the cases *)
+Lemma process_all_rows_increment_bound : forall img adj labels equiv y height next_label,
+  y <= height ->
+  let '(_, _, next') := process_all_rows img adj labels equiv y height next_label in
+  next' <= next_label + (height - y) * width img.
+Proof.
+  intros img adj labels equiv y height.
+  generalize dependent y.
+  generalize dependent labels.
+  generalize dependent equiv.
+  induction height as [|height' IH]; intros.
+  - (* height = 0 *)
+    pose proof (process_all_rows_bound_empty img adj labels equiv y next_label) as H0.
+    destruct (process_all_rows img adj labels equiv y 0 next_label) as [[? ?] next'].
+    rewrite H0.
+    assert (0 - y = 0) by lia.
+    rewrite H1. simpl. lia.
+  - (* height = S height' *)
+    simpl.
+    destruct (y <? S height') eqn:Hlt.
+    + (* y < S height' *)
+      apply Nat.ltb_lt in Hlt.
+      destruct (process_row img adj labels equiv y 0 (width img) next_label) as [[labels' equiv'] next'] eqn:Hrow.
+      destruct (Nat.le_gt_cases (S y) height') as [Hle|Hgt].
+      * (* S y <= height' *)
+        specialize (IH equiv' labels' (S y) next' Hle).
+        destruct (process_all_rows img adj labels' equiv' (S y) height' next') as [[? ?] next''].
+        pose proof (process_single_row_bound img adj labels equiv y next_label) as Hb1.
+        rewrite Hrow in Hb1.
+        (* Case split on y *)
+        destruct y as [|y'].
+        -- (* y = 0 *)
+           simpl. (* This evaluates the match to S height' *)
+           (* Goal: next'' <= next_label + (width img + height' * width img) *)
+           (* IH: next'' <= next' + (height' - 1) * width img *)
+           (* Hb1: next' <= next_label + width img *)
+           assert (width img + (height' - 1) * width img = height' * width img).
+           { destruct height' as [|h'].
+             - (* height' = 0, contradicts Hle: 1 <= 0 *)
+               lia.
+             - (* height' = S h' *)
+               simpl.
+               assert (h' - 0 = h') by apply Nat.sub_0_r.
+               rewrite H0.
+               reflexivity. }
+           rewrite <- H0.
+           lia.
+-- (* y = S y' *)
+           simpl. (* This evaluates the match to height' - y' *)
+           assert (height' - y' = S (height' - S y')).
+           { apply height_iter_step. lia. }
+           rewrite H0.
+           rewrite Nat.mul_succ_l.
+           (* Goal: next'' <= next_label + (width img + (height' - S y') * width img) *)
+           (* IH: next'' <= next' + (height' - S (S y')) * width img *)
+           (* Need to relate height' - S (S y') to height' - S y' *)
+           assert (height' - S (S y') = height' - S y' - 1).
+           { lia. }
+           rewrite H1 in IH.
+           (* Now IH: next'' <= next' + ((height' - S y' - 1) * width img) *)
+           (* We need to show that adding width img gives us what we want *)
+           assert (width img + (height' - S y' - 1) * width img = (height' - S y') * width img).
+           { assert (height' - S y' > 0).
+             { lia. }
+             destruct (height' - S y') as [|n] eqn:E.
+             - lia.
+             - simpl. rewrite Nat.sub_0_r. reflexivity. }
+           rewrite <- H2.
+           rewrite <- Nat.add_assoc.
+           lia.
+* (* S y > height', so y = height' *)
+        assert (Heq: y = height') by lia.
+        subst y.
+        assert (Hge: S height' >= height') by lia.
+        rewrite (process_all_rows_out_of_bounds img adj labels' equiv' (S height') height' next' Hge).
+        (* Need to evaluate the match expression *)
+        assert (Hmatch: (match height' with | 0 => S height' | S l0 => height' - l0 end) = 1).
+        { destruct height' as [|l0].
+          - (* height' = 0 *)
+            simpl. reflexivity.
+          - (* height' = S l0 *)
+            simpl.
+            assert (S l0 - l0 = 1).
+            { clear. induction l0 as [|l0' IH].
+              - reflexivity.
+              - simpl. exact IH. }
+            exact H0. }
+        rewrite Hmatch.
+        rewrite Nat.mul_1_l.
+        pose proof (process_single_row_bound img adj labels equiv height' next_label) as Hb.
+        rewrite Hrow in Hb.
+        exact Hb.
++ (* y >= S height' *)
+      apply Nat.ltb_nlt in Hlt.
+      assert (y = S height') by lia.
+      subst y.
+      assert (height' - height' = 0) by apply Nat.sub_diag.
+      rewrite H0. simpl. lia.
+Qed.
