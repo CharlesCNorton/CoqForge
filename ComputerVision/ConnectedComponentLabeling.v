@@ -2914,4 +2914,111 @@ Proof.
         destruct Hfilter as [Hpixel [Hadj Hnot_visited]].
         exists c'. split; [exact Hpixel | split; [exact Hadj | exact Hnot_visited]].
 Qed.
+
+(** If we can reach from c1 to c2 in one step, they are connected *)
+Lemma reachable_one_step_connected : forall img adj c1 c2,
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  adj c1 c2 = true ->
+  connected (bounded_to_simple img) adj c1 c2.
+Proof.
+  intros img adj c1 c2 H1 H2 Hadj.
+  unfold bounded_to_simple.
+  apply adjacent_implies_connected; assumption.
+Qed.
+
+(** All nodes in frontier are reachable from the start *)
+Lemma reachable_from_frontier_connected : forall img adj visited frontier target fuel c_start c,
+  (forall a b, adj a b = adj b a) ->
+  get_pixel img c_start = true ->
+  (forall c', In c' frontier -> connected (bounded_to_simple img) adj c_start c') ->
+  In c frontier ->
+  reachable_from img adj visited frontier target fuel = true ->
+  connected (bounded_to_simple img) adj c_start c.
+Proof.
+  intros img adj visited frontier target fuel c_start c adj_sym Hstart Hfront Hin Hreach.
+  apply Hfront. exact Hin.
+Qed.
+
+(** If target is in frontier, we found it *)
+Lemma reachable_from_found : forall img adj visited frontier target fuel,
+  fuel > 0 ->
+  existsb (coord_eqb target) frontier = true ->
+  reachable_from img adj visited frontier target fuel = true.
+Proof.
+  intros img adj visited frontier target [|fuel'] Hfuel H.
+  - simpl in Hfuel. lia.
+  - simpl. rewrite H. reflexivity.
+Qed.
+
+(** Elements produced by flat_map filter are adjacent to elements in frontier *)
+Lemma flat_map_filter_adjacent : forall img (adj : coord -> coord -> bool) visited frontier c',
+  In c' (flat_map 
+          (fun c => filter 
+            (fun c' => andb (get_pixel img c') 
+                           (andb (adj c c') 
+                                 (negb (existsb (coord_eqb c') visited))))
+            (image_coords img)) 
+          frontier) ->
+  exists c, In c frontier /\ adj c c' = true /\ get_pixel img c' = true.
+Proof.
+  intros img adj visited frontier c' H.
+  apply in_flat_map in H.
+  destruct H as [c [Hc_in Hc'_filter]].
+  exists c. split. exact Hc_in.
+  apply filter_In in Hc'_filter.
+  destruct Hc'_filter as [_ Hprop].
+  rewrite !andb_true_iff in Hprop.
+  destruct Hprop as [Hpix [Hadj _]].
+  split; assumption.
+Qed.
+
+(** If existsb returns true, there's an element satisfying the predicate *)
+Lemma existsb_coord_eqb : forall target l,
+  existsb (coord_eqb target) l = true ->
+  In target l.
+Proof.
+  intros target l H.
+  apply existsb_exists in H.
+  destruct H as [c [Hin Heq]].
+  apply coord_eqb_true_iff in Heq.
+  subst c. exact Hin.
+Qed.
+
+(** One step of adjacency preserves connectivity *)
+Lemma connected_step_preserves : forall img adj c_start c c',
+  (forall a b, adj a b = adj b a) ->
+  connected (bounded_to_simple img) adj c_start c ->
+  get_pixel img c' = true ->
+  adj c c' = true ->
+  connected (bounded_to_simple img) adj c_start c'.
+Proof.
+  intros img adj c_start c c' adj_sym Hconn Hpix Hadj.
+  unfold bounded_to_simple in *.
+  apply connected_step with c; assumption.
+Qed.
+
+(** If all elements in a list are connected to start, and we extend by adjacency, 
+    new elements are also connected *)
+Lemma frontier_expansion_connected : forall img adj c_start frontier,
+  (forall a b, adj a b = adj b a) ->
+  (forall c, In c frontier -> connected (bounded_to_simple img) adj c_start c) ->
+  forall c', In c' (flat_map 
+                     (fun c => filter 
+                       (fun c' => andb (get_pixel img c') 
+                                      (andb (adj c c') 
+                                            (negb (existsb (coord_eqb c') []))))
+                       (image_coords img)) 
+                     frontier) ->
+  connected (bounded_to_simple img) adj c_start c'.
+Proof.
+  intros img adj c_start frontier adj_sym Hfront c' H.
+  apply flat_map_filter_adjacent in H.
+  destruct H as [c [Hc_in [Hadj Hpix]]].
+  apply connected_step_preserves with c.
+  - exact adj_sym.
+  - apply Hfront. exact Hc_in.
+  - exact Hpix.
+  - exact Hadj.
+Qed.
  
