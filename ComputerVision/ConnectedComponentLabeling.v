@@ -2436,47 +2436,78 @@ Proof.
   exact H.
 Qed.
 
-(** * Section 10: Finite Image Properties
-    
-    This section formalizes the finiteness properties of bounded images.
-    We prove that bounded images have finitely many foreground pixels,
-    finitely many possible adjacencies, and that connectivity is decidable. *)
+(** ** 9.11 Convenient Forms of the Main Bound *)
 
-(** ** 10.1 Bounded Coordinates *)
-
-(** Generate all coordinates up to width and height *)
-Fixpoint all_coords_up_to (w h : nat) : list coord :=
-  match h with
-  | 0 => []
-  | S h' => map (fun x => (x, h')) (seq 0 w) ++ all_coords_up_to w h'
-  end.
-
-(** The set of coordinates within image bounds *)
-Definition coords_within (img : bounded_image) : list coord :=
-  all_coords_up_to (width img) (height img).
-
-(** Helper lemma for all_coords_up_to *)
-Lemma all_coords_up_to_length : forall w h,
-  length (all_coords_up_to w h) = w * h.
+(** Specialized for processing from the beginning *)
+Theorem process_all_rows_from_start : forall img adj labels equiv next_label,
+  let '(_, _, next') := process_all_rows img adj labels equiv 0 (height img) next_label in
+  next' <= next_label + height img * width img.
 Proof.
-  intros w h.
-  induction h as [|h' IH].
-  - simpl. rewrite Nat.mul_0_r. reflexivity.
-  - simpl. rewrite app_length, map_length, seq_length.
-    (* Goal: w + length (all_coords_up_to w h') = w * S h' *)
-    assert (E: w + w * h' = w * S h').
-    { rewrite Nat.add_comm.
-      rewrite <- Nat.mul_succ_r.
-      reflexivity. }
-    rewrite <- IH.
-    exact E.
+  intros img adj labels equiv next_label.
+  pose proof (process_all_rows_increment_bound img adj labels equiv 0 (height img) next_label) as H.
+  assert (0 <= height img) by lia.
+  specialize (H H0).
+  assert (height img - 0 = height img) by lia.
+  rewrite H1 in H.
+  exact H.
 Qed.
 
-(** coords_within generates the expected number of coordinates *)
-Lemma coords_within_length : forall img,
-  length (coords_within img) = width img * height img.
+(** Computational form for exact pixel count *)
+Theorem first_pass_bound_pixels : forall img adj,
+  let '(_, _, max_label) := first_pass img adj in
+  max_label <= 1 + (height img * width img).
 Proof.
-  intros img.
-  unfold coords_within.
-  apply all_coords_up_to_length.
+  intros img adj.
+  unfold first_pass.
+  apply process_all_rows_from_start.
+Qed.
+
+(** Bound in terms of total pixels *)
+Definition total_pixels (img : bounded_image) : nat :=
+  height img * width img.
+
+Theorem first_pass_bound_total_pixels : forall img adj,
+  let '(_, _, max_label) := first_pass img adj in
+  max_label <= 1 + total_pixels img.
+Proof.
+  intros img adj.
+  unfold total_pixels.
+  apply first_pass_bound_pixels.
+Qed.
+
+(** Incremental bound - processing k rows adds at most k * width labels *)
+Theorem process_rows_incremental : forall img adj labels equiv y k next_label,
+  y + k <= height img ->
+  let '(_, _, next') := process_all_rows img adj labels equiv y (y + k) next_label in
+  next' <= next_label + k * width img.
+Proof.
+  intros img adj labels equiv y k next_label Hbound.
+  pose proof (process_all_rows_increment_bound img adj labels equiv y (y + k) next_label) as H.
+  assert (y <= y + k) by lia.
+  specialize (H H0).
+  assert ((y + k) - y = k) by lia.
+  rewrite H1 in H.
+  exact H.
+Qed.
+
+(** Useful for step-by-step reasoning *)
+Corollary single_pixel_adds_at_most_one : forall img adj labels equiv c next_label,
+  let '(_, _, next') := process_pixel img adj labels equiv c next_label in
+  next' - next_label <= 1.
+Proof.
+  intros.
+  pose proof (process_pixel_increment_bound img adj labels equiv c next_label) as H.
+  destruct (process_pixel img adj labels equiv c next_label) as [[? ?] next'].
+  lia.
+Qed.
+
+(** Row processing adds at most width labels *)
+Corollary single_row_adds_at_most_width : forall img adj labels equiv y next_label,
+  let '(_, _, next') := process_row img adj labels equiv y 0 (width img) next_label in
+  next' - next_label <= width img.
+Proof.
+  intros.
+  pose proof (process_single_row_bound img adj labels equiv y next_label) as H.
+  destruct (process_row img adj labels equiv y 0 (width img) next_label) as [[? ?] next'].
+  lia.
 Qed.
