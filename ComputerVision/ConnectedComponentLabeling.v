@@ -2416,3 +2416,67 @@ Proof.
       assert (height' - height' = 0) by apply Nat.sub_diag.
       rewrite H0. simpl. lia.
 Qed.
+
+(** ** 9.10 Completing Section 8's First Pass Bound *)
+
+(** first_pass generates at most width * height labels *)
+Lemma first_pass_label_bound : forall img adj,
+  let '(_, _, max_label) := first_pass img adj in
+  max_label <= 1 + width img * height img.
+Proof.
+  intros img adj.
+  unfold first_pass.
+  pose proof (process_all_rows_increment_bound img adj empty_labeling empty_equiv 0 (height img) 1) as H.
+  assert (0 <= height img) by lia.
+  specialize (H H0).
+  destruct (process_all_rows img adj empty_labeling empty_equiv 0 (height img) 1) as [[? ?] max_label].
+  assert (height img - 0 = height img) by lia.
+  rewrite H1 in H.
+  rewrite Nat.mul_comm.
+  exact H.
+Qed.
+
+(** * Section 10: Finite Image Properties
+    
+    This section formalizes the finiteness properties of bounded images.
+    We prove that bounded images have finitely many foreground pixels,
+    finitely many possible adjacencies, and that connectivity is decidable. *)
+
+(** ** 10.1 Bounded Coordinates *)
+
+(** Generate all coordinates up to width and height *)
+Fixpoint all_coords_up_to (w h : nat) : list coord :=
+  match h with
+  | 0 => []
+  | S h' => map (fun x => (x, h')) (seq 0 w) ++ all_coords_up_to w h'
+  end.
+
+(** The set of coordinates within image bounds *)
+Definition coords_within (img : bounded_image) : list coord :=
+  all_coords_up_to (width img) (height img).
+
+(** Helper lemma for all_coords_up_to *)
+Lemma all_coords_up_to_length : forall w h,
+  length (all_coords_up_to w h) = w * h.
+Proof.
+  intros w h.
+  induction h as [|h' IH].
+  - simpl. rewrite Nat.mul_0_r. reflexivity.
+  - simpl. rewrite app_length, map_length, seq_length.
+    (* Goal: w + length (all_coords_up_to w h') = w * S h' *)
+    assert (E: w + w * h' = w * S h').
+    { rewrite Nat.add_comm.
+      rewrite <- Nat.mul_succ_r.
+      reflexivity. }
+    rewrite <- IH.
+    exact E.
+Qed.
+
+(** coords_within generates the expected number of coordinates *)
+Lemma coords_within_length : forall img,
+  length (coords_within img) = width img * height img.
+Proof.
+  intros img.
+  unfold coords_within.
+  apply all_coords_up_to_length.
+Qed.
