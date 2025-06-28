@@ -3021,4 +3021,36 @@ Proof.
   - exact Hpix.
   - exact Hadj.
 Qed.
- 
+
+(** Key invariant: frontier contains only foreground pixels *)
+Lemma reachable_from_frontier_foreground : forall img adj visited frontier target fuel,
+  (forall c, In c frontier -> get_pixel img c = true) ->
+  reachable_from img adj visited frontier target fuel = true ->
+  get_pixel img target = true.
+Proof.
+  intros img adj visited frontier target fuel.
+  revert visited frontier target.
+  induction fuel as [|fuel' IH]; intros visited frontier target Hfront H.
+  - simpl in H. discriminate.
+  - simpl in H.
+    destruct (existsb (coord_eqb target) frontier) eqn:Htarget.
+    + (* target in frontier *)
+      apply existsb_coord_eqb in Htarget.
+      apply Hfront. exact Htarget.
+    + (* recurse on expanded frontier *)
+      match type of H with
+      | context[match ?expanded with | [] => _ | _ => _ end] =>
+        destruct expanded as [|c' rest] eqn:Hexpanded
+      end.
+      * simpl in H. discriminate.
+      * apply IH with (visited ++ frontier) (c' :: rest).
+        -- intros c Hin.
+           rewrite <- Hexpanded in Hin.
+           apply in_flat_map in Hin.
+           destruct Hin as [c0 [_ Hfilter]].
+           apply filter_In in Hfilter.
+           destruct Hfilter as [_ Hprop].
+           rewrite andb_true_iff in Hprop.
+           exact (proj1 Hprop).
+        -- exact H.
+Qed.
