@@ -4178,3 +4178,154 @@ Proof.
            ++ simpl. reflexivity.
            ++ discriminate.
 Qed.
+
+Lemma path_length_bound : forall img path,
+  NoDup path ->
+  (forall c, In c path -> In c (image_coords img)) ->
+  length path <= width img * height img.
+Proof.
+  intros img path Hnodup Hall.
+  assert (incl path (image_coords img)).
+  { unfold incl. exact Hall. }
+  assert (length path <= length (image_coords img)).
+  { apply NoDup_incl_length.
+    - exact Hnodup.
+    - exact H. }
+  rewrite image_coords_length in H0.
+  exact H0.
+Qed.
+
+Lemma valid_path_in_bounds : forall img path,
+  valid_path (bounded_to_simple img) adjacent_4 path = true ->
+  forall c, In c path -> In c (image_coords img).
+Proof.
+  intros img path Hvalid c Hin.
+  unfold valid_path in Hvalid.
+  rewrite andb_true_iff in Hvalid.
+  destruct Hvalid as [Hadj Hall].
+  apply image_coords_iff_in_bounds.
+  unfold bounded_to_simple, get_pixel in Hall.
+  induction path as [|p ps IH].
+  - simpl in Hin. contradiction.
+  - simpl in Hin. destruct Hin as [Heq | Hin].
+    + subst p. simpl in Hall.
+      rewrite andb_true_iff in Hall.
+      destruct Hall as [Hp _].
+      destruct (in_bounds img c) eqn:E.
+      * unfold in_bounds in E.
+        rewrite andb_true_iff in E.
+        destruct E as [Hx Hy].
+        apply Nat.ltb_lt in Hx, Hy.
+        split; assumption.
+      * discriminate.
+    + simpl in Hall.
+      rewrite andb_true_iff in Hall.
+      destruct Hall as [_ Hall'].
+      apply IH.
+      * (* Need to extract adjacency for ps *)
+        destruct ps as [|q qs].
+        -- simpl in Hin. contradiction.
+        -- simpl in Hadj.
+           rewrite andb_true_iff in Hadj.
+           exact (proj2 Hadj).
+      * exact Hall'.
+      * exact Hin.
+Qed.
+
+Lemma valid_path_in_bounds_general : forall img adj path,
+  valid_path (bounded_to_simple img) adj path = true ->
+  forall c, In c path -> In c (image_coords img).
+Proof.
+  intros img adj path Hvalid c Hin.
+  unfold valid_path in Hvalid.
+  rewrite andb_true_iff in Hvalid.
+  destruct Hvalid as [Hadj Hall].
+  apply image_coords_iff_in_bounds.
+  unfold bounded_to_simple, get_pixel in Hall.
+  induction path as [|p ps IH].
+  - simpl in Hin. contradiction.
+  - simpl in Hin. destruct Hin as [Heq | Hin].
+    + subst p. simpl in Hall.
+      rewrite andb_true_iff in Hall.
+      destruct Hall as [Hp _].
+      destruct (in_bounds img c) eqn:E.
+      * unfold in_bounds in E.
+        rewrite andb_true_iff in E.
+        destruct E as [Hx Hy].
+        apply Nat.ltb_lt in Hx, Hy.
+        split; assumption.
+      * discriminate.
+    + simpl in Hall.
+      rewrite andb_true_iff in Hall.
+      destruct Hall as [_ Hall'].
+      apply IH.
+      * destruct ps as [|q qs].
+        -- simpl in Hin. contradiction.
+        -- simpl in Hadj.
+           rewrite andb_true_iff in Hadj.
+           exact (proj2 Hadj).
+      * exact Hall'.
+      * exact Hin.
+Qed.
+
+Lemma reachable_from_step_progress : forall img adj visited frontier target fuel,
+  fuel > 0 ->
+  frontier <> [] ->
+  existsb (coord_eqb target) frontier = false ->
+  (forall c, In c frontier -> get_pixel img c = true) ->
+  reachable_from img adj visited frontier target fuel = true ->
+  reachable_from img adj (visited ++ frontier) 
+    (flat_map (fun c => filter 
+                (fun c' => andb (get_pixel img c') 
+                              (andb (adj c c') 
+                                    (negb (existsb (coord_eqb c') visited))))
+                (image_coords img)) 
+      frontier) target (fuel - 1) = true.
+Proof.
+  intros img adj visited frontier target [|fuel'] Hfuel Hnonempty Hnot_in Hfront H.
+  - simpl in Hfuel. lia.
+  - (* fuel = S fuel', so fuel - 1 = fuel' *)
+    assert (S fuel' - 1 = fuel') by lia.
+    rewrite H0.
+    unfold reachable_from in H at 1.
+    fold reachable_from in H.
+    rewrite Hnot_in in H.
+    remember (flat_map _ frontier) as new_frontier.
+    destruct new_frontier.
+    + discriminate.
+    + exact H.
+Qed.
+
+Lemma frontier_expansion_reaches : forall img adj start visited frontier target,
+  (forall a b, adj a b = adj b a) ->
+  (forall c, In c frontier -> connected (bounded_to_simple img) adj start c) ->
+  (forall c, In c frontier -> get_pixel img c = true) ->
+  connected (bounded_to_simple img) adj start target ->
+  get_pixel img target = true ->
+  (exists c, In c frontier /\ adj c target = true) ->
+  existsb (coord_eqb target) visited = false ->
+  In target (flat_map (fun c => filter 
+                         (fun c' => andb (get_pixel img c') 
+                                       (andb (adj c c') 
+                                             (negb (existsb (coord_eqb c') visited))))
+                         (image_coords img)) 
+                      frontier).
+Proof.
+  intros img adj start visited frontier target adj_sym Hfront_conn Hfront_pix Htarget_conn Htarget_pix Hadj Hnot_visited.
+  destruct Hadj as [c [Hc_in Hadj]].
+  apply in_flat_map.
+  exists c. split.
+  - exact Hc_in.
+  - apply filter_In. split.
+    + apply image_coords_iff_in_bounds.
+      unfold get_pixel in Htarget_pix.
+      destruct (in_bounds img target) eqn:E.
+      * unfold in_bounds in E.
+        rewrite andb_true_iff in E.
+        destruct E as [Hx Hy].
+        apply Nat.ltb_lt in Hx, Hy.
+        split; assumption.
+      * discriminate.
+    + rewrite Htarget_pix, Hadj, Hnot_visited.
+      reflexivity.
+Qed.
