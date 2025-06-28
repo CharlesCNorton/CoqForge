@@ -2691,3 +2691,54 @@ Proof.
       + lia. }
   apply H.
 Qed.
+
+(** ** 10.4 Adjacency Finiteness *)
+
+(** Cartesian product of two lists *)
+Fixpoint cartesian_product {A B : Type} (l1 : list A) (l2 : list B) : list (A * B) :=
+  match l1 with
+  | [] => []
+  | a :: l1' => map (fun b => (a, b)) l2 ++ cartesian_product l1' l2
+  end.
+
+(** All possible adjacencies in an image *)
+Definition all_adjacencies (img : bounded_image) (adj : coord -> coord -> bool) : list (coord * coord) :=
+  filter (fun p : coord * coord => let (c1, c2) := p in adj c1 c2)
+         (cartesian_product (image_coords img) (image_coords img)).
+
+(** Helper: If a and b are in lists, then (a,b) is in their cartesian product *)
+Lemma in_cartesian_product : forall {A B : Type} (a : A) (b : B) (l1 : list A) (l2 : list B),
+  In a l1 -> In b l2 -> In (a, b) (cartesian_product l1 l2).
+Proof.
+  intros A B a b l1 l2 H1 H2.
+  induction l1 as [|x l1' IH].
+  - simpl in H1. contradiction.
+  - simpl in H1. destruct H1 as [H1 | H1].
+    + (* a = x *)
+      subst x. simpl.
+      apply in_or_app. left.
+      apply in_map. exact H2.
+    + (* a in l1' *)
+      simpl.
+      apply in_or_app. right.
+      apply IH. exact H1.
+Qed.
+
+(** Adjacency list contains all adjacent pairs *)
+Lemma all_adjacencies_complete : forall img adj c1 c2,
+  coord_x c1 < width img -> coord_y c1 < height img ->
+  coord_x c2 < width img -> coord_y c2 < height img ->
+  adj c1 c2 = true ->
+  In (c1, c2) (all_adjacencies img adj).
+Proof.
+  intros img adj c1 c2 Hx1 Hy1 Hx2 Hy2 Hadj.
+  unfold all_adjacencies.
+  apply filter_In.
+  split.
+  - (* Need to show (c1, c2) is in cartesian product *)
+    apply in_cartesian_product.
+    + apply image_coords_iff_in_bounds. split; assumption.
+    + apply image_coords_iff_in_bounds. split; assumption.
+  - (* adj c1 c2 = true *)
+    exact Hadj.
+Qed.
