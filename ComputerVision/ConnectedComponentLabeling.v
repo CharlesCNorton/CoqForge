@@ -4970,3 +4970,377 @@ Proof.
   - reflexivity.
   - reflexivity.
 Qed.
+
+(** Key insight: In row-by-row, left-to-right processing, if a pixel was
+    processed before the current pixel and they are adjacent, it must be
+    in a specific position *)
+Lemma processed_before_position : forall c c',
+  (* c' was processed before c in row-by-row order *)
+  (coord_y c' < coord_y c \/ 
+   (coord_y c' = coord_y c /\ coord_x c' < coord_x c)) ->
+  (* If they are 4-adjacent *)
+  adjacent_4 c c' = true ->
+  (* Then c' must be left or up from c *)
+  (c' = (coord_x c - 1, coord_y c) /\ coord_x c > 0) \/
+  (c' = (coord_x c, coord_y c - 1) /\ coord_y c > 0).
+Proof.
+  intros c c' Hbefore Hadj.
+  unfold adjacent_4 in Hadj.
+  destruct c as [x y], c' as [x' y'].
+  simpl in *.
+  destruct (x' =? x) eqn:Heqx.
+  - (* Same x coordinate *)
+    apply Nat.eqb_eq in Heqx. subst x'.
+    (* Now Hadj simplifies since x =? x = true *)
+    rewrite Nat.eqb_refl in Hadj.
+    apply Nat.eqb_eq in Hadj.
+    (* Hadj : abs_diff y y' = 1 *)
+    assert (abs_diff y' y = 1).
+    { rewrite abs_diff_sym. exact Hadj. }
+    unfold abs_diff in H.
+    destruct (y' <=? y) eqn:Hle.
+    + (* y' <= y and |y' - y| = 1, so y' = y - 1 *)
+      apply Nat.leb_le in Hle.
+      assert (y - y' = 1) by exact H.
+      assert (y' = y - 1) by lia.
+      right. split.
+      * f_equal. exact H1.
+      * lia.
+    + (* y' > y, but this contradicts "processed before" *)
+      apply Nat.leb_nle in Hle.
+      assert (y' - y = 1) by exact H.
+      assert (y' = y + 1) by lia.
+      subst y'.
+      destruct Hbefore as [Hlt | [Heq Hx_lt]].
+      * lia.
+      * lia.
+  - (* Different x coordinates *)
+    (* Since x' =? x = false, we know x =? x' = false too *)
+    assert (x =? x' = false).
+    { rewrite Nat.eqb_sym. exact Heqx. }
+    rewrite H in Hadj.
+    apply andb_prop in Hadj.
+    destruct Hadj as [Heqy H1].
+    apply Nat.eqb_eq in Heqy. subst y'.
+    apply Nat.eqb_eq in H1.
+    assert (abs_diff x' x = 1).
+    { rewrite abs_diff_sym. exact H1. }
+    unfold abs_diff in H0.
+    destruct (x' <=? x) eqn:Hle.
+    + (* x' <= x and |x' - x| = 1, so x' = x - 1 *)
+      apply Nat.leb_le in Hle.
+      assert (x - x' = 1) by exact H0.
+      assert (x' = x - 1) by lia.
+      left. split.
+      * f_equal. exact H3.
+      * lia.
+    + (* x' > x, but this contradicts "processed before" with same y *)
+      apply Nat.leb_nle in Hle.
+      assert (x' - x = 1) by exact H0.
+      assert (x' = x + 1) by lia.
+      destruct Hbefore as [Hlt | [Heq Hx_lt]].
+      * lia.
+      * lia.
+Qed.
+
+(** When the adjacent previously-processed neighbor is the left neighbor *)
+Lemma process_pixel_respects_left_neighbor : forall img adj labels equiv c next_label,
+  get_pixel img c = true ->
+  coord_x c > 0 ->
+  adj (coord_x c - 1, coord_y c) c = true ->
+  labels (coord_x c - 1, coord_y c) > 0 ->
+  next_label > 0 ->
+  let '(labels', equiv', _) := process_pixel img adj labels equiv c next_label in
+  labels' c = labels (coord_x c - 1, coord_y c) \/ 
+  (labels' c > 0 /\ equiv' (labels' c) (labels (coord_x c - 1, coord_y c)) = true).
+Proof.
+  intros img adj labels equiv c next_label Hc_fg Hx_pos Hadj Hleft_labeled Hnext_pos.
+  unfold process_pixel.
+  rewrite Hc_fg.
+  assert (coord_x c =? 0 = false).
+  { apply Nat.eqb_neq. lia. }
+  rewrite H.
+  simpl.
+  rewrite Hadj.
+  destruct (labels (coord_x c - 1, coord_y c)) eqn:Eleft.
+  - (* Contradiction: Hleft_labeled is now 0 > 0 *)
+    lia.
+  - (* Left label = S n *)
+    destruct (coord_y c =? 0) eqn:Hy0.
+    + (* No up neighbor *)
+      simpl. left. rewrite label_update_same. reflexivity.
+    + (* Check up neighbor *)
+      simpl.
+      destruct (adj (coord_x c, coord_y c - 1) c) eqn:Hadj_up.
+      * destruct (labels (coord_x c, coord_y c - 1)) eqn:Eup.
+        -- (* Up = 0, use left *)
+           simpl. left. rewrite label_update_same. reflexivity.
+        -- (* Up = S n0, use min or add equiv *)
+           destruct (Nat.eqb (S n) (S n0)) eqn:Heq.
+           ++ (* Same label *)
+              simpl. left. rewrite label_update_same.
+              apply Nat.eqb_eq in Heq.
+              injection Heq as Heq'.
+              subst n0.
+              f_equal.
+              apply Nat.min_idempotent.
+           ++ (* Different labels *)
+              simpl.
+              assert (n =? n0 = false).
+              { apply Nat.eqb_neq. intro Heq'. 
+                subst n0. rewrite Nat.eqb_refl in Heq. discriminate. }
+              rewrite H0.
+              rewrite label_update_same.
+              (* Now we need to determine which case based on the order *)
+              destruct (n <=? n0) eqn:Hle_n.
+              ** (* n <= n0, so Nat.min n n0 = n *)
+                 left.
+                 f_equal.
+                 apply Nat.leb_le in Hle_n.
+                 apply Nat.min_l.
+                 exact Hle_n.
+              ** (* n > n0, so Nat.min n n0 = n0 *)
+                 right.
+                 split.
+                 --- (* S (Nat.min n n0) > 0 *)
+                     lia.
+                 --- (* Need to show equiv' relationship *)
+                     (* We have labels' c = S (Nat.min n n0) = S n0 *)
+                     assert (Nat.min n n0 = n0).
+                     { apply Nat.leb_nle in Hle_n.
+                       apply Nat.min_r. lia. }
+                     rewrite H1.
+                     (* add_equiv equiv (S n) (S n0) (S n0) (S n) = true *)
+                     apply add_equiv_creates_sym.
+      * (* Up not adjacent *)
+        simpl. left. rewrite label_update_same. reflexivity.
+Qed.
+
+(** When the adjacent previously-processed neighbor is the up neighbor *)
+Lemma process_pixel_respects_up_neighbor : forall img adj labels equiv c next_label,
+  get_pixel img c = true ->
+  coord_y c > 0 ->
+  adj (coord_x c, coord_y c - 1) c = true ->
+  labels (coord_x c, coord_y c - 1) > 0 ->
+  next_label > 0 ->
+  let '(labels', equiv', _) := process_pixel img adj labels equiv c next_label in
+  labels' c = labels (coord_x c, coord_y c - 1) \/ 
+  (labels' c > 0 /\ equiv' (labels' c) (labels (coord_x c, coord_y c - 1)) = true).
+Proof.
+  intros img adj labels equiv c next_label Hc_fg Hy_pos Hadj Hup_labeled Hnext_pos.
+  unfold process_pixel.
+  rewrite Hc_fg.
+  destruct (coord_x c =? 0) eqn:Hx0.
+  - (* x = 0: no left neighbor *)
+    assert (coord_y c =? 0 = false).
+    { apply Nat.eqb_neq. lia. }
+    rewrite H.
+    simpl.
+    rewrite Hadj.
+    destruct (labels (coord_x c, coord_y c - 1)) eqn:Eup.
+    + (* Contradiction: Hup_labeled is now 0 > 0 *)
+      lia.
+    + (* Up label = S n *)
+      simpl. left. rewrite label_update_same. reflexivity.
+  - (* x > 0: check left neighbor *)
+    simpl.
+    destruct (adj (coord_x c - 1, coord_y c) c) eqn:Hadj_left.
+    + destruct (labels (coord_x c - 1, coord_y c)) eqn:Eleft.
+      * (* Left = 0 *)
+        assert (coord_y c =? 0 = false).
+        { apply Nat.eqb_neq. lia. }
+        rewrite H.
+        simpl.
+        rewrite Hadj.
+        destruct (labels (coord_x c, coord_y c - 1)) eqn:Eup.
+        -- (* Contradiction *)
+           lia.
+        -- (* Up label = S n *)
+           simpl. left. rewrite label_update_same. reflexivity.
+      * (* Left = S n *)
+        assert (coord_y c =? 0 = false).
+        { apply Nat.eqb_neq. lia. }
+        rewrite H.
+        simpl.
+        rewrite Hadj.
+        destruct (labels (coord_x c, coord_y c - 1)) eqn:Eup.
+        -- (* Contradiction *)
+           lia.
+        -- (* Both labeled: Left = S n, Up = S n0 *)
+           destruct (Nat.eqb (S n) (S n0)) eqn:Heq.
+           ++ (* Same label *)
+              simpl. left. rewrite label_update_same.
+              apply Nat.eqb_eq in Heq.
+              injection Heq as Heq'.
+              subst n0.
+              f_equal.
+              apply Nat.min_idempotent.
+           ++ (* Different labels *)
+              simpl.
+              assert (n =? n0 = false).
+              { apply Nat.eqb_neq. intro Heq'. 
+                subst n0. rewrite Nat.eqb_refl in Heq. discriminate. }
+              rewrite H0.
+              rewrite label_update_same.
+              (* Now we need to determine which case based on the order *)
+              destruct (n <=? n0) eqn:Hle_n.
+              ** (* n <= n0, so Nat.min n n0 = n, but we want relation with up = S n0 *)
+                 right.
+                 split.
+                 --- (* S (Nat.min n n0) > 0 *)
+                     lia.
+                 --- (* Need to show equiv' relationship *)
+                     assert (Nat.min n n0 = n).
+                     { apply Nat.leb_le in Hle_n. apply Nat.min_l. exact Hle_n. }
+                     rewrite H1.
+                     (* add_equiv equiv (S n) (S n0) (S n) (S n0) = true *)
+                     apply add_equiv_creates.
+              ** (* n > n0, so Nat.min n n0 = n0 *)
+                 left.
+                 f_equal.
+                 apply Nat.leb_nle in Hle_n.
+                 apply Nat.min_r.
+                 lia.
+    + (* Left not adjacent *)
+      assert (coord_y c =? 0 = false).
+      { apply Nat.eqb_neq. lia. }
+      rewrite H.
+      simpl.
+      rewrite Hadj.
+      destruct (labels (coord_x c, coord_y c - 1)) eqn:Eup.
+      * (* Contradiction *)
+        lia.
+      * (* Up label = S n *)
+        simpl. left. rewrite label_update_same. reflexivity.
+Qed.
+
+(** When processing a pixel with 4-adjacency, if it has an adjacent previously-processed neighbor,
+    they get related labels *)
+Lemma process_pixel_respects_processed_adjacency_4 : forall img labels equiv c c' next_label,
+  get_pixel img c = true ->
+  get_pixel img c' = true ->
+  adjacent_4 c c' = true ->
+  labels c' > 0 ->
+  next_label > 0 ->
+  (* c' was processed before c *)
+  (coord_y c' < coord_y c \/ (coord_y c' = coord_y c /\ coord_x c' < coord_x c)) ->
+  (* After processing c *)
+  let '(labels', equiv', _) := process_pixel img adjacent_4 labels equiv c next_label in
+  (* Either same label or marked equivalent *)
+  labels' c = labels c' \/ 
+  (labels' c > 0 /\ equiv' (labels' c) (labels c') = true).
+Proof.
+  intros img labels equiv c c' next_label Hc_fg Hc'_fg Hadj Hc'_labeled Hnext_pos Hbefore.
+  
+  (* By processed_before_position, c' must be left or up from c *)
+  pose proof (processed_before_position c c' Hbefore Hadj) as Hpos.
+  destruct Hpos as [[Heq_left Hx_pos] | [Heq_up Hy_pos]].
+  
+  - (* c' is the left neighbor *)
+    subst c'.
+    (* We need adjacent_4 (coord_x c - 1, coord_y c) c = true *)
+    assert (adjacent_4 (coord_x c - 1, coord_y c) c = true).
+    { rewrite adjacent_4_sym. exact Hadj. }
+    apply (process_pixel_respects_left_neighbor img adjacent_4 labels equiv c next_label).
+    + exact Hc_fg.
+    + exact Hx_pos.
+    + exact H.
+    + exact Hc'_labeled.
+    + exact Hnext_pos.
+    
+  - (* c' is the up neighbor *)
+    subst c'.
+    (* We need adjacent_4 (coord_x c, coord_y c - 1) c = true *)
+    assert (adjacent_4 (coord_x c, coord_y c - 1) c = true).
+    { rewrite adjacent_4_sym. exact Hadj. }
+    apply (process_pixel_respects_up_neighbor img adjacent_4 labels equiv c next_label).
+    + exact Hc_fg.
+    + exact Hy_pos.
+    + exact H.
+    + exact Hc'_labeled.
+    + exact Hnext_pos.
+Qed.
+
+(** Equivalence table only grows (monotonicity) *)
+Lemma add_equiv_monotone : forall e l1 l2 a b,
+  e a b = true -> add_equiv e l1 l2 a b = true.
+Proof.
+  intros e l1 l2 a b H.
+  unfold add_equiv.
+  rewrite H.
+  reflexivity.
+Qed.
+
+(** process_pixel preserves existing equivalences *)
+Lemma process_pixel_preserves_equiv : forall img adj labels equiv c next_label labels' equiv' next',
+  process_pixel img adj labels equiv c next_label = (labels', equiv', next') ->
+  forall a b, equiv a b = true -> equiv' a b = true.
+Proof.
+  intros img adj labels equiv c next_label labels' equiv' next' Heq a b H.
+  unfold process_pixel in Heq.
+  destruct (get_pixel img c) eqn:Hpix.
+  - (* get_pixel img c = true *)
+    destruct (coord_x c =? 0) eqn:Hx0.
+    + (* x = 0 *)
+      destruct (coord_y c =? 0) eqn:Hy0.
+      * (* x = 0, y = 0 *)
+        injection Heq as <- <- <-.
+        simpl. exact H.
+      * (* x = 0, y > 0 *)
+        simpl in Heq.
+        destruct (adj (coord_x c, coord_y c - 1) c) eqn:Hadj.
+        -- destruct (labels (coord_x c, coord_y c - 1)) eqn:Hlabel.
+           ++ injection Heq as <- <- <-. simpl. exact H.
+           ++ injection Heq as <- <- <-. simpl. exact H.
+        -- injection Heq as <- <- <-. simpl. exact H.
+    + (* x > 0 *)
+      simpl in Heq.
+      destruct (adj (coord_x c - 1, coord_y c) c) eqn:Hadj_left.
+      * destruct (labels (coord_x c - 1, coord_y c)) eqn:Hlabel_left.
+        -- (* left label = 0 *)
+           destruct (coord_y c =? 0) eqn:Hy0.
+           ++ injection Heq as <- <- <-. simpl. exact H.
+           ++ simpl in Heq.
+              destruct (adj (coord_x c, coord_y c - 1) c) eqn:Hadj_up.
+              ** destruct (labels (coord_x c, coord_y c - 1)) eqn:Hlabel_up.
+                 --- injection Heq as <- <- <-. simpl. exact H.
+                 --- injection Heq as <- <- <-. simpl. exact H.
+              ** injection Heq as <- <- <-. simpl. exact H.
+        -- (* left label = S n *)
+           destruct (coord_y c =? 0) eqn:Hy0.
+           ++ injection Heq as <- <- <-. simpl. exact H.
+           ++ simpl in Heq.
+              destruct (adj (coord_x c, coord_y c - 1) c) eqn:Hadj_up.
+              ** destruct (labels (coord_x c, coord_y c - 1)) eqn:Hlabel_up.
+                 --- injection Heq as <- <- <-. simpl. exact H.
+                 --- destruct (S n =? S n0) eqn:Heq_labels.
+                     +++ (* Same labels *)
+                         injection Heq as <- <- <-. simpl.
+                         (* The goal is now: (if n =? n0 then equiv else ...) a b = true *)
+                         apply Nat.eqb_eq in Heq_labels.
+                         injection Heq_labels as Heq_n.
+                         subst n0.
+                         rewrite Nat.eqb_refl.
+                         exact H.
+                     +++ (* Different labels *)
+                         injection Heq as <- <- <-. simpl.
+                         (* We need to show (if n =? n0 then ... else add_equiv ...) a b = true *)
+                         assert (n =? n0 = false).
+                         { apply Nat.eqb_neq. intro Heq_n. subst n0.
+                           rewrite Nat.eqb_refl in Heq_labels. discriminate. }
+                         rewrite H0.
+                         apply add_equiv_monotone. exact H.
+              ** injection Heq as <- <- <-. simpl. exact H.
+      * (* left not adjacent *)
+        destruct (coord_y c =? 0) eqn:Hy0.
+        -- injection Heq as <- <- <-. simpl. exact H.
+        -- simpl in Heq.
+           destruct (adj (coord_x c, coord_y c - 1) c) eqn:Hadj_up.
+           ++ destruct (labels (coord_x c, coord_y c - 1)) eqn:Hlabel_up.
+              ** injection Heq as <- <- <-. simpl. exact H.
+              ** injection Heq as <- <- <-. simpl. exact H.
+           ++ injection Heq as <- <- <-. simpl. exact H.
+  - (* get_pixel img c = false *)
+    injection Heq as <- <- <-.
+    exact H.
+Qed.
