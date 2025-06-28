@@ -3284,3 +3284,377 @@ Proof.
   - apply Hvisit_inv. exact H.
   - apply Hfront_inv. exact H.
 Qed.
+
+(** BFS step preserves the invariant *)
+Lemma bfs_step_preserves_invariant : forall img adj start s,
+  (forall a b, adj a b = adj b a) ->
+  bfs_invariant img adj start s ->
+  bfs_invariant img adj start (bfs_step img adj s).
+Proof.
+  intros img adj start s adj_sym Hinv.
+  unfold bfs_step.
+  destruct (frontier s) as [|c cs] eqn:Hfront.
+  - (* Empty frontier - no change *)
+    exact Hinv.
+  - (* Non-empty frontier *)
+    unfold bfs_invariant. simpl. split.
+    + (* New frontier maintains invariant *)
+      intros c' H.
+      split.
+      * (* c' is foreground *)
+        simpl in H.
+        apply in_app_or in H.
+        destruct H as [H | H].
+        -- apply unexplored_neighbors_foreground with adj s c.
+           exact H.
+        -- apply in_flat_map in H.
+           destruct H as [c0 [_ Hc'_in]].
+           apply unexplored_neighbors_foreground with adj s c0.
+           exact Hc'_in.
+      * (* c' is connected to start *)
+        apply new_frontier_connected with s.
+        -- exact adj_sym.
+        -- exact Hinv.
+        -- simpl in H.
+           assert (frontier s = c :: cs) by exact Hfront.
+           rewrite H0.
+           simpl.
+           exact H.
+    + (* Extended visited maintains invariant *)
+      intros c0 H.
+      apply extended_visited_invariant with s.
+      * exact Hinv.
+      * assert (frontier s = c :: cs) by exact Hfront.
+        rewrite H0.
+        exact H.
+Qed.
+
+(** ** 11.3 BFS Progress Properties *)
+
+(** If a node is unexplored, it's not in visited or frontier *)
+Lemma unexplored_not_in_state : forall s c,
+  explored s c = false ->
+  ~ In c (visited s) /\ ~ In c (frontier s).
+Proof.
+  intros s c H.
+  unfold explored in H.
+  rewrite orb_false_iff in H.
+  destruct H as [Hvisit Hfront].
+  split.
+  - intro Hin.
+    assert (existsb (coord_eqb c) (visited s) = true).
+    { apply existsb_exists. exists c. split.
+      - exact Hin.
+      - apply coord_eqb_refl. }
+    rewrite H in Hvisit. discriminate.
+  - intro Hin.
+    assert (existsb (coord_eqb c) (frontier s) = true).
+    { apply existsb_exists. exists c. split.
+      - exact Hin.
+      - apply coord_eqb_refl. }
+    rewrite H in Hfront. discriminate.
+Qed. 
+
+(** New frontier nodes were unexplored *)
+Lemma new_frontier_unexplored : forall img adj s c,
+  In c (flat_map (unexplored_neighbors img adj s) (frontier s)) ->
+  explored s c = false.
+Proof.
+  intros img adj s c H.
+  apply in_flat_map in H.
+  destruct H as [c' [_ Hc_unexplored]].
+  unfold unexplored_neighbors in Hc_unexplored.
+  apply filter_In in Hc_unexplored.
+  destruct Hc_unexplored as [_ Hprop].
+  rewrite !andb_true_iff in Hprop.
+  destruct Hprop as [_ [_ Hnot_explored]].
+  apply negb_true_iff in Hnot_explored.
+  exact Hnot_explored.
+Qed.
+
+(** Helper: Length of visited after BFS step *)
+Lemma bfs_step_visited_length : forall img adj s,
+  frontier s <> [] ->
+  length (visited (bfs_step img adj s)) = length (visited s) + length (frontier s).
+Proof.
+  intros img adj s Hnonempty.
+  unfold bfs_step.
+  destruct (frontier s) as [|c cs] eqn:Hfront.
+  - contradiction.
+  - simpl.
+    apply length_app.
+Qed.
+
+(** Helper: Total nodes in BFS state *)
+Lemma bfs_total_nodes : forall img adj s,
+  frontier s <> [] ->
+  length (frontier (bfs_step img adj s)) + length (visited (bfs_step img adj s)) =
+  length (frontier (bfs_step img adj s)) + length (visited s) + length (frontier s).
+Proof.
+  intros img adj s Hnonempty.
+  rewrite bfs_step_visited_length.
+  - rewrite Nat.add_assoc. reflexivity.
+  - exact Hnonempty.
+Qed.
+
+(** BFS explores all nodes or frontier becomes empty *)
+Lemma bfs_step_decreases_unexplored : forall img adj s,
+  frontier s <> [] ->
+  length (frontier (bfs_step img adj s)) + length (visited (bfs_step img adj s)) >=
+  length (frontier s) + length (visited s).
+Proof.
+  intros img adj s Hnonempty.
+  rewrite bfs_total_nodes by exact Hnonempty.
+  (* Now: length (frontier (bfs_step img adj s)) + length (visited s) + length (frontier s) >=
+          length (frontier s) + length (visited s) *)
+  rewrite Nat.add_comm with (n := length (frontier s)).
+  (* Now: length (frontier s) + length (visited s) + length (frontier (bfs_step img adj s)) >=
+          length (frontier s) + length (visited s) *)
+  rewrite <- Nat.add_assoc.
+  (* Now: length (frontier (bfs_step img adj s)) + (length (visited s) + length (frontier s)) >=
+          length (visited s) + length (frontier s) *)
+  (* This holds because we're adding a non-negative number to the RHS *)
+  assert (0 <= length (frontier (bfs_step img adj s))) by apply Nat.le_0_l.
+  lia.
+Qed.
+
+(** ** 11.4 BFS Termination *)
+
+(** Helper: unexplored_neighbors produces in-bounds coordinates *)
+Lemma unexplored_neighbors_in_bounds : forall img adj s c c',
+  In c' (unexplored_neighbors img adj s c) ->
+  In c' (image_coords img).
+Proof.
+  intros img adj s c c' H.
+  unfold unexplored_neighbors in H.
+  apply filter_In in H.
+  destruct H as [Hin _].
+  exact Hin.
+Qed.
+
+(** New frontier nodes are in bounds *)
+Lemma bfs_step_frontier_in_bounds : forall img adj s c,
+  In c (frontier (bfs_step img adj s)) ->
+  In c (image_coords img).
+Proof.
+  intros img adj s c H.
+  unfold bfs_step in H.
+  destruct (frontier s) as [|c0 cs] eqn:Hfront.
+  - (* frontier s = [] *)
+    rewrite Hfront in H.
+    simpl in H.
+    (* H : In c [] *)
+    inversion H.
+  - simpl in H.
+    apply in_app_or in H.
+    destruct H as [H | H].
+    + (* In c (unexplored_neighbors img adj s c0) *)
+      apply unexplored_neighbors_in_bounds with adj s c0.
+      exact H.
+    + (* In c (flat_map (unexplored_neighbors img adj s) cs) *)
+      apply in_flat_map in H.
+      destruct H as [c' [_ Hc_unexplored]].
+      apply unexplored_neighbors_in_bounds with adj s c'.
+      exact Hc_unexplored.
+Qed.
+
+(** Helper: If BFS invariant holds, frontier contains in-bounds coordinates *)
+Lemma bfs_invariant_frontier_in_bounds : forall img adj start s c,
+  bfs_invariant img adj start s ->
+  In c (frontier s) ->
+  In c (image_coords img).
+Proof.
+  intros img adj start s c Hinv Hin.
+  destruct Hinv as [Hfront_inv _].
+  assert (Hc := Hfront_inv c Hin).
+  destruct Hc as [Hpix _].
+  apply image_coords_iff_in_bounds.
+  unfold get_pixel in Hpix.
+  destruct (in_bounds img c) eqn:Hbound.
+  - unfold in_bounds in Hbound.
+    rewrite !andb_true_iff in Hbound.
+    destruct Hbound as [Hx Hy].
+    apply Nat.ltb_lt in Hx, Hy.
+    split; assumption.
+  - discriminate.
+Qed.
+
+(** Helper: If BFS invariant holds, visited contains in-bounds coordinates *)
+Lemma bfs_invariant_visited_in_bounds : forall img adj start s c,
+  bfs_invariant img adj start s ->
+  In c (visited s) ->
+  In c (image_coords img).
+Proof.
+  intros img adj start s c Hinv Hin.
+  destruct Hinv as [_ Hvisit_inv].
+  assert (Hc := Hvisit_inv c Hin).
+  destruct Hc as [Hpix _].
+  apply image_coords_iff_in_bounds.
+  unfold get_pixel in Hpix.
+  destruct (in_bounds img c) eqn:Hbound.
+  - unfold in_bounds in Hbound.
+    rewrite !andb_true_iff in Hbound.
+    destruct Hbound as [Hx Hy].
+    apply Nat.ltb_lt in Hx, Hy.
+    split; assumption.
+  - discriminate.
+Qed.
+
+(** Helper: In initial BFS state, visited and frontier are disjoint *)
+Lemma bfs_initial_disjoint : forall start,
+  forall c, ~ (In c ([] : list coord) /\ In c [start]).
+Proof.
+  intros start c [Hvisit _].
+  exact Hvisit.
+Qed.
+
+(** Helper: unexplored_neighbors excludes explored nodes *)
+Lemma unexplored_neighbors_not_explored : forall img adj s c c',
+  In c' (unexplored_neighbors img adj s c) ->
+  explored s c' = false.
+Proof.
+  intros img adj s c c' H.
+  unfold unexplored_neighbors in H.
+  apply filter_In in H.
+  destruct H as [_ Hprop].
+  rewrite !andb_true_iff in Hprop.
+  destruct Hprop as [_ [_ Hnot_explored]].
+  apply negb_true_iff in Hnot_explored.
+  exact Hnot_explored.
+Qed.
+
+(** Helper: BFS state maintains disjoint visited and frontier *)
+Definition bfs_disjoint (s : bfs_state) : Prop :=
+  forall c, ~ (In c (visited s) /\ In c (frontier s)).
+
+(** Initial BFS state has disjoint visited and frontier *)
+Lemma bfs_initial_state_disjoint : forall start,
+  bfs_disjoint (mkBFSState [] [start]).
+Proof.
+  intros start.
+  unfold bfs_disjoint. simpl.
+  intros c [Hvisit _].
+  exact Hvisit.
+Qed.
+
+(** BFS step preserves disjoint property *)
+Lemma bfs_step_preserves_disjoint : forall img adj s,
+  bfs_disjoint s ->
+  bfs_disjoint (bfs_step img adj s).
+Proof.
+  intros img adj s Hdisj.
+  unfold bfs_step.
+  destruct (frontier s) as [|c cs] eqn:Hfront.
+  - (* Empty frontier - no change *)
+    exact Hdisj.
+  - (* Non-empty frontier *)
+    unfold bfs_disjoint. simpl.
+    intros c' [Hvisit' Hfront'].
+    (* c' in new visited = visited s ++ (c :: cs) *)
+    apply in_app_or in Hvisit'.
+    destruct Hvisit' as [Hvisit' | Hvisit'].
+    + (* c' in old visited *)
+      (* c' in new frontier = unexplored_neighbors ... ++ flat_map ... *)
+      apply in_app_or in Hfront'.
+      destruct Hfront' as [Hfront' | Hfront'].
+      * (* c' in unexplored_neighbors img adj s c *)
+        assert (explored s c' = false).
+        { apply unexplored_neighbors_not_explored with img adj c.
+          exact Hfront'. }
+        unfold explored in H.
+        rewrite orb_false_iff in H.
+        destruct H as [Hvisit_false _].
+        assert (existsb (coord_eqb c') (visited s) = true).
+        { apply existsb_exists. exists c'. split.
+          - exact Hvisit'.
+          - apply coord_eqb_refl. }
+        rewrite H in Hvisit_false. discriminate.
+      * (* c' in flat_map (unexplored_neighbors img adj s) cs *)
+        apply in_flat_map in Hfront'.
+        destruct Hfront' as [c0 [_ Hc'_unexplored]].
+        assert (explored s c' = false).
+        { apply unexplored_neighbors_not_explored with img adj c0.
+          exact Hc'_unexplored. }
+        unfold explored in H.
+        rewrite orb_false_iff in H.
+        destruct H as [Hvisit_false _].
+        assert (existsb (coord_eqb c') (visited s) = true).
+        { apply existsb_exists. exists c'. split.
+          - exact Hvisit'.
+          - apply coord_eqb_refl. }
+        rewrite H in Hvisit_false. discriminate.
+    + (* c' in old frontier = c :: cs *)
+      rewrite <- Hfront in Hvisit'.
+      (* c' in new frontier *)
+      apply in_app_or in Hfront'.
+      destruct Hfront' as [Hfront' | Hfront'].
+      * (* c' in unexplored_neighbors img adj s c *)
+        assert (explored s c' = false).
+        { apply unexplored_neighbors_not_explored with img adj c.
+          exact Hfront'. }
+        unfold explored in H.
+        rewrite orb_false_iff in H.
+        destruct H as [_ Hfront_false].
+        assert (existsb (coord_eqb c') (frontier s) = true).
+        { apply existsb_exists. exists c'. split.
+          - exact Hvisit'.
+          - apply coord_eqb_refl. }
+        rewrite H in Hfront_false. discriminate.
+      * (* c' in flat_map (unexplored_neighbors img adj s) cs *)
+        apply in_flat_map in Hfront'.
+        destruct Hfront' as [c0 [_ Hc'_unexplored]].
+        assert (explored s c' = false).
+        { apply unexplored_neighbors_not_explored with img adj c0.
+          exact Hc'_unexplored. }
+        unfold explored in H.
+        rewrite orb_false_iff in H.
+        destruct H as [_ Hfront_false].
+        assert (existsb (coord_eqb c') (frontier s) = true).
+        { apply existsb_exists. exists c'. split.
+          - exact Hvisit'.
+          - apply coord_eqb_refl. }
+        rewrite H in Hfront_false. discriminate.
+Qed.
+
+(** Helper: All nodes in BFS state are in bounds *)
+Lemma bfs_state_all_in_bounds : forall img adj start s,
+  (forall a b, adj a b = adj b a) ->
+  bfs_invariant img adj start s ->
+  (forall c, In c (visited s) -> In c (image_coords img)) /\
+  (forall c, In c (frontier s) -> In c (image_coords img)).
+Proof.
+  intros img adj start s adj_sym Hinv.
+  split.
+  - intros c Hin.
+    apply (bfs_invariant_visited_in_bounds img adj start s c Hinv Hin).
+  - intros c Hin.
+    apply (bfs_invariant_frontier_in_bounds img adj start s c Hinv Hin).
+Qed.
+
+(** Helper: A list of in-bounds coordinates has bounded length *)
+Lemma in_bounds_list_length : forall img l,
+  (forall c, In c l -> In c (image_coords img)) ->
+  NoDup l ->
+  length l <= width img * height img.
+Proof.
+  intros img l Hall_in HNoDup.
+  assert (Hsubset: incl l (image_coords img)).
+  { unfold incl. exact Hall_in. }
+  assert (length l <= length (image_coords img)).
+  { apply NoDup_incl_length.
+    - exact HNoDup.
+    - exact Hsubset. }
+  rewrite image_coords_length in H.
+  exact H.
+Qed.
+
+(** Helper: Initial BFS state has NoDup frontier *)
+Lemma bfs_initial_nodup_frontier : forall start,
+  NoDup ([start] : list coord).
+Proof.
+  intros start.
+  apply NoDup_cons.
+  - intro H. exact H.
+  - apply NoDup_nil.
+Qed.
+      
