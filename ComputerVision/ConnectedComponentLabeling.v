@@ -3819,3 +3819,170 @@ Proof.
   apply filter_NoDup.
   apply image_coords_NoDup.
 Qed.
+
+(** Helper: flat_map preserves NoDup when results are disjoint *)
+Lemma flat_map_NoDup_disjoint : forall {A B : Type} (f : A -> list B) (l : list A),
+  NoDup l ->
+  (forall x, In x l -> NoDup (f x)) ->
+  (forall x y, In x l -> In y l -> x <> y -> 
+    (forall b, In b (f x) -> ~ In b (f y))) ->
+  NoDup (flat_map f l).
+Proof.
+  intros A B f l HNoDup Hf_NoDup Hdisjoint.
+  induction HNoDup as [|a l' Hnot_in HNoDup' IH].
+  - simpl. apply NoDup_nil.
+  - simpl. apply NoDup_app_disjoint.
+    + apply Hf_NoDup. left. reflexivity.
+    + apply IH.
+      * intros x Hin. apply Hf_NoDup. right. exact Hin.
+      * intros x y Hinx Hiny Hneq.
+        apply Hdisjoint.
+        -- right. exact Hinx.
+        -- right. exact Hiny.
+        -- exact Hneq.
+    + intros b Hb_in_fa Hb_in_flat.
+      apply in_flat_map in Hb_in_flat.
+      destruct Hb_in_flat as [x [Hx_in Hb_in_fx]].
+      assert (Hneq: a <> x).
+      { intro Heq. subst x. contradiction. }
+      assert (H := Hdisjoint a x).
+      specialize (H (or_introl eq_refl)).
+      specialize (H (or_intror Hx_in)).
+      specialize (H Hneq).
+      specialize (H b).
+      specialize (H Hb_in_fa).
+      contradiction.
+Qed.
+
+Fixpoint remove_dups {A : Type} (eqb : A -> A -> bool) (l : list A) : list A :=
+  match l with
+  | [] => []
+  | a :: l' => 
+      if existsb (eqb a) l' then remove_dups eqb l'
+      else a :: remove_dups eqb l'
+  end.
+
+Lemma remove_dups_subset : forall {A : Type} (eqb : A -> A -> bool) (l : list A) x,
+  In x (remove_dups eqb l) -> In x l.
+Proof.
+  intros A eqb l.
+  induction l as [|a l' IH]; intros x H.
+  - simpl in H. contradiction.
+  - simpl in H. destruct (existsb (eqb a) l') eqn:E.
+    + right. apply IH. exact H.
+    + destruct H as [H | H].
+      * left. exact H.
+      * right. apply IH. exact H.
+Qed.
+
+Lemma remove_dups_NoDup : forall {A : Type} (eqb : A -> A -> bool) (l : list A),
+  (forall x y, eqb x y = true <-> x = y) ->
+  NoDup (remove_dups eqb l).
+Proof.
+  intros A eqb l Heqb_iff.
+  induction l as [|a l' IH].
+  - simpl. apply NoDup_nil.
+  - simpl. destruct (existsb (eqb a) l') eqn:Hexists.
+    + exact IH.
+    + apply NoDup_cons.
+      * intro H.
+        assert (In a l').
+        { apply remove_dups_subset in H. exact H. }
+        assert (existsb (eqb a) l' = true).
+        { apply existsb_exists. exists a. split.
+          - exact H0.
+          - apply Heqb_iff. reflexivity. }
+        rewrite H1 in Hexists. discriminate.
+      * exact IH.
+Qed.
+
+(** For BFS termination, we don't need NoDup - we just need progress *)
+Lemma bfs_makes_progress : forall img adj s,
+  frontier s <> [] ->
+  length (visited (bfs_step img adj s)) > length (visited s).
+Proof.
+  intros img adj s Hnonempty.
+  unfold bfs_step.
+  destruct (frontier s) as [|c cs] eqn:Hfront.
+  - contradiction.
+  - simpl.
+    rewrite length_app.
+    assert (length (c :: cs) > 0).
+    { simpl. lia. }
+    lia.
+Qed.
+
+(** BFS eventually exhausts the frontier or finds the target *)
+Lemma bfs_progress_or_done : forall img adj s target,
+  frontier s <> [] ->
+  reachable_from img adj (visited s) (frontier s) target 1 = true \/
+  frontier (bfs_step img adj s) = [] \/
+  length (visited (bfs_step img adj s)) > length (visited s).
+Proof.
+  intros img adj s target Hnonempty.
+  unfold reachable_from at 1.
+  simpl.
+  destruct (existsb (coord_eqb target) (frontier s)) eqn:Htarget.
+  - (* Target found in frontier *)
+    left. reflexivity.
+  - (* Target not in frontier *)
+    right.
+    unfold bfs_step.
+    destruct (frontier s) as [|c cs] eqn:Hfront.
+    + contradiction.
+    + (* frontier = c :: cs *)
+      simpl.
+      remember (flat_map (unexplored_neighbors img adj s) (c :: cs)) as new_frontier.
+      destruct new_frontier as [|c' rest] eqn:Hnew.
+      * (* New frontier is empty *)
+        left.
+        (* Goal: unexplored_neighbors img adj s c ++ flat_map (unexplored_neighbors img adj s) cs = [] *)
+        (* We have: Heqnew_frontier : [] = flat_map (unexplored_neighbors img adj s) (c :: cs) *)
+        (* Note that simpl on flat_map (f) (c :: cs) gives f c ++ flat_map f cs *)
+        simpl in Heqnew_frontier.
+        symmetry.
+        exact Heqnew_frontier.
+      * (* New frontier is non-empty, visited grows *)
+        right.
+        rewrite length_app.
+        rewrite <- Hfront.
+        assert (length (frontier s) > 0).
+        { rewrite Hfront. simpl. lia. }
+        lia.
+Qed.
+
+Definition bfs_step_dedup (img : bounded_image) (adj : coord -> coord -> bool)
+                         (s : bfs_state) : bfs_state :=
+  match frontier s with
+  | [] => s
+  | _ => mkBFSState 
+           (visited s ++ frontier s)
+           (remove_dups coord_eqb 
+             (flat_map (unexplored_neighbors img adj s) (frontier s)))
+  end.
+
+Lemma bfs_step_dedup_preserves_nodup : forall img adj s,
+  bfs_nodup s ->
+  bfs_disjoint s ->
+  bfs_nodup (bfs_step_dedup img adj s).
+Proof.
+  intros img adj s Hnodup Hdisj.
+  unfold bfs_step_dedup.
+  destruct (frontier s) as [|c cs] eqn:Hfront.
+  - exact Hnodup.
+  - unfold bfs_nodup in *.
+    destruct Hnodup as [Hvis_nodup Hfront_nodup].
+    split.
+    + apply NoDup_app_disjoint.
+      * exact Hvis_nodup.
+      * rewrite Hfront in Hfront_nodup. exact Hfront_nodup.
+      * intros x Hin_vis Hin_front.
+        apply (Hdisj x).
+        split.
+        -- exact Hin_vis.
+        -- rewrite Hfront. exact Hin_front.
+    + apply remove_dups_NoDup.
+      intros x y.
+      apply coord_eqb_true_iff.
+Qed.
+            
