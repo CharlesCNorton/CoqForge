@@ -2524,18 +2524,19 @@ Qed.
 (** ** Partial Correctness Invariant *)
 
 (** The key invariant: after processing pixels up to c, the state correctly
-    captures connectivity among processed pixels *)
+    captures prior-neighbor equivalences among processed pixels *)
 Definition strong_partial_correct (img : image) (adj : coord -> coord -> bool) 
                                  (s : ccl_state) (processed : list coord) : Prop :=
   (* Basic labeling properties *)
   (forall c, In c processed -> get_pixel img c = false -> labels s c = 0) /\
   (forall c, In c processed -> get_pixel img c = true -> labels s c > 0) /\
   (forall c, ~ In c processed -> labels s c = 0) /\
-  (* Key connectivity property *)
+  (* Prior-neighbor equivalence property *)
   (forall c1 c2, In c1 processed -> In c2 processed ->
                  get_pixel img c1 = true -> get_pixel img c2 = true ->
-                 (connected img adj c1 c2 <-> 
-                  uf_same_set (equiv s) (labels s c1) (labels s c2) = true)).
+                 adj c1 c2 = true -> raster_lt c1 c2 = true ->
+                 uf_same_set (equiv s) (labels s c1) (labels s c2) = true).
+
 
 (** Helper: processed pixels form a prefix in raster order *)
 Definition raster_prefix (processed : list coord) : Prop :=
@@ -3088,4 +3089,170 @@ Proof.
   intros u x y z.
   unfold uf_union, uf_find.
   reflexivity.
+Qed.
+
+(** 5. process_pixel maintains background labels *)
+Lemma process_pixel_maintains_background_labels : 
+  forall img adj check_neighbors s c processed,
+  state_labels_background img s -> 
+  forall c', In c' processed -> 
+  get_pixel img c' = false -> 
+  labels (process_pixel img adj check_neighbors s c) c' = 0.
+Proof.
+  intros img adj check_neighbors s c processed Hbg c' Hc'_in Hc'_bg.
+  destruct (coord_eqb c c') eqn:Heq.
+  - (* c = c' *)
+    apply coord_eqb_true_iff in Heq. subst c'.
+    rewrite process_pixel_background_unchanged.
+    + apply Hbg. assumption.
+    + assumption.
+  - (* c ≠ c' *)
+    rewrite process_pixel_preserves_other.
+    + apply Hbg. assumption.
+    + intro H. subst c'. rewrite coord_eqb_refl in Heq. discriminate.
+Qed.
+
+(** 6. process_pixel maintains foreground labels *)
+Lemma process_pixel_maintains_foreground_labels :
+  forall img adj check_neighbors s c processed,
+  ~ In c processed ->
+  (forall c', In c' processed -> get_pixel img c' = true -> labels s c' > 0) ->
+  forall c', In c' processed -> 
+  get_pixel img c' = true -> 
+  labels (process_pixel img adj check_neighbors s c) c' > 0.
+Proof.
+  intros img adj check_neighbors s c processed Hnotin Hfg c' Hc'_in Hc'_fg.
+  rewrite process_pixel_preserves_other.
+  - apply Hfg; assumption.
+  - intro H. subst c'. contradiction.
+Qed.
+
+(** 7. process_pixel maintains unprocessed pixels unlabeled *)
+Lemma process_pixel_maintains_unprocessed :
+  forall img adj check_neighbors s c processed,
+  (forall c', ~ In c' processed -> labels s c' = 0) ->
+  forall c', ~ In c' (c :: processed) -> 
+  labels (process_pixel img adj check_neighbors s c) c' = 0.
+Proof.
+  intros img adj check_neighbors s c processed Hunproc c' Hc'_notin.
+  assert (c' <> c).
+  { intro H. subst c'. apply Hc'_notin. left. reflexivity. }
+  rewrite process_pixel_preserves_other; auto.
+  apply Hunproc.
+  intro Hc'_in. apply Hc'_notin. right. assumption.
+Qed.
+
+(** The key theorem: processing a pixel maintains strong partial correctness *)
+Theorem process_pixel_maintains_invariant : 
+  forall img adj check_neighbors s c processed,
+  (* Assumptions about the adjacency relation *)
+  (forall a b, adj a b = adj b a) ->
+  (* Assumptions about check_neighbors *)
+  (forall c', In c' (check_neighbors img c) -> 
+    get_pixel img c' = true /\ adj c' c = true /\ raster_lt c' c = true) ->
+  (forall c1 c2, get_pixel img c1 = true -> get_pixel img c2 = true ->
+    adj c1 c2 = true -> raster_lt c1 c2 = true -> 
+    c2 = c -> In c1 (check_neighbors img c)) ->
+  (* Current state satisfies invariant *)
+  strong_partial_correct img adj s processed ->
+  raster_prefix processed ->
+  ~ In c processed ->
+  (forall c', In c' processed -> raster_lt c' c = true) ->
+  next_label s > 0 ->
+  (* Then the new state maintains invariant *)
+  strong_partial_correct img adj (process_pixel img adj check_neighbors s c) (c :: processed).
+Proof.
+  intros img adj check_neighbors s c processed Hadj_sym Hcheck_sound Hcheck_complete 
+         Hinv Hprefix Hnotin Hbefore Hnext.
+  
+  set (s' := process_pixel img adj check_neighbors s c).
+  unfold strong_partial_correct in *.
+  destruct Hinv as [Hbg [Hfg [Hunproc Hprior]]].
+  split; [|split; [|split]].
+  
+  (** Part 1: Background pixels stay labeled 0 **)
+  - intros c' [Hc'_eq | Hc'_in] Hc'_bg.
+    + (* c' = c *)
+      subst c'. unfold s'.
+      rewrite process_pixel_background_unchanged; auto.
+    + (* c' ∈ processed *)
+      unfold s'.
+      rewrite process_pixel_labels_unchanged.
+      * apply Hbg; assumption.
+      * intro Heq. subst c'. contradiction.
+
+  (** Part 2: Foreground pixels get positive labels **)
+  - intros c' [Hc'_eq | Hc'_in] Hc'_fg.
+    + (* c' = c *)
+      subst c'. unfold s'.
+      apply process_pixel_labels_current; assumption.
+    + (* c' ∈ processed *)
+      unfold s'.
+      rewrite process_pixel_labels_unchanged.
+      * apply Hfg; assumption.
+      * intro Heq. subst c'. contradiction.
+
+  (** Part 3: Unprocessed pixels stay unlabeled **)
+  - intros c' Hc'_notin.
+    assert (c' <> c).
+    { intro Heq. subst c'. apply Hc'_notin. left. reflexivity. }
+    unfold s'.
+    rewrite process_pixel_labels_unchanged; auto.
+    apply Hunproc.
+    intro Hc'_in. apply Hc'_notin. right. assumption.
+
+(** Part 4: Prior-neighbor equivalence **)
+  - intros c1 c2 Hc1_in Hc2_in Hc1_fg Hc2_fg Hadj Hc1_before_c2.
+    
+    (* Case analysis on which pixels are c *)
+    destruct Hc1_in as [Hc1_eq | Hc1_old]; destruct Hc2_in as [Hc2_eq | Hc2_old].
+    
+    + (* Both c1 = c and c2 = c - impossible since c1 ≠ c2 *)
+      subst c1 c2. exfalso.
+      rewrite raster_lt_irrefl in Hc1_before_c2. discriminate.
+    
+    + (* c1 = c, c2 ∈ processed - impossible since c comes after all processed *)
+      subst c1. exfalso.
+      assert (raster_lt c2 c = true) by (apply Hbefore; assumption).
+      (* We have both raster_lt c2 c and raster_lt c c2, which is impossible *)
+      assert (raster_lt c c = true).
+      { apply (raster_lt_trans c c2 c); assumption. }
+      rewrite raster_lt_irrefl in H0. discriminate.
+    
++ (* c1 ∈ processed, c2 = c - this is the key case *)
+      subst c2.
+      (* c1 is a prior neighbor of c *)
+      assert (In c1 (check_neighbors img c)).
+      { apply (Hcheck_complete c1 c Hc1_fg Hc2_fg Hadj Hc1_before_c2).
+        reflexivity. }
+      
+      unfold s'.
+      (* Labels of c1 unchanged *)
+      assert (Hlabel_c1: labels s' c1 = labels s c1).
+      { apply process_pixel_labels_unchanged. intro; subst. contradiction. }
+      
+(* After processing, c's label is equivalent to c1's label *)
+      assert (Hpos_c1: labels s c1 > 0).
+      { apply Hfg; assumption. }
+      assert (Hlemma := process_pixel_labels_current_pixel img adj check_neighbors s c Hc2_fg Hnext).
+      destruct Hlemma as [_ Hequiv].
+      
+fold s'.
+      rewrite Hlabel_c1.
+      rewrite uf_same_set_sym.
+      apply Hequiv; assumption.
+    
++ (* c1, c2 ∈ processed - both labels unchanged *)
+      unfold s'.
+      assert (labels s' c1 = labels s c1).
+      { apply process_pixel_labels_unchanged. intro; subst. contradiction. }
+      assert (labels s' c2 = labels s c2).
+      { apply process_pixel_labels_unchanged. intro; subst. contradiction. }
+      
+      fold s'.
+      rewrite H, H0.
+      
+      (* Equivalence preserved by process_pixel *)
+      apply process_pixel_preserves_equiv.
+      apply Hprior; assumption.
 Qed.
