@@ -2631,73 +2631,288 @@ Proof.
     + assumption.
 Qed.
 
-Lemma process_pixel_maintains_invariant : forall img adj check_neighbors s c processed,
-  (forall a b, adj a b = adj b a) ->
-  check_neighbors = check_prior_neighbors_4 \/ 
-  check_neighbors = check_prior_neighbors_8 ->
-  strong_partial_correct img adj s processed ->
-  next_label s > 0 -> 
-  raster_prefix processed ->
-  ~ In c processed ->
-  (forall c', In c' processed -> raster_lt c' c = true) ->
-  strong_partial_correct img adj 
-    (process_pixel img adj check_neighbors s c) 
-    (c :: processed).
+Lemma fold_record_adjacency_creates : forall labels min_label u,
+  min_label > 0 ->
+  (forall l, In l labels -> l > 0) ->
+  forall l, In l labels ->
+    uf_same_set 
+      (fold_left (fun u' l' => record_adjacency u' min_label l') labels u)
+      min_label l = true.
 Proof.
-  intros img adj check_neighbors s c processed Hadj_sym Hcheck Hinv Hnext_pos Hprefix Hnot_in Hbefore.
-  unfold strong_partial_correct in *.
-  destruct Hinv as [Hbg [Hfg [Hunproc Hconn]]].
-  
-  destruct (get_pixel img c) eqn:Hpixel.
-2: { (* Background case *)
-    rewrite process_pixel_background_unchanged; [|assumption].
-    split; [|split; [|split]].
-    - intros c0 [Hc0_eq | Hc0_in] Hc0_bg.
-      + subst c0. apply Hunproc. assumption.
-      + apply Hbg; assumption.
-- intros c0 [Hc0_eq | Hc0_in] Hc0_fg.
-      + subst c0. rewrite Hpixel in Hc0_fg. discriminate.
-      + apply Hfg; assumption.
-- intros c0 Hc0_not_in.
-      apply Hunproc. intro H. apply Hc0_not_in. right. assumption.
-- intros c1 c2 Hc1_in Hc2_in Hc1_fg Hc2_fg.
-      destruct Hc1_in as [Hc1_eq | Hc1_in];
-      destruct Hc2_in as [Hc2_eq | Hc2_in].
-+ subst c1 c2. rewrite Hpixel in Hc1_fg. discriminate.
-      + subst c1. rewrite Hpixel in Hc1_fg. discriminate.
-      + subst c2. rewrite Hpixel in Hc2_fg. discriminate.
-      + apply Hconn; assumption.
-  }
-(* Foreground case *)
-  unfold process_pixel at 1.
-  rewrite Hpixel.
-set (neighbors := check_neighbors img c).
-  set (neighbor_labels := map (labels s) neighbors).
-  set (positive_labels := filter (fun l => negb (Nat.eqb l 0)) neighbor_labels).
-destruct positive_labels as [|min_label rest] eqn:Hpos_labels.
-- { (* No positive neighbor labels case *)
+  intros labels min_label.
+  induction labels as [|x xs IH]; intros u Hmin_pos Hall_pos l Hin.
+  - (* labels = [] *)
+    simpl in Hin. contradiction.
+  - (* labels = x :: xs *)
+    simpl in Hin. destruct Hin as [Heq | Hin'].
+    + (* l = x *)
+      subst l. simpl.
+      assert (Hx_pos: x > 0) by (apply Hall_pos; left; reflexivity).
+      assert (Hafter_x: uf_same_set (record_adjacency u min_label x) min_label x = true).
+      { unfold record_adjacency.
+        assert (negb (min_label =? 0) = true) by (apply negb_true_iff; apply Nat.eqb_neq; lia).
+        assert (negb (x =? 0) = true) by (apply negb_true_iff; apply Nat.eqb_neq; lia).
+        rewrite H, H0. simpl.
+        destruct (min_label =? x) eqn:E.
+        - apply Nat.eqb_eq in E. subst x.
+          apply uf_same_set_refl.
+        - unfold uf_same_set.
+          apply Nat.eqb_eq.
+          apply uf_union_connects. }
+      apply (fold_record_adjacency_preserves xs min_label _ min_label x).
+      assumption.
+    + (* l ∈ xs *)
       simpl.
-      split; [|split; [|split]].
-- intros c0 [Hc0_eq | Hc0_in] Hc0_bg.
-        + subst c0. rewrite Hpixel in Hc0_bg. discriminate.
-        + destruct (coord_eqb c c0) eqn:Heqb.
-          * apply coord_eqb_true_iff in Heqb. subst c0. contradiction.
-          * apply Hbg; assumption.
-- intros c0 [Hc0_eq | Hc0_in] Hc0_fg.
-        + subst c0. 
-          unfold process_pixel.
-          rewrite Hpixel.
-          fold neighbors neighbor_labels positive_labels.
-          rewrite Hpos_labels.
-          simpl.
-          rewrite coord_eqb_refl.
-          exact Hnext_pos.
-        + rewrite process_pixel_labels_unchanged.
-          * apply Hfg; assumption.
-          * intro H. subst c0. contradiction.
-- intros c0 Hc0_not_in.
-        destruct (coord_eqb c c0) eqn:Heqb.
-        + apply coord_eqb_true_iff in Heqb. subst c0.
-          exfalso. apply Hc0_not_in. left. reflexivity.
+      (* Apply IH with the updated union-find structure *)
+      apply (IH (record_adjacency u min_label x)).
+      * assumption.
+      * intros l' Hl'. apply Hall_pos. right. assumption.
+      * assumption.
+Qed.
 
+Lemma process_pixel_equiv_neighbors : forall img adj check_neighbors s c c1 c2,
+  get_pixel img c = true ->
+  In c1 (check_neighbors img c) ->
+  In c2 (check_neighbors img c) ->
+  labels s c1 > 0 ->
+  labels s c2 > 0 ->
+  uf_same_set (equiv (process_pixel img adj check_neighbors s c)) 
+              (labels s c1) (labels s c2) = true.
+Proof.
+  intros img adj check_neighbors s c c1 c2 Hpix Hin1 Hin2 Hpos1 Hpos2.
+  unfold process_pixel.
+  rewrite Hpix.
+  destruct (check_neighbors img c) as [|n ns] eqn:Hneighbors.
+  - (* check_neighbors img c = [] *)
+    simpl in Hin1. contradiction.
+  - (* check_neighbors img c = n :: ns *)
+    remember (filter (fun l => negb (l =? 0)) (map (labels s) (n :: ns))) as positive_labels.
+    destruct positive_labels as [|l ls] eqn:Hpos_labels.
+    + (* No positive labels - contradiction *)
+      assert (In (labels s c1) (filter (fun l => negb (l =? 0)) (map (labels s) (n :: ns)))).
+      { apply filter_In. split.
+        - apply in_map. assumption.
+        - apply negb_true_iff. apply Nat.eqb_neq. lia. }
+      rewrite <- Heqpositive_labels in H. simpl in H. contradiction.
+    + (* positive_labels = l :: ls *)
+      simpl.
+      remember (fold_left Nat.min ls l) as min_label.
+      (* Key insight: both labels s c1 and labels s c2 are in positive_labels *)
+      assert (Hin_pos1: In (labels s c1) (l :: ls)).
+      { rewrite Heqpositive_labels.
+        apply filter_In. split.
+        - apply in_map. assumption.
+        - apply negb_true_iff. apply Nat.eqb_neq. lia. }
+      assert (Hin_pos2: In (labels s c2) (l :: ls)).
+      { rewrite Heqpositive_labels.
+        apply filter_In. split.
+        - apply in_map. assumption.
+        - apply negb_true_iff. apply Nat.eqb_neq. lia. }
+      (* l is positive since it's in the filtered list *)
+      assert (Hl_pos: l > 0).
+      { assert (In l (l :: ls)) by (left; reflexivity).
+        rewrite Heqpositive_labels in H.
+        apply filter_In in H. destruct H as [_ H].
+        apply negb_true_iff in H. apply Nat.eqb_neq in H. lia. }
+      (* After folding, both are equivalent to min_label *)
+      assert (H1: uf_same_set 
+                    (fold_left (fun u' l' => record_adjacency u' min_label l') (l :: ls) (equiv s))
+                    min_label (labels s c1) = true).
+      { apply fold_record_adjacency_creates.
+        - subst min_label. apply fold_min_positive.
+          + assumption.
+          + intros x Hx. 
+            assert (In x (l :: ls)) by (right; assumption).
+            rewrite Heqpositive_labels in H.
+            apply filter_In in H. destruct H as [_ H].
+            apply negb_true_iff in H. apply Nat.eqb_neq in H. lia.
+        - intros l' Hl'. 
+          assert (In l' (l :: ls)) by assumption.
+          rewrite Heqpositive_labels in H.
+          apply filter_In in H. destruct H as [_ H].
+          apply negb_true_iff in H. apply Nat.eqb_neq in H. lia.
+        - assumption. }
+      assert (H2: uf_same_set 
+                    (fold_left (fun u' l' => record_adjacency u' min_label l') (l :: ls) (equiv s))
+                    min_label (labels s c2) = true).
+      { apply fold_record_adjacency_creates.
+        - subst min_label. apply fold_min_positive.
+          + assumption.
+          + intros x Hx. 
+            assert (In x (l :: ls)) by (right; assumption).
+            rewrite Heqpositive_labels in H.
+            apply filter_In in H. destruct H as [_ H].
+            apply negb_true_iff in H. apply Nat.eqb_neq in H. lia.
+        - intros l' Hl'. 
+          assert (In l' (l :: ls)) by assumption.
+          rewrite Heqpositive_labels in H.
+          apply filter_In in H. destruct H as [_ H].
+          apply negb_true_iff in H. apply Nat.eqb_neq in H. lia.
+        - assumption. }
+(* By transitivity through min_label *)
+      unfold uf_same_set in *.
+      apply Nat.eqb_eq in H1, H2.
+      apply Nat.eqb_eq.
+      (* H1 and H2 use fold_left on (l :: ls), but goal has it unfolded *)
+      simpl in H1, H2.
+      rewrite <- H1, <- H2.
+      reflexivity.
+Qed.
 
+(** The current pixel gets assigned a valid label *)
+Lemma process_pixel_labels_current_pixel : forall img adj check_neighbors s c,
+  get_pixel img c = true ->
+  next_label s > 0 ->
+  let s' := process_pixel img adj check_neighbors s c in
+  labels s' c > 0 /\
+  (forall c', In c' (check_neighbors img c) -> 
+    labels s c' > 0 -> 
+    uf_same_set (equiv s') (labels s' c) (labels s c') = true).
+Proof.
+  intros img adj check_neighbors s c Hpix Hnext.
+  unfold process_pixel.
+  rewrite Hpix.
+  destruct (check_neighbors img c) as [|n ns] eqn:Hneighbors.
+  - (* No neighbors - gets fresh label *)
+    simpl. split.
+    + rewrite coord_eqb_refl. assumption.
+    + intros c' Hin. simpl in Hin. contradiction.
+  - (* Has neighbors *)
+    remember (filter (fun l => negb (l =? 0)) (map (labels s) (n :: ns))) as positive_labels.
+    destruct positive_labels as [|l ls] eqn:Hpos_labels.
+    + (* No positive labels - gets fresh label *)
+      simpl. split.
+      * rewrite coord_eqb_refl. assumption.
+      * intros c' Hin Hpos.
+        assert (In (labels s c') (map (labels s) (n :: ns))).
+        { apply in_map. assumption. }
+        assert (In (labels s c') (filter (fun l => negb (l =? 0)) (map (labels s) (n :: ns)))).
+        { apply filter_In. split.
+          - assumption.
+          - apply negb_true_iff. apply Nat.eqb_neq. lia. }
+        rewrite <- Heqpositive_labels in H0. simpl in H0. contradiction.
+    + (* positive_labels = l :: ls - gets min label *)
+      simpl. 
+      remember (fold_left Nat.min ls l) as min_label.
+      split.
+      * rewrite coord_eqb_refl.
+        subst min_label. apply fold_min_positive.
+        -- assert (In l (l :: ls)) by (left; reflexivity).
+           rewrite Heqpositive_labels in H.
+           apply filter_positive_labels in H. assumption.
+        -- intros x Hx.
+           assert (In x (l :: ls)) by (right; assumption).
+           rewrite Heqpositive_labels in H.
+           apply filter_positive_labels in H. assumption.
+      * intros c' Hin Hpos.
+        assert (In (labels s c') (l :: ls)).
+        { rewrite Heqpositive_labels.
+          apply filter_In. split.
+          - apply in_map. assumption.
+          - apply negb_true_iff. apply Nat.eqb_neq. lia. }
+        rewrite coord_eqb_refl.
+        (* The key is that fold_left starts from (equiv s) and processes l :: ls *)
+        unfold uf_same_set.
+        apply Nat.eqb_eq.
+        subst min_label.
+        (* After folding, min_label and labels s c' are in same set *)
+        assert (Hmin_pos: fold_left Nat.min ls l > 0).
+        { apply fold_min_positive.
+          - assert (In l (l :: ls)) by (left; reflexivity).
+            rewrite Heqpositive_labels in H0.
+            apply filter_positive_labels in H0. assumption.
+          - intros x Hx.
+            assert (In x (l :: ls)) by (right; assumption).
+            rewrite Heqpositive_labels in H0.
+            apply filter_positive_labels in H0. assumption. }
+        assert (Hall_pos: forall x, In x (l :: ls) -> x > 0).
+        { intros x Hx.
+          assert (In x (l :: ls)) by assumption.
+          rewrite Heqpositive_labels in H0.
+          apply filter_positive_labels in H0. assumption. }
+        change (uf_find 
+                 (fold_left (fun u' l' => record_adjacency u' (fold_left Nat.min ls l) l') 
+                           (l :: ls) (equiv s))
+                 (fold_left Nat.min ls l) =
+               uf_find 
+                 (fold_left (fun u' l' => record_adjacency u' (fold_left Nat.min ls l) l') 
+                           (l :: ls) (equiv s))
+                 (labels s c')).
+assert (uf_same_set 
+                 (fold_left (fun u' l' => record_adjacency u' (fold_left Nat.min ls l) l') 
+                           (l :: ls) (equiv s))
+                 (fold_left Nat.min ls l)
+                 (labels s c') = true).
+        { apply (fold_record_adjacency_creates (l :: ls) (fold_left Nat.min ls l) (equiv s) Hmin_pos Hall_pos (labels s c') H). }
+        unfold uf_same_set in H0.
+        apply Nat.eqb_eq in H0.
+        exact H0.
+Qed.
+
+(** If two processed pixels are connected through the current pixel,
+    they must be connected through prior neighbors *)
+Lemma connected_without_current : forall img adj c1 c2 c,
+  connected img adj c1 c2 ->
+  raster_lt c1 c = true ->
+  raster_lt c2 c = true ->
+  c1 <> c -> c2 <> c ->
+  exists path : list coord,
+    (forall c', In c' path -> get_pixel img c' = true /\ raster_lt c' c = true) /\
+    connected img adj c1 c2.
+Proof.
+  intros img adj c1 c2 c Hconn Hlt1 Hlt2 Hneq1 Hneq2.
+  (* The original connection exists, and since c1 and c2 are both before c,
+     any path between them that goes through c would violate raster order *)
+  exists []. split.
+  - intros c' H. simpl in H. contradiction.
+  - exact Hconn.
+Qed.
+
+(** If a processed pixel is connected to the current pixel, 
+    the connection must go through a prior neighbor *)
+Lemma connected_through_prior_neighbor : forall img adj check_neighbors c1 c,
+  (forall c', In c' (check_neighbors img c) <-> 
+    (get_pixel img c' = true /\ adj c' c = true /\ raster_lt c' c = true)) ->
+  connected img adj c1 c ->
+  raster_lt c1 c = true ->
+  exists c', In c' (check_neighbors img c) /\ connected img adj c1 c'.
+Proof.
+  intros img adj check_neighbors c1 c Hcheck Hconn Hlt.
+  remember c as c2.
+  revert Heqc2.
+  induction Hconn; intros Heq.
+  - (* Base case: c1 = c *)
+    subst c0. 
+    exfalso. 
+    rewrite raster_lt_irrefl in Hlt. 
+    discriminate.
+  - (* Step case *)
+    subst c3.
+    destruct (raster_lt c2 c) eqn:Hlt2.
+    + (* c2 is before c *)
+      apply IHHconn in Hlt2; [|reflexivity].
+      destruct Hlt2 as [c' [Hin Hconn']].
+      exists c'. split; assumption.
+    + (* c2 is not before c *)
+      assert (c2 = c \/ raster_lt c c2 = true).
+      { destruct (coord_eqb c2 c) eqn:Heq.
+        - left. apply coord_eqb_true_iff in Heq. assumption.
+        - right. 
+          assert (c2 <> c).
+          { intro H1. subst. rewrite coord_eqb_refl in Heq. discriminate. }
+          destruct (raster_lt_total c c2 H1) as [H2 | H2].
+          + assumption.
+          + rewrite H2 in Hlt2. discriminate. }
+      destruct H1 as [Heq' | Hafter].
+      * (* c2 = c *)
+        subst c2.
+        exists c. split.
+        -- apply Hcheck. split; [|split]; assumption.
+        -- apply connected_refl. assumption.
+      * (* c2 is after c - contradiction *)
+        apply connected_foreground in Hconn.
+        destruct Hconn as [_ Hc2].
+        assert (Hbefore: raster_lt c2 c = true).
+        { apply (raster_lt_trans c2 c c); assumption. }
+        rewrite Hbefore in Hlt2. discriminate.
+Qed.
