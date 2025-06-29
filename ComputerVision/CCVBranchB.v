@@ -2849,21 +2849,243 @@ assert (uf_same_set
         exact H0.
 Qed.
 
-(** If two processed pixels are connected through the current pixel,
-    they must be connected through prior neighbors *)
-Lemma connected_without_current : forall img adj c1 c2 c,
-  connected img adj c1 c2 ->
-  raster_lt c1 c = true ->
-  raster_lt c2 c = true ->
-  c1 <> c -> c2 <> c ->
-  exists path : list coord,
-    (forall c', In c' path -> get_pixel img c' = true /\ raster_lt c' c = true) /\
-    connected img adj c1 c2.
+(** * Missing Union-Find Infrastructure Lemmas *)
+
+(** 1. Characterization of when union creates new equivalences *)
+Lemma uf_union_creates_equiv_characterization : forall u l1 l2 x y,
+  uf_same_set u l1 l2 = false ->
+  uf_same_set (uf_union u x y) l1 l2 = true ->
+  (uf_find u l1 = uf_find u x \/ uf_find u l1 = uf_find u y) /\
+  (uf_find u l2 = uf_find u x \/ uf_find u l2 = uf_find u y).
 Proof.
-  intros img adj c1 c2 c Hconn Hlt1 Hlt2 Hneq1 Hneq2.
-  (* The original connection exists, and since c1 and c2 are both before c,
-     any path between them that goes through c would violate raster order *)
-  exists []. split.
-  - intros c' H. simpl in H. contradiction.
-  - exact Hconn.
+  intros u l1 l2 x y Hbefore Hafter.
+  unfold uf_same_set in *.
+  apply Nat.eqb_neq in Hbefore.
+  apply Nat.eqb_eq in Hafter.
+  unfold uf_union, uf_find in Hafter.
+  
+  (* Analyze how uf_union affected l1 and l2 *)
+  remember (uf_find u x =? uf_find u l1) as b1.
+  remember (uf_find u x =? uf_find u l2) as b2.
+  destruct b1 eqn:Eb1; destruct b2 eqn:Eb2.
+  
+  - (* Case 1: Both l1 and l2 were in x's class *)
+    symmetry in Heqb1, Heqb2.
+    apply Nat.eqb_eq in Heqb1, Heqb2.
+    (* This means uf_find u l1 = uf_find u x = uf_find u l2 *)
+    rewrite <- Heqb1, <- Heqb2 in Hbefore.
+    contradiction.
+- (* Case 2: l1 in x's class, l2 not *)
+    symmetry in Heqb1, Heqb2.
+    apply Nat.eqb_eq in Heqb1.
+    apply Nat.eqb_neq in Heqb2.
+    (* After union: l1 maps to y, l2 stays unchanged *)
+    unfold uf_find in Heqb1, Heqb2.
+    rewrite Heqb1 in Hafter.
+    rewrite Nat.eqb_refl in Hafter.
+    assert (Hneq: u l1 <> u l2).
+    { rewrite <- Heqb1. exact Heqb2. }
+    assert (H: (u l1 =? u l2) = false).
+    { apply Nat.eqb_neq. exact Hneq. }
+    rewrite H in Hafter.
+    (* Now Hafter : u y = u l2 *)
+    split.
+    + left. unfold uf_find. symmetry. exact Heqb1.
+    + right. unfold uf_find. symmetry. exact Hafter.
+- (* Case 3: l2 in x's class, l1 not *)
+    symmetry in Heqb1, Heqb2.
+    apply Nat.eqb_neq in Heqb1.
+    apply Nat.eqb_eq in Heqb2.
+    (* After union: l2 maps to y, l1 stays unchanged *)
+    unfold uf_find in Heqb1, Heqb2.
+    rewrite Heqb2 in Hafter.
+    assert (Hneq: u l1 <> u l2).
+    { intro Heq. apply Heqb1. rewrite Heq. exact Heqb2. }
+    assert (Hneq': u l2 <> u l1).
+    { intro Heq. apply Hneq. symmetry. exact Heq. }
+    assert (H: (u l2 =? u l1) = false).
+    { apply Nat.eqb_neq. exact Hneq'. }
+    rewrite H in Hafter.
+    rewrite Nat.eqb_refl in Hafter.
+    (* Now Hafter : u l1 = u y *)
+    split.
+    + right. unfold uf_find. exact Hafter.
+    + left. unfold uf_find. symmetry. exact Heqb2.
+- (* Case 4: Neither in x's class *)
+    symmetry in Heqb1, Heqb2.
+    apply Nat.eqb_neq in Heqb1, Heqb2.
+    (* After union: both stay unchanged *)
+    unfold uf_find in Heqb1, Heqb2.
+    assert (H1: u x =? u l1 = false).
+    { apply Nat.eqb_neq. exact Heqb1. }
+    assert (H2: u x =? u l2 = false).
+    { apply Nat.eqb_neq. exact Heqb2. }
+    rewrite H1, H2 in Hafter.
+    (* So Hafter : u l1 = u l2, contradicting Hbefore *)
+    unfold uf_find in Hbefore.
+    contradiction.
+Qed.
+
+(** 2. Union preserves non-equivalence for unrelated labels *)
+Lemma uf_union_preserves_non_equiv : forall u l1 l2 x y,
+  uf_same_set u l1 l2 = false ->
+  uf_find u l1 <> uf_find u x ->
+  uf_find u l1 <> uf_find u y ->
+  uf_find u l2 <> uf_find u x ->
+  uf_find u l2 <> uf_find u y ->
+  uf_same_set (uf_union u x y) l1 l2 = false.
+Proof.
+  intros u l1 l2 x y Hbefore Hl1x Hl1y Hl2x Hl2y.
+  unfold uf_same_set in *.
+  apply Nat.eqb_neq in Hbefore.
+  apply Nat.eqb_neq.
+  unfold uf_union, uf_find in *.
+  
+  (* Since l1 is not in x's class, it remains unchanged *)
+  assert (H1: (u x =? u l1) = false).
+  { apply Nat.eqb_neq. intro H. symmetry in H. contradiction. }
+  rewrite H1.
+  
+  (* Since l2 is not in x's class, it remains unchanged *)
+  assert (H2: (u x =? u l2) = false).
+  { apply Nat.eqb_neq. intro H. symmetry in H. contradiction. }
+  rewrite H2.
+  
+  (* Both sides are just u l1 and u l2, which are different by Hbefore *)
+  exact Hbefore.
+Qed.
+
+(** 3. Complete characterization of when record_adjacency creates new equivalences *)
+Lemma record_adjacency_creates_equiv_iff : forall u x y l1 l2,
+  uf_same_set u l1 l2 = false ->
+  (uf_same_set (record_adjacency u x y) l1 l2 = true <->
+   x <> 0 /\ y <> 0 /\ x <> y /\ 
+   ((uf_find u l1 = uf_find u x \/ uf_find u l1 = uf_find u y) /\
+    (uf_find u l2 = uf_find u x \/ uf_find u l2 = uf_find u y))).
+Proof.
+  intros u x y l1 l2 Hbefore.
+  unfold record_adjacency.
+  split.
+  
+  - (* Forward direction *)
+    intro Hafter.
+    destruct (negb (x =? 0) && negb (y =? 0)) eqn:Hnonzero.
+    + (* Both x and y are non-zero *)
+      apply andb_prop in Hnonzero.
+      destruct Hnonzero as [Hx Hy].
+      apply negb_true_iff in Hx, Hy.
+      apply Nat.eqb_neq in Hx, Hy.
+      destruct (x =? y) eqn:Hxy.
+      * (* x = y *)
+        apply Nat.eqb_eq in Hxy.
+        subst y.
+        (* record_adjacency didn't change u, so same_set should still be false *)
+        rewrite Hbefore in Hafter.
+        discriminate.
+      * (* x ≠ y *)
+        apply Nat.eqb_neq in Hxy.
+        split; [exact Hx|].
+        split; [exact Hy|].
+        split; [exact Hxy|].
+        (* Now apply uf_union_creates_equiv_characterization *)
+        apply (uf_union_creates_equiv_characterization u l1 l2 x y Hbefore Hafter).
+    + (* At least one of x or y is zero *)
+      (* record_adjacency didn't change u, so same_set should still be false *)
+      rewrite Hbefore in Hafter.
+      discriminate.
+- (* Backward direction *)
+    intros [Hx [Hy [Hxy Hequiv]]].
+    assert (Hnonzero: negb (x =? 0) && negb (y =? 0) = true).
+    { apply andb_true_intro. split.
+      - apply negb_true_iff. apply Nat.eqb_neq. exact Hx.
+      - apply negb_true_iff. apply Nat.eqb_neq. exact Hy. }
+    rewrite Hnonzero.
+    assert (Hxy': (x =? y) = false).
+    { apply Nat.eqb_neq. exact Hxy. }
+    rewrite Hxy'.
+    (* Now we need to show uf_same_set (uf_union u x y) l1 l2 = true *)
+    unfold uf_same_set, uf_union, uf_find.
+    apply Nat.eqb_eq.
+    destruct Hequiv as [[Hl1x | Hl1y] [Hl2x | Hl2y]].
++ (* l1 in x's class, l2 in x's class *)
+      unfold uf_find in Hl1x, Hl2x.
+      assert (H1: u x =? u l1 = true).
+      { apply Nat.eqb_eq. symmetry. exact Hl1x. }
+      assert (H2: u x =? u l2 = true).
+      { apply Nat.eqb_eq. symmetry. exact Hl2x. }
+      rewrite H1, H2.
+      reflexivity.
++ (* l1 in x's class, l2 in y's class *)
+      unfold uf_find in Hl1x, Hl2y.
+      assert (H1: u x =? u l1 = true).
+      { apply Nat.eqb_eq. symmetry. exact Hl1x. }
+      rewrite H1.
+      assert (H2: u x =? u l2 = false).
+      { apply Nat.eqb_neq. intro H.
+        (* If u x = u l2, then u l1 = u x = u l2, contradicting Hbefore *)
+        unfold uf_same_set in Hbefore.
+        apply Nat.eqb_neq in Hbefore.
+        apply Hbefore.
+        unfold uf_find.
+        rewrite Hl1x, H.
+        reflexivity. }
+      rewrite H2.
+      symmetry. exact Hl2y.
++ (* l1 in y's class, l2 in x's class *)
+      unfold uf_find in Hl1y, Hl2x.
+      assert (H1: u x =? u l1 = false).
+      { apply Nat.eqb_neq. intro H. 
+        (* If u x = u l1, then since u l1 = u y, we'd have u x = u y *)
+        assert (Hxy_eq: u x = u y).
+        { rewrite H. exact Hl1y. }
+        (* This means x and y are already in same class, but then l1 and l2 would be too *)
+        unfold uf_same_set in Hbefore.
+        apply Nat.eqb_neq in Hbefore.
+        apply Hbefore.
+        unfold uf_find.
+        rewrite Hl1y, <- Hxy_eq, <- Hl2x.
+        reflexivity. }
+      rewrite H1.
+      assert (H2: u x =? u l2 = true).
+      { apply Nat.eqb_eq. symmetry. exact Hl2x. }
+      rewrite H2.
+      exact Hl1y.
++ (* l1 in y's class, l2 in y's class *)
+      unfold uf_find in Hl1y, Hl2y.
+      assert (H1: u x =? u l1 = false).
+      { apply Nat.eqb_neq. intro H. 
+        (* If u x = u l1 and u l1 = u y, then u x = u y *)
+        assert (Hxy_eq: u x = u y).
+        { rewrite H. exact Hl1y. }
+        (* But then l1 and l2 would already be equivalent *)
+        unfold uf_same_set in Hbefore.
+        apply Nat.eqb_neq in Hbefore.
+        apply Hbefore.
+        unfold uf_find.
+        rewrite Hl1y, Hl2y.
+        reflexivity. }
+      assert (H2: u x =? u l2 = false).
+      { apply Nat.eqb_neq. intro H. 
+        (* Similar reasoning *)
+        assert (Hxy_eq: u x = u y).
+        { rewrite H. exact Hl2y. }
+        unfold uf_same_set in Hbefore.
+        apply Nat.eqb_neq in Hbefore.
+        apply Hbefore.
+        unfold uf_find.
+        rewrite Hl1y, Hl2y.
+        reflexivity. }
+      rewrite H1, H2.
+      rewrite Hl1y, Hl2y.
+      reflexivity.
+Qed.
+
+(** 4. Direct computation of find after union *)
+Lemma uf_find_after_union : forall u x y z,
+  uf_find (uf_union u x y) z = 
+  if uf_find u x =? uf_find u z then uf_find u y else uf_find u z.
+Proof.
+  intros u x y z.
+  unfold uf_union, uf_find.
+  reflexivity.
 Qed.
