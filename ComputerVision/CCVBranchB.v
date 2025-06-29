@@ -651,6 +651,158 @@ Proof.
   destruct (0 <? x); destruct (0 <? y); simpl; lia.
 Qed.
 
+Lemma prior_neighbors_4_NoDup : forall c,
+  NoDup (prior_neighbors_4 c).
+Proof.
+  intros [x y].
+  unfold prior_neighbors_4, coord_x, coord_y.
+  simpl.
+  destruct (0 <? x) eqn:Hx; destruct (0 <? y) eqn:Hy.
+  - (* x > 0, y > 0: both neighbors exist *)
+    apply NoDup_cons.
+    + (* (x-1, y) not in [(x, y-1)] *)
+      intro H. simpl in H. destruct H as [H | H].
+      * (* (x-1, y) = (x, y-1) *)
+        injection H as Hx_eq Hy_eq.
+        (* x-1 = x is impossible *)
+        apply Nat.ltb_lt in Hx. lia.
+      * contradiction.
+    + apply NoDup_cons.
+      * intro H. contradiction.
+      * apply NoDup_nil.
+  - (* x > 0, y = 0: only left neighbor *)
+    apply NoDup_cons.
+    + intro H. contradiction.
+    + apply NoDup_nil.
+  - (* x = 0, y > 0: only up neighbor *)
+    apply NoDup_cons.
+    + intro H. contradiction.
+    + apply NoDup_nil.
+  - (* x = 0, y = 0: no neighbors *)
+    apply NoDup_nil.
+Qed.
+
+(** Helper: If 4-adjacent, one of four relative positions *)
+Lemma adjacent_4_cases : forall x y x' y',
+  adjacent_4 (x', y') (x, y) = true ->
+  (x' = x - 1 /\ y' = y) \/    (* left *)
+  (x' = x + 1 /\ y' = y) \/    (* right *)
+  (x' = x /\ y' = y - 1) \/    (* up *)
+  (x' = x /\ y' = y + 1).      (* down *)
+Proof.
+  intros x y x' y' Hadj.
+  apply adjacent_4_manhattan in Hadj.
+  simpl in Hadj.
+  (* Manhattan distance 1 means exactly one of dx, dy is 1, other is 0 *)
+  destruct (abs_diff x' x) eqn:Edx, (abs_diff y' y) eqn:Edy;
+  try (simpl in Hadj; lia).
+  - (* dx = 0, dy = S n *)
+    simpl in Hadj. assert (n = 0) by lia. subst n.
+    unfold abs_diff in Edx, Edy.
+    destruct (x' <=? x) eqn:Ex', (y' <=? y) eqn:Ey'.
+    + apply Nat.leb_le in Ex', Ey'.
+      assert (x = x') by lia.
+      assert (y - y' = 1) by lia.
+      right. right. left. split; lia.
+    + apply Nat.leb_le in Ex'. apply Nat.leb_nle in Ey'.
+      assert (x = x') by lia.
+      assert (y' - y = 1) by lia.
+      right. right. right. split; lia.
+    + apply Nat.leb_nle in Ex'. apply Nat.leb_le in Ey'.
+      lia.
+    + apply Nat.leb_nle in Ex', Ey'. lia.
+  - (* dx = S n, dy = 0 *)
+    simpl in Hadj. assert (n = 0) by lia. subst n.
+    unfold abs_diff in Edx, Edy.
+    destruct (x' <=? x) eqn:Ex', (y' <=? y) eqn:Ey'.
+    + apply Nat.leb_le in Ex', Ey'.
+      assert (y = y') by lia.
+      assert (x - x' = 1) by lia.
+      left. split; lia.
+    + apply Nat.leb_le in Ex'. apply Nat.leb_nle in Ey'.
+      assert (y = y') by lia. lia.
+    + apply Nat.leb_nle in Ex'. apply Nat.leb_le in Ey'.
+      assert (y = y') by lia.
+      assert (x' - x = 1) by lia.
+      right. left. split; lia.
+    + apply Nat.leb_nle in Ex', Ey'.
+      assert (y = y') by lia. lia.
+Qed.
+
+(** Helper: Raster order constrains relative positions *)
+Lemma raster_lt_position : forall x y x' y',
+  raster_lt (x', y') (x, y) = true ->
+  y' < y \/ (y' = y /\ x' < x).
+Proof.
+  intros x y x' y' H.
+  unfold raster_lt, coord_x, coord_y in H.
+  simpl in H.
+  apply orb_prop in H.
+  destruct H as [Hy | Hxy].
+  - left. apply Nat.ltb_lt in Hy. assumption.
+  - right. apply andb_prop in Hxy.
+    destruct Hxy as [Hy Hx].
+    apply Nat.eqb_eq in Hy.
+    apply Nat.ltb_lt in Hx.
+    split; assumption.
+Qed.
+
+(** Helper: Combining adjacency with raster order limits to 2 cases *)
+Lemma adjacent_4_before_cases : forall x y x' y',
+  adjacent_4 (x', y') (x, y) = true ->
+  raster_lt (x', y') (x, y) = true ->
+  (x' = x - 1 /\ y' = y /\ x > 0) \/    (* left *)
+  (x' = x /\ y' = y - 1 /\ y > 0).      (* up *)
+Proof.
+  intros x y x' y' Hadj Hbefore.
+  apply adjacent_4_cases in Hadj.
+  apply raster_lt_position in Hbefore.
+  destruct Hadj as [H | [H | [H | H]]].
+  - (* left: x' = x - 1, y' = y *)
+    destruct H as [Hx' Hy']. subst.
+    destruct Hbefore as [Hy_lt | [Hy_eq Hx_lt]].
+    + lia.  (* y < y is impossible *)
+    + left. split; [reflexivity | split; [reflexivity | lia]].
+  - (* right: x' = x + 1, y' = y *)
+    destruct H as [Hx' Hy']. subst.
+    destruct Hbefore as [Hy_lt | [Hy_eq Hx_lt]].
+    + lia.  (* y < y is impossible *)
+    + lia.  (* x + 1 < x is impossible *)
+  - (* up: x' = x, y' = y - 1 *)
+    destruct H as [Hx' Hy']. subst.
+    destruct Hbefore as [Hy_lt | [Hy_eq Hx_lt]].
+    + right. split; [reflexivity | split; [reflexivity | lia]].
+    + lia.  (* y - 1 = y is impossible when y > 0 *)
+  - (* down: x' = x, y' = y + 1 *)
+    destruct H as [Hx' Hy']. subst.
+    destruct Hbefore as [Hy_lt | [Hy_eq Hx_lt]].
+    + lia.  (* y + 1 < y is impossible *)
+    + lia.  (* y + 1 = y is impossible *)
+Qed.
+
+Lemma prior_neighbors_4_complete : forall c c',
+  adjacent_4 c' c = true ->
+  raster_lt c' c = true ->
+  In c' (prior_neighbors_4 c).
+Proof.
+  intros [x y] [x' y'] Hadj Hbefore.
+  apply adjacent_4_before_cases in Hadj; [|assumption].
+  unfold prior_neighbors_4, coord_x, coord_y. simpl.
+  destruct Hadj as [[Hx' [Hy' Hx_pos]] | [Hx' [Hy' Hy_pos]]].
+  - (* left: x' = x - 1, y' = y *)
+    subst x' y'.
+    assert (0 <? x = true) by (apply Nat.ltb_lt; assumption).
+    rewrite H. simpl. left. reflexivity.
+  - (* up: x' = x, y' = y - 1 *)
+    subst x' y'.
+    assert (0 <? y = true) by (apply Nat.ltb_lt; assumption).
+    destruct (0 <? x) eqn:Hx.
+    + (* x > 0: list is [(x-1,y); (x,y-1)] *)
+      rewrite H. simpl. right. left. reflexivity.
+    + (* x = 0: list is [(x,y-1)] *)
+      rewrite H. simpl. left. reflexivity.
+Qed.
+
 (** ** Examples and Tests *)
 
 Example test_adjacent_4 : 
@@ -826,4 +978,148 @@ Example test_manhattan_distance :
   (abs_diff 3 5 + abs_diff 7 8 = 3).    (* This doesn't *)
 Proof.
   repeat split; reflexivity.
+Qed.
+
+
+(** Examples demonstrating NoDup property *)
+Example test_prior_neighbors_NoDup :
+  let neighbors_4 := prior_neighbors_4 (5, 3) in
+  let neighbors_8 := prior_neighbors_8 (5, 3) in
+  NoDup neighbors_4 /\ NoDup neighbors_8.
+Proof.
+  simpl.
+  split; apply NoDup_cons.
+  - intro H. simpl in H. destruct H as [H|[]]. discriminate.
+  - apply NoDup_cons; [intro H; contradiction | apply NoDup_nil].
+  - intro H. simpl in H. 
+    destruct H as [H|[H|[H|[]]]]; discriminate.
+  - apply NoDup_cons.
+    + intro H. simpl in H.
+      destruct H as [H|[H|[]]]; discriminate.
+    + apply NoDup_cons.
+      * intro H. simpl in H.
+        destruct H as [H|[]]; discriminate.
+      * apply NoDup_cons; [intro H; contradiction | apply NoDup_nil].
+Qed.
+
+(** Example showing a corner case *)
+Example test_prior_neighbors_corner :
+  (* At (0,0), no prior neighbors exist *)
+  prior_neighbors_4 (0, 0) = [] /\
+  prior_neighbors_8 (0, 0) = [] /\
+  (* At (1,0), only left neighbor *)
+  prior_neighbors_4 (1, 0) = [(0, 0)] /\
+  prior_neighbors_8 (1, 0) = [(0, 0)] /\
+  (* At (0,1), only up neighbor for 4, but two for 8 *)
+  prior_neighbors_4 (0, 1) = [(0, 0)] /\
+  prior_neighbors_8 (0, 1) = [(0, 0); (1, 0)].
+Proof.
+  repeat split; reflexivity.
+Qed.
+
+(** Example demonstrating the relationship between adjacency and prior neighbors *)
+Example test_adjacency_prior_relationship :
+  forall x y,
+    x > 0 -> y > 0 ->
+    (* For interior pixels, prior_neighbors_4 has exactly 2 elements *)
+    length (prior_neighbors_4 (x, y)) = 2 /\
+    (* And they are exactly the left and up neighbors *)
+    prior_neighbors_4 (x, y) = [(x-1, y); (x, y-1)].
+Proof.
+  intros x y Hx Hy.
+  unfold prior_neighbors_4, coord_x, coord_y.
+  simpl.
+  assert (0 <? x = true) by (apply Nat.ltb_lt; assumption).
+  assert (0 <? y = true) by (apply Nat.ltb_lt; assumption).
+  rewrite H, H0.
+  simpl. split; reflexivity.
+Qed.
+
+(** Example showing prior_neighbors respects image bounds implicitly *)
+Example test_prior_with_small_image :
+  let img := mkImage 3 3 (fun c => true) in  (* 3x3 image *)
+  let c := (1, 1) in  (* center pixel *)
+  (* All prior neighbors are in bounds *)
+  forall n, In n (prior_neighbors_4 c) -> in_bounds img n = true.
+Proof.
+  simpl. intros n H.
+  destruct H as [H | [H | H]].
+  - rewrite <- H. reflexivity.
+  - rewrite <- H. reflexivity.
+  - contradiction.
+Qed.
+
+(** Example combining everything: checking actual adjacencies *)
+Example test_complete_prior_check :
+  let img := sample_image in  (* from earlier *)
+  let c := (1, 2) in
+  (* prior_neighbors_4 finds all candidates *)
+  prior_neighbors_4 c = [(0, 2); (1, 1)] /\
+  (* check filters to only adjacent foreground *)
+  check_prior_neighbors_4 img c = [(0, 2); (1, 1)] /\
+  (* These are all the 4-adjacent prior foreground pixels *)
+  forall c', get_pixel img c' = true ->
+             adjacent_4 c' c = true ->
+             raster_lt c' c = true ->
+             In c' (check_prior_neighbors_4 img c).
+Proof.
+  split; [reflexivity | split; [reflexivity |]].
+  intros c' Hpix Hadj Hbefore.
+  unfold check_prior_neighbors_4.
+  apply filter_In. split.
+  - apply prior_neighbors_4_complete; assumption.
+  - rewrite Hpix, Hadj. reflexivity.
+Qed.
+
+(** Examples showing completeness: all valid prior neighbors are found *)
+Example test_prior_neighbors_4_complete_concrete :
+  (* At position (3,2), the prior 4-neighbors are (2,2) and (3,1) *)
+  let c := (3, 2) in
+  (* Check that these are indeed in prior_neighbors_4 *)
+  In (2, 2) (prior_neighbors_4 c) /\
+  In (3, 1) (prior_neighbors_4 c) /\
+  (* And these are the only ones *)
+  length (prior_neighbors_4 c) = 2.
+Proof.
+  simpl. split.
+  - (* In (2, 2) [(2, 2); (3, 1)] *)
+    left. reflexivity.
+  - split.
+    + (* In (3, 1) [(2, 2); (3, 1)] *)
+      right. left. reflexivity.
+    + (* length = 2 *)
+      reflexivity.
+Qed.
+
+(** Example showing completeness captures exactly the right neighbors *)
+Example test_4_adjacency_completeness :
+  let c := (5, 7) in
+  (* Manual check: the only 4-adjacent coords before (5,7) are: *)
+  let left := (4, 7) in   (* left neighbor *)
+  let up := (5, 6) in     (* up neighbor *)
+  (* These are 4-adjacent and before c *)
+  (adjacent_4 left c = true /\ raster_lt left c = true) /\
+  (adjacent_4 up c = true /\ raster_lt up c = true) /\
+  (* And they're in prior_neighbors_4 *)
+  prior_neighbors_4 c = [left; up].
+Proof.
+  simpl. repeat split; reflexivity.
+Qed.
+
+(** Alternative: Example showing prior_neighbors_4 finds all valid neighbors *)
+Example test_prior_neighbors_finds_all :
+  let c := (2, 3) in
+  (* Every element in prior_neighbors_4 is 4-adjacent and before c *)
+  (forall n, In n (prior_neighbors_4 c) -> 
+             adjacent_4 n c = true /\ raster_lt n c = true) /\
+  (* Specific check for this position *)
+  prior_neighbors_4 c = [(1, 3); (2, 2)].
+Proof.
+  split.
+  - intros n H. simpl in H.
+    destruct H as [H | [H | H]].
+    + rewrite <- H. simpl. split; reflexivity.
+    + rewrite <- H. simpl. split; reflexivity.
+    + contradiction.
+  - reflexivity.
 Qed.
