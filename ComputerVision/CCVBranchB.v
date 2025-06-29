@@ -2591,3 +2591,113 @@ Proof.
         apply coord_eqb_true_iff in H. contradiction. }
       rewrite H. reflexivity.
 Qed.
+
+(** Background pixels stay unlabeled after processing *)
+Lemma process_pixel_preserves_background_label : forall img adj check_neighbors s c c',
+  get_pixel img c' = false ->
+  labels (process_pixel img adj check_neighbors s c) c' = 0 ->
+  labels s c' = 0.
+Proof.
+  intros img adj check_neighbors s c c' Hbg Hlabel.
+  destruct (coord_eqb c c') eqn:Heq.
+  - (* c = c' *)
+    apply coord_eqb_true_iff in Heq. subst c'.
+    unfold process_pixel in Hlabel.
+    rewrite Hbg in Hlabel.
+    assumption.
+  - (* c ≠ c' *)
+    rewrite (process_pixel_labels_unchanged img adj check_neighbors s c c') in Hlabel.
+    + assumption.
+    + intro H. subst c'. rewrite coord_eqb_refl in Heq. discriminate.
+Qed.
+
+(** fold_left with record_adjacency preserves existing equivalences *)
+Lemma fold_record_adjacency_preserves : forall labels min_label u l1 l2,
+  uf_same_set u l1 l2 = true ->
+  uf_same_set 
+    (fold_left (fun u' l' => record_adjacency u' min_label l') labels u) 
+    l1 l2 = true.
+Proof.
+  intros labels min_label u l1 l2 H.
+  generalize dependent u.
+  induction labels as [|x xs IH]; intros u H.
+  - simpl. assumption.
+  - simpl. apply IH.
+    unfold record_adjacency.
+    destruct (negb (min_label =? 0) && negb (x =? 0)) eqn:E.
+    + destruct (min_label =? x).
+      * assumption.
+      * apply uf_union_preserves_others. assumption.
+    + assumption.
+Qed.
+
+Lemma process_pixel_maintains_invariant : forall img adj check_neighbors s c processed,
+  (forall a b, adj a b = adj b a) ->
+  check_neighbors = check_prior_neighbors_4 \/ 
+  check_neighbors = check_prior_neighbors_8 ->
+  strong_partial_correct img adj s processed ->
+  next_label s > 0 -> 
+  raster_prefix processed ->
+  ~ In c processed ->
+  (forall c', In c' processed -> raster_lt c' c = true) ->
+  strong_partial_correct img adj 
+    (process_pixel img adj check_neighbors s c) 
+    (c :: processed).
+Proof.
+  intros img adj check_neighbors s c processed Hadj_sym Hcheck Hinv Hnext_pos Hprefix Hnot_in Hbefore.
+  unfold strong_partial_correct in *.
+  destruct Hinv as [Hbg [Hfg [Hunproc Hconn]]].
+  
+  destruct (get_pixel img c) eqn:Hpixel.
+2: { (* Background case *)
+    rewrite process_pixel_background_unchanged; [|assumption].
+    split; [|split; [|split]].
+    - intros c0 [Hc0_eq | Hc0_in] Hc0_bg.
+      + subst c0. apply Hunproc. assumption.
+      + apply Hbg; assumption.
+- intros c0 [Hc0_eq | Hc0_in] Hc0_fg.
+      + subst c0. rewrite Hpixel in Hc0_fg. discriminate.
+      + apply Hfg; assumption.
+- intros c0 Hc0_not_in.
+      apply Hunproc. intro H. apply Hc0_not_in. right. assumption.
+- intros c1 c2 Hc1_in Hc2_in Hc1_fg Hc2_fg.
+      destruct Hc1_in as [Hc1_eq | Hc1_in];
+      destruct Hc2_in as [Hc2_eq | Hc2_in].
++ subst c1 c2. rewrite Hpixel in Hc1_fg. discriminate.
+      + subst c1. rewrite Hpixel in Hc1_fg. discriminate.
+      + subst c2. rewrite Hpixel in Hc2_fg. discriminate.
+      + apply Hconn; assumption.
+  }
+(* Foreground case *)
+  unfold process_pixel at 1.
+  rewrite Hpixel.
+set (neighbors := check_neighbors img c).
+  set (neighbor_labels := map (labels s) neighbors).
+  set (positive_labels := filter (fun l => negb (Nat.eqb l 0)) neighbor_labels).
+destruct positive_labels as [|min_label rest] eqn:Hpos_labels.
+- { (* No positive neighbor labels case *)
+      simpl.
+      split; [|split; [|split]].
+- intros c0 [Hc0_eq | Hc0_in] Hc0_bg.
+        + subst c0. rewrite Hpixel in Hc0_bg. discriminate.
+        + destruct (coord_eqb c c0) eqn:Heqb.
+          * apply coord_eqb_true_iff in Heqb. subst c0. contradiction.
+          * apply Hbg; assumption.
+- intros c0 [Hc0_eq | Hc0_in] Hc0_fg.
+        + subst c0. 
+          unfold process_pixel.
+          rewrite Hpixel.
+          fold neighbors neighbor_labels positive_labels.
+          rewrite Hpos_labels.
+          simpl.
+          rewrite coord_eqb_refl.
+          exact Hnext_pos.
+        + rewrite process_pixel_labels_unchanged.
+          * apply Hfg; assumption.
+          * intro H. subst c0. contradiction.
+- intros c0 Hc0_not_in.
+        destruct (coord_eqb c c0) eqn:Heqb.
+        + apply coord_eqb_true_iff in Heqb. subst c0.
+          exfalso. apply Hc0_not_in. left. reflexivity.
+
+
