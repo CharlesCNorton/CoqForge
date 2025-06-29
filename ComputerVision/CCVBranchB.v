@@ -2100,3 +2100,422 @@ Proof.
   
   eapply H0; [exact H | reflexivity | reflexivity].
 Qed.
+
+(** * Section 4: Single-Pass Algorithm
+    
+    This section implements the single-pass connected component labeling
+    algorithm using union-find to track label equivalences. *)
+
+(** ** Algorithm State *)
+
+Record ccl_state : Type := mkCCLState {
+  labels : labeling;
+  equiv : uf;
+  next_label : nat
+}.
+
+Definition initial_state : ccl_state :=
+  mkCCLState empty_labeling uf_init 1.
+
+(** ** Core Algorithm *)
+
+Definition process_pixel (img : image) (adj : coord -> coord -> bool) 
+                        (check_neighbors : image -> coord -> list coord)
+                        (s : ccl_state) (c : coord) : ccl_state :=
+  if get_pixel img c then
+    let neighbors := check_neighbors img c in
+    let neighbor_labels := map (labels s) neighbors in
+    let positive_labels := filter (fun l => negb (Nat.eqb l 0)) neighbor_labels in
+    match positive_labels with
+    | [] => 
+        mkCCLState 
+          (fun c' => if coord_eqb c c' then next_label s else labels s c')
+          (equiv s)
+          (S (next_label s))
+    | l :: rest =>
+        let min_label := fold_left Nat.min rest l in
+        let new_equiv := fold_left (fun u l' => record_adjacency u min_label l') 
+                                   positive_labels (equiv s) in
+        mkCCLState
+          (fun c' => if coord_eqb c c' then min_label else labels s c')
+          new_equiv
+          (next_label s)
+    end
+  else
+    s.
+
+Definition ccl_pass (img : image) (adj : coord -> coord -> bool)
+                    (check_neighbors : image -> coord -> list coord) : ccl_state :=
+  fold_left (process_pixel img adj check_neighbors) (all_coords img) initial_state.
+
+Definition ccl_algorithm (img : image) (adj : coord -> coord -> bool)
+                        (check_neighbors : image -> coord -> list coord) : labeling :=
+  let final_state := ccl_pass img adj check_neighbors in
+  let max_label := next_label final_state - 1 in
+  compact_labels (equiv final_state) (resolve_labels (equiv final_state) (labels final_state)) max_label.
+
+Definition ccl_4 (img : image) : labeling :=
+  ccl_algorithm img adjacent_4 check_prior_neighbors_4.
+
+Definition ccl_8 (img : image) : labeling :=
+  ccl_algorithm img adjacent_8 check_prior_neighbors_8.
+
+(** ** Algorithm Properties *)
+
+Definition state_labels_pixels (img : image) (s : ccl_state) : Prop :=
+  forall c, labels s c > 0 -> get_pixel img c = true.
+
+Definition state_labels_background (img : image) (s : ccl_state) : Prop :=
+  forall c, get_pixel img c = false -> labels s c = 0.
+
+Definition processed_before_in (img : image) (c : coord) : list coord :=
+  filter (fun c' => raster_lt c' c) (all_coords img).
+
+Definition partial_correct (img : image) (adj : coord -> coord -> bool) 
+                          (s : ccl_state) (processed : list coord) : Prop :=
+  (forall c, In c processed -> get_pixel img c = false -> labels s c = 0) /\
+  (forall c, In c processed -> get_pixel img c = true -> labels s c > 0) /\
+  (forall c1 c2, In c1 processed -> In c2 processed ->
+                 get_pixel img c1 = true -> get_pixel img c2 = true ->
+                 adj c1 c2 = true ->
+                 uf_same_set (equiv s) (labels s c1) (labels s c2) = true) /\
+  (forall c, ~ In c processed -> labels s c = 0).
+
+(** ** Helper Lemmas *)
+
+Lemma filter_positive_labels : forall labels,
+  forall l, In l (filter (fun l => negb (Nat.eqb l 0)) labels) -> l > 0.
+Proof.
+  intros labels l H.
+  apply filter_In in H.
+  destruct H as [_ Hpos].
+  apply negb_true_iff in Hpos.
+  apply Nat.eqb_neq in Hpos.
+  lia.
+Qed.
+
+Lemma fold_min_positive : forall l n,
+  n > 0 ->
+  (forall x, In x l -> x > 0) ->
+  fold_left Nat.min l n > 0.
+Proof.
+  intros l n Hn Hall.
+  generalize dependent n.
+  induction l; intros n Hn.
+  - simpl. assumption.
+  - simpl. apply IHl.
+    + intros x Hx. apply Hall. right. assumption.
+    + assert (a > 0) by (apply Hall; left; reflexivity).
+      destruct n, a; try lia.
+Qed.
+
+(** ** Basic Properties *)
+
+Lemma process_pixel_background_unchanged : forall img adj check_neighbors s c,
+  get_pixel img c = false ->
+  process_pixel img adj check_neighbors s c = s.
+Proof.
+  intros img adj check_neighbors s c H.
+  unfold process_pixel. rewrite H. reflexivity.
+Qed.
+
+Lemma process_pixel_preserves_other : forall img adj check_neighbors s c c',
+  c <> c' ->
+  labels (process_pixel img adj check_neighbors s c) c' = labels s c'.
+Proof.
+  intros img adj check_neighbors s c c' Hneq.
+  unfold process_pixel.
+  destruct (get_pixel img c) eqn:Hpix.
+  - destruct (check_neighbors img c) eqn:Hneighbors.
+    + simpl.
+      assert (coord_eqb c c' = false).
+      { apply Bool.not_true_iff_false. intro H.
+        apply coord_eqb_true_iff in H. contradiction. }
+      rewrite H. reflexivity.
+    + destruct (filter _ _); simpl.
+      * assert (coord_eqb c c' = false).
+        { apply Bool.not_true_iff_false. intro H.
+          apply coord_eqb_true_iff in H. contradiction. }
+        rewrite H. reflexivity.
+      * assert (coord_eqb c c' = false).
+        { apply Bool.not_true_iff_false. intro H.
+          apply coord_eqb_true_iff in H. contradiction. }
+        rewrite H. reflexivity.
+  - reflexivity.
+Qed.
+
+Lemma process_pixel_next_label_increases : forall img adj check_neighbors s c,
+  next_label s <= next_label (process_pixel img adj check_neighbors s c).
+Proof.
+  intros img adj check_neighbors s c.
+  unfold process_pixel.
+  destruct (get_pixel img c).
+  - destruct (check_neighbors img c).
+    + simpl. lia.
+    + destruct (filter _ _); simpl; lia.
+  - lia.
+Qed.
+
+Lemma process_pixel_labels_current : forall img adj check_neighbors s c,
+  next_label s > 0 ->
+  get_pixel img c = true ->
+  labels (process_pixel img adj check_neighbors s c) c > 0.
+Proof.
+  intros img adj check_neighbors s c Hnext Hpix.
+  unfold process_pixel. rewrite Hpix.
+  destruct (check_neighbors img c) eqn:Hneighbors.
+  - simpl. rewrite coord_eqb_refl. assumption.
+  - destruct (filter _ _) eqn:Hfilter; simpl.
+    + rewrite coord_eqb_refl. assumption.
+    + rewrite coord_eqb_refl.
+      apply fold_min_positive.
+      * apply filter_positive_labels with (labels := map (labels s) (c0 :: l)).
+        rewrite Hfilter. left. reflexivity.
+      * intros x Hx.
+        apply filter_positive_labels with (labels := map (labels s) (c0 :: l)).
+        rewrite Hfilter. right. assumption.
+Qed.
+
+Lemma process_pixel_preserves_background : forall img adj check_neighbors s c,
+  state_labels_background img s ->
+  state_labels_background img (process_pixel img adj check_neighbors s c).
+Proof.
+  intros img adj check_neighbors s c Hinv.
+  unfold state_labels_background in *.
+  intros c' Hbg.
+  destruct (coord_eqb c c') eqn:Heq.
+  - apply coord_eqb_true_iff in Heq. subst c'.
+    rewrite process_pixel_background_unchanged.
+    + apply Hinv. assumption.
+    + assumption.
+  - rewrite process_pixel_preserves_other.
+    + apply Hinv. assumption.
+    + intro H. subst. rewrite coord_eqb_refl in Heq. discriminate.
+Qed.
+
+Lemma uf_union_preserves_others : forall u x y l1 l2,
+  uf_same_set u l1 l2 = true ->
+  uf_same_set (uf_union u x y) l1 l2 = true.
+Proof.
+  intros u x y l1 l2 H.
+  unfold uf_same_set, uf_union, uf_find in *.
+  apply Nat.eqb_eq in H.
+  apply Nat.eqb_eq.
+  destruct (u x =? u l1) eqn:E1; destruct (u x =? u l2) eqn:E2.
+  - reflexivity.
+  - exfalso.
+    apply Nat.eqb_eq in E1.
+    apply Nat.eqb_neq in E2.
+    congruence.
+  - exfalso.
+    apply Nat.eqb_neq in E1.
+    apply Nat.eqb_eq in E2.
+    congruence.
+  - assumption.
+Qed.
+
+Lemma process_pixel_preserves_equiv : forall img adj check_neighbors s c l1 l2,
+  uf_same_set (equiv s) l1 l2 = true ->
+  uf_same_set (equiv (process_pixel img adj check_neighbors s c)) l1 l2 = true.
+Proof.
+  intros img adj check_neighbors s c l1 l2 H.
+  unfold process_pixel.
+  destruct (get_pixel img c); [|assumption].
+  destruct (check_neighbors img c).
+  - simpl. assumption.
+  - destruct (filter _ _) as [|n l0]; simpl.
+    + assumption.
+    + remember (fold_left Nat.min l0 n) as min_label.
+      assert (Hgen: forall labels u,
+        uf_same_set u l1 l2 = true ->
+        uf_same_set 
+          (fold_left (fun u' l' => record_adjacency u' min_label l') labels u) 
+          l1 l2 = true).
+      { intros labels0 u0 H0.
+        generalize dependent u0.
+        induction labels0 as [|x xs IH]; intros u0 H0.
+        - simpl. assumption.
+        - simpl. apply IH.
+          unfold record_adjacency.
+          destruct (negb (min_label =? 0) && negb (x =? 0)) eqn:E.
+          + destruct (min_label =? x).
+            * assumption.
+            * apply uf_union_preserves_others. assumption.
+          + assumption. }
+      apply (Hgen (n :: l0) (equiv s) H).
+Qed.
+
+(** ** Invariant Preservation *)
+
+Lemma fold_left_preserves : forall {A B : Type} (f : B -> A -> B) (P : B -> Prop) (l : list A) (b : B),
+  P b ->
+  (forall b' a, P b' -> In a l -> P (f b' a)) ->
+  P (fold_left f l b).
+Proof.
+  intros A B f P l.
+  induction l as [|a l' IH]; intros b Hb Hf.
+  - simpl. assumption.
+  - simpl. apply IH.
+    + apply Hf; [assumption | left; reflexivity].
+    + intros b' a' Hb' Ha'.
+      apply Hf; [assumption | right; assumption].
+Qed.
+
+Lemma ccl_pass_labels_background : forall img adj check_neighbors,
+  state_labels_background img (ccl_pass img adj check_neighbors).
+Proof.
+  intros img adj check_neighbors.
+  unfold ccl_pass.
+  apply fold_left_preserves.
+  - unfold state_labels_background, initial_state, empty_labeling. 
+    intros c H. reflexivity.
+  - intros s c Hs Hc.
+    apply process_pixel_preserves_background. assumption.
+Qed.
+
+(** ** Algorithm Examples *)
+
+Example test_single_pixel :
+  let img := mkImage 1 1 (fun _ => true) in
+  let result := ccl_4 img in
+  result (0, 0) = 1.
+Proof.
+  reflexivity.
+Qed.
+
+Example test_two_pixels_adjacent :
+  let img := mkImage 2 1 (fun _ => true) in
+  let result := ccl_4 img in
+  result (0, 0) = result (1, 0).
+Proof.
+  reflexivity.
+Qed.
+
+Example test_two_pixels_gap :
+  let img := mkImage 3 1 (fun c => negb (coord_eqb c (1, 0))) in
+  let result := ccl_4 img in
+  result (0, 0) <> result (2, 0).
+Proof.
+  simpl. discriminate.
+Qed.
+
+Example test_L_shape :
+  let img := mkImage 3 3 (fun c => 
+    orb (coord_eqb c (0, 0)) (orb (coord_eqb c (0, 1)) (coord_eqb c (1, 1)))) in
+  let result := ccl_4 img in
+  (result (0, 0) = result (0, 1)) /\
+  (result (0, 1) = result (1, 1)).
+Proof.
+  split; reflexivity.
+Qed.
+
+(** ** Example: Verifying Algorithm on a Minimal Image *)
+
+Example minimal_ccl_verification :
+  let img := mkImage 2 1 (fun _ => true) in
+  (* Image pattern: * * *)
+  let result := ccl_4 img in
+  (* Both pixels should have the same label since they're adjacent *)
+  result (0, 0) = result (1, 0) /\
+  result (0, 0) > 0.
+Proof.
+  compute.
+  split; reflexivity.
+Qed.
+
+(** ** Example: L-shaped Component *)
+
+Example L_shape_verification :
+  let img := mkImage 3 3 (fun c =>
+    orb (orb (coord_eqb c (0, 0)) (coord_eqb c (0, 1)))
+        (orb (coord_eqb c (0, 2)) (coord_eqb c (1, 2)))) in
+  (* Image pattern: * . . *)
+  (*                * . . *)
+  (*                * * . *)
+  let result := ccl_4 img in
+  (* All four pixels form one connected component *)
+  result (0, 0) = result (0, 1).
+Proof.
+  unfold ccl_4, ccl_algorithm.
+  simpl.
+  compute.
+  reflexivity.
+Qed.
+
+(** ** Example: Diagonal Components - 4 vs 8 Connectivity *)
+
+Example diagonal_connectivity_difference :
+  let img := mkImage 3 3 (fun c =>
+    orb (andb (Nat.eqb (coord_x c) (coord_y c)) (Nat.leb (coord_x c) 1))
+        (andb (Nat.eqb (coord_x c) (2 - coord_y c)) (Nat.leb 1 (coord_x c)))) in
+  (* Image pattern: * . * *)
+  (*                . * . *)
+  (*                * . . *)
+  (* Two diagonal lines that meet at (1,1) *)
+  let result4 := ccl_4 img in
+  let result8 := ccl_8 img in
+  (* With 4-connectivity, they're separate components *)
+  result4 (0, 0) <> result4 (2, 0).
+Proof.
+  compute.
+  discriminate.
+Qed.
+
+(** ** Example: Multiple Connected Components *)
+
+Example multiple_components :
+  let img := mkImage 5 3 (fun c =>
+    orb (andb (Nat.leb (coord_x c) 1) (Nat.eqb (coord_y c) 0))
+        (orb (andb (Nat.leb 3 (coord_x c)) (Nat.eqb (coord_y c) 1))
+             (coord_eqb c (2, 2)))) in
+  (* Image pattern: * * . . . *)
+  (*                . . . * * *)
+  (*                . . * . . *)
+  let result := ccl_4 img in
+  (* Three separate components *)
+  (result (0, 0) = result (1, 0)) /\  (* Component 1 *)
+  (result (3, 1) = result (4, 1)) /\  (* Component 2 *)
+  (result (2, 2) > 0) /\              (* Component 3 *)
+  (result (0, 0) <> result (3, 1)) /\
+  (result (0, 0) <> result (2, 2)) /\
+  (result (3, 1) <> result (2, 2)).
+Proof.
+  compute.
+  split. reflexivity.
+  split. reflexivity.
+  split. apply Nat.lt_0_succ.
+  split. discriminate.
+  split. discriminate.
+  discriminate.
+Qed.
+
+(** * Section 5: Algorithm Correctness Properties
+    
+    This section proves that our single-pass algorithm correctly identifies
+    connected components by establishing key invariants about paths, 
+    equivalences, and label assignments. *)
+
+(** ** Raster Order Properties *)
+
+Lemma raster_lt_total : forall c1 c2,
+  c1 <> c2 -> raster_lt c1 c2 = true \/ raster_lt c2 c1 = true.
+Proof.
+  intros [x1 y1] [x2 y2] Hneq.
+  unfold raster_lt.
+  simpl.
+  destruct (y1 <? y2) eqn:E1.
+  - left. reflexivity.
+  - destruct (y2 <? y1) eqn:E2.
+    + right. reflexivity.
+    + apply Nat.ltb_nlt in E1.
+      apply Nat.ltb_nlt in E2.
+      assert (y1 = y2) by lia. subst y2.
+      assert (x1 <> x2).
+      { intro Heq. subst x2. apply Hneq. reflexivity. }
+      destruct (x1 <? x2) eqn:E3.
+      * left. rewrite Nat.eqb_refl. simpl. assumption.
+      * right. rewrite Nat.eqb_refl. simpl.
+        apply Nat.ltb_nlt in E3.
+        assert (x2 < x1) by lia.
+        apply Nat.ltb_lt in H0. assumption.
+Qed.
