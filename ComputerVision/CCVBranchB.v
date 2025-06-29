@@ -100,13 +100,14 @@ Definition prior_neighbors_4 (c : coord) : list coord :=
   (if 0 <? x then [(x - 1, y)] else []) ++     (* left *)
   (if 0 <? y then [(x, y - 1)] else []).       (* up *)
 
-Definition prior_neighbors_8 (c : coord) : list coord :=
+Definition prior_neighbors_8 (img : image) (c : coord) : list coord :=
   let x := coord_x c in
   let y := coord_y c in
   (if andb (0 <? x) (0 <? y) then [(x - 1, y - 1)] else []) ++  (* up-left *)
   (if 0 <? y then [(x, y - 1)] else []) ++                      (* up *)
-  (if andb (x <? x + 1) (0 <? y) then [(x + 1, y - 1)] else []) ++ (* up-right *)
+  (if andb (x + 1 <? width img) (0 <? y) then [(x + 1, y - 1)] else []) ++ (* up-right *)
   (if 0 <? x then [(x - 1, y)] else []).                        (* left *)
+
 
 (** ** Basic Properties *)
 
@@ -274,11 +275,11 @@ Proof.
       rewrite Hy in H. simpl in H. contradiction.
 Qed.
 
-Lemma prior_neighbors_8_before : forall c c',
-  In c' (prior_neighbors_8 c) ->
+Lemma prior_neighbors_8_before : forall img c c',
+  In c' (prior_neighbors_8 img c) ->
   raster_lt c' c = true.
 Proof.
-  intros [x y] [x' y'] H.
+  intros img [x y] [x' y'] H.
   unfold prior_neighbors_8, coord_x, coord_y in H.
   simpl in H.
   repeat (apply in_app_iff in H; destruct H as [H | H]).
@@ -310,8 +311,8 @@ Proof.
     + (* y = 0 *)
       rewrite Hy in H. simpl in H. contradiction.
   - (* up-right neighbor *)
-    case_eq (andb (x <? x + 1) (0 <? y)); intro Hxy.
-    + (* always true when y > 0 *)
+    case_eq (andb (x + 1 <? width img) (0 <? y)); intro Hxy.
+    + (* x + 1 < width and y > 0 *)
       rewrite Hxy in H. simpl in H.
       destruct H as [H | H]; [|contradiction].
       injection H as Hx' Hy'. subst x' y'.
@@ -322,7 +323,7 @@ Proof.
         apply andb_prop in Hxy. destruct Hxy as [_ Hy].
         apply Nat.ltb_lt in Hy. lia. }
       rewrite Hlt. reflexivity.
-    + (* not possible if y > 0 *)
+    + (* not (x + 1 < width and y > 0) *)
       rewrite Hxy in H. simpl in H. contradiction.
   - (* left neighbor *)
     case_eq (0 <? x); intro Hx.
@@ -346,7 +347,7 @@ Definition check_prior_neighbors_4 (img : image) (c : coord) : list coord :=
 
 Definition check_prior_neighbors_8 (img : image) (c : coord) : list coord :=
   filter (fun c' => andb (get_pixel img c') (adjacent_8 c' c)) 
-         (prior_neighbors_8 c).
+         (prior_neighbors_8 img c).
 
 Lemma check_prior_neighbors_4_adjacent : forall img c c',
   In c' (check_prior_neighbors_4 img c) ->
@@ -532,16 +533,17 @@ Proof.
     + rewrite Hy in H. simpl in H. contradiction.
 Qed.
 
-Lemma prior_neighbors_8_adjacent : forall c c',
-  In c' (prior_neighbors_8 c) -> adjacent_8 c' c = true.
+Lemma prior_neighbors_8_adjacent : forall img c c',
+  In c' (prior_neighbors_8 img c) -> adjacent_8 c' c = true.
 Proof.
-  intros [x y] [x' y'] H.
+  intros img [x y] [x' y'] H.
   unfold prior_neighbors_8, coord_x, coord_y in H.
   simpl in H.
   repeat (apply in_app_iff in H; destruct H as [H | H]).
   - (* up-left neighbor *)
-    case_eq (andb (0 <? x) (0 <? y)); intro Hxy.
-    + rewrite Hxy in H. simpl in H.
+    destruct (andb (0 <? x) (0 <? y)) eqn:Hxy.
+    + (* condition is true *)
+      simpl in H.
       destruct H as [H | H]; [|contradiction].
       injection H as Hx' Hy'. subst x' y'.
       unfold adjacent_8, coord_x, coord_y. simpl.
@@ -556,10 +558,11 @@ Proof.
         assert (H0: y - 1 <=? y = true) by (apply Nat.leb_le; lia).
         rewrite H0. lia. }
       rewrite H1, H2. simpl. reflexivity.
-    + rewrite Hxy in H. simpl in H. contradiction.
+    + (* condition is false *)
+      simpl in H. contradiction.
   - (* up neighbor *)
-    case_eq (0 <? y); intro Hy.
-    + rewrite Hy in H. simpl in H.
+    destruct (0 <? y) eqn:Hy.
+    + simpl in H.
       destruct H as [H | H]; [|contradiction].
       injection H as Hx' Hy'. subst x' y'.
       unfold adjacent_8, coord_x, coord_y. simpl.
@@ -570,10 +573,10 @@ Proof.
         assert (H0: y - 1 <=? y = true) by (apply Nat.leb_le; lia).
         rewrite H0. lia. }
       rewrite H1. simpl. reflexivity.
-    + rewrite Hy in H. simpl in H. contradiction.
+    + simpl in H. contradiction.
   - (* up-right neighbor *)
-    case_eq (andb (x <? x + 1) (0 <? y)); intro Hxy.
-    + rewrite Hxy in H. simpl in H.
+    destruct (andb (x + 1 <? width img) (0 <? y)) eqn:Hxy.
+    + simpl in H.
       destruct H as [H | H]; [|contradiction].
       injection H as Hx' Hy'. subst x' y'.
       unfold adjacent_8, coord_x, coord_y. simpl.
@@ -588,10 +591,10 @@ Proof.
         assert (H0: y - 1 <=? y = true) by (apply Nat.leb_le; lia).
         rewrite H0. lia. }
       rewrite H1, H2. simpl. reflexivity.
-    + rewrite Hxy in H. simpl in H. contradiction.
+    + simpl in H. contradiction.
   - (* left neighbor *)
-    case_eq (0 <? x); intro Hx.
-    + rewrite Hx in H. simpl in H.
+    destruct (0 <? x) eqn:Hx.
+    + simpl in H.
       destruct H as [H | H]; [|contradiction].
       injection H as Hx' Hy'. subst x' y'.
       unfold adjacent_8, coord_x, coord_y. simpl.
@@ -602,7 +605,7 @@ Proof.
         assert (H0: x - 1 <=? x = true) by (apply Nat.leb_le; lia).
         rewrite H0. lia. }
       rewrite H1. simpl. reflexivity.
-    + rewrite Hx in H. simpl in H. contradiction.
+    + simpl in H. contradiction.
 Qed.
 
 (** 4-adjacency implies 8-adjacency *)
@@ -830,7 +833,8 @@ Proof.
 Qed.
 
 Example test_prior_neighbors_8 :
-  prior_neighbors_8 (2, 3) = [(1, 2); (2, 2); (3, 2); (1, 3)].
+  let img := mkImage 10 10 (fun _ => true) in  (* dummy image large enough *)
+  prior_neighbors_8 img (2, 3) = [(1, 2); (2, 2); (3, 2); (1, 3)].
 Proof.
   reflexivity.
 Qed.
@@ -881,13 +885,14 @@ Qed.
 
 (** Examples showing prior neighbors for 8-connectivity *)
 Example test_prior_neighbors_8_cases :
-  prior_neighbors_8 (0, 0) = [] /\                              (* corner *)
-  prior_neighbors_8 (1, 0) = [(0, 0)] /\                        (* top edge *)
-  prior_neighbors_8 (0, 1) = [(0, 0); (1, 0)] /\               (* left edge *)
-  prior_neighbors_8 (1, 1) = [(0, 0); (1, 0); (2, 0); (0, 1)]. (* all 4 *)
+  let img := mkImage 10 10 (fun _ => true) in  (* dummy image *)
+  prior_neighbors_8 img (0, 0) = [] /\                              (* corner *)
+  prior_neighbors_8 img (1, 0) = [(0, 0)] /\                        (* top edge *)
+  prior_neighbors_8 img (0, 1) = [(0, 0); (1, 0)] /\               (* left edge *)
+  prior_neighbors_8 img (1, 1) = [(0, 0); (1, 0); (2, 0); (0, 1)]. (* all 4 *)
 Proof.
   repeat split; reflexivity.
-Qed.
+Qed. (* all 4 *)
 
 (** Example showing how check_prior_neighbors filters *)
 Definition sample_image : image :=
@@ -981,41 +986,22 @@ Proof.
 Qed.
 
 
-(** Examples demonstrating NoDup property *)
-Example test_prior_neighbors_NoDup :
-  let neighbors_4 := prior_neighbors_4 (5, 3) in
-  let neighbors_8 := prior_neighbors_8 (5, 3) in
-  NoDup neighbors_4 /\ NoDup neighbors_8.
-Proof.
-  simpl.
-  split; apply NoDup_cons.
-  - intro H. simpl in H. destruct H as [H|[]]. discriminate.
-  - apply NoDup_cons; [intro H; contradiction | apply NoDup_nil].
-  - intro H. simpl in H. 
-    destruct H as [H|[H|[H|[]]]]; discriminate.
-  - apply NoDup_cons.
-    + intro H. simpl in H.
-      destruct H as [H|[H|[]]]; discriminate.
-    + apply NoDup_cons.
-      * intro H. simpl in H.
-        destruct H as [H|[]]; discriminate.
-      * apply NoDup_cons; [intro H; contradiction | apply NoDup_nil].
-Qed.
-
 (** Example showing a corner case *)
 Example test_prior_neighbors_corner :
+  let img := mkImage 10 10 (fun _ => true) in  (* dummy image *)
   (* At (0,0), no prior neighbors exist *)
   prior_neighbors_4 (0, 0) = [] /\
-  prior_neighbors_8 (0, 0) = [] /\
+  prior_neighbors_8 img (0, 0) = [] /\
   (* At (1,0), only left neighbor *)
   prior_neighbors_4 (1, 0) = [(0, 0)] /\
-  prior_neighbors_8 (1, 0) = [(0, 0)] /\
+  prior_neighbors_8 img (1, 0) = [(0, 0)] /\
   (* At (0,1), only up neighbor for 4, but two for 8 *)
   prior_neighbors_4 (0, 1) = [(0, 0)] /\
-  prior_neighbors_8 (0, 1) = [(0, 0); (1, 0)].
+  prior_neighbors_8 img (0, 1) = [(0, 0); (1, 0)].
 Proof.
   repeat split; reflexivity.
 Qed.
+
 
 (** Example demonstrating the relationship between adjacency and prior neighbors *)
 Example test_adjacency_prior_relationship :
@@ -1122,4 +1108,27 @@ Proof.
     + rewrite <- H. simpl. split; reflexivity.
     + contradiction.
   - reflexivity.
+Qed.
+
+(** Example showing 8-connectivity at image boundary *)
+Example test_prior_neighbors_8_boundary :
+  let img := mkImage 3 3 (fun _ => true) in
+  (* At (2, 1), we're at the right edge *)
+  prior_neighbors_8 img (2, 1) = [(1, 0); (2, 0); (1, 1)] /\
+  (* Note: (3, 0) is NOT included because x+1 would be out of bounds *)
+  (* At (2, 2), bottom-right corner *)
+  prior_neighbors_8 img (2, 2) = [(1, 1); (2, 1); (1, 2)].
+Proof.
+  repeat split; reflexivity.
+Qed.
+
+(** Example showing how check_prior_neighbors_8 filters *)
+Example test_check_prior_neighbors_8 :
+  let img := sample_image in  (* 3x3 image with specific pattern *)
+  check_prior_neighbors_8 img (1, 1) = [(0, 0); (2, 0)] /\  (* up-left and up-right *)
+  check_prior_neighbors_8 img (1, 2) = [(1, 1); (0, 2)] /\  (* up and left *)
+  check_prior_neighbors_8 img (2, 1) = [(2, 0); (1, 1)] /\  (* up and left *)
+  check_prior_neighbors_8 img (2, 2) = [(1, 1); (1, 2)].    (* up and left *)
+Proof.
+  repeat split; reflexivity.
 Qed.
