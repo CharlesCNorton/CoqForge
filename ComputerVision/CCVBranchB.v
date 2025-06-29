@@ -2513,9 +2513,42 @@ Proof.
       assert (x1 <> x2).
       { intro Heq. subst x2. apply Hneq. reflexivity. }
       destruct (x1 <? x2) eqn:E3.
-      * left. rewrite Nat.eqb_refl. simpl. assumption.
+      * left. rewrite Nat.eqb_refl. simpl. 
+        reflexivity.  (* Just reflexivity - goal is already true = true *)
       * right. rewrite Nat.eqb_refl. simpl.
         apply Nat.ltb_nlt in E3.
         assert (x2 < x1) by lia.
         apply Nat.ltb_lt in H0. assumption.
 Qed.
+
+(** ** Partial Correctness Invariant *)
+
+(** The key invariant: after processing pixels up to c, the state correctly
+    captures connectivity among processed pixels *)
+Definition strong_partial_correct (img : image) (adj : coord -> coord -> bool) 
+                                 (s : ccl_state) (processed : list coord) : Prop :=
+  (* Basic labeling properties *)
+  (forall c, In c processed -> get_pixel img c = false -> labels s c = 0) /\
+  (forall c, In c processed -> get_pixel img c = true -> labels s c > 0) /\
+  (forall c, ~ In c processed -> labels s c = 0) /\
+  (* Key connectivity property *)
+  (forall c1 c2, In c1 processed -> In c2 processed ->
+                 get_pixel img c1 = true -> get_pixel img c2 = true ->
+                 (connected img adj c1 c2 <-> 
+                  uf_same_set (equiv s) (labels s c1) (labels s c2) = true)).
+
+(** Helper: processed pixels form a prefix in raster order *)
+Definition raster_prefix (processed : list coord) : Prop :=
+  forall c1 c2, In c1 processed -> raster_lt c2 c1 = true -> In c2 processed.
+
+Lemma process_pixel_maintains_invariant : forall img adj check_neighbors s c processed,
+  (forall a b, adj a b = adj b a) ->
+  check_neighbors = check_prior_neighbors_4 img \/ 
+  check_neighbors = check_prior_neighbors_8 img ->
+  strong_partial_correct img adj s processed ->
+  raster_prefix processed ->
+  ~ In c processed ->
+  (forall c', In c' processed -> raster_lt c' c = true) ->
+  strong_partial_correct img adj 
+    (process_pixel img adj check_neighbors s c) 
+    (c :: processed).
