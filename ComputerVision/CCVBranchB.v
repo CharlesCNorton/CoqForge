@@ -2541,64 +2541,53 @@ Definition strong_partial_correct (img : image) (adj : coord -> coord -> bool)
 Definition raster_prefix (processed : list coord) : Prop :=
   forall c1 c2, In c1 processed -> raster_lt c2 c1 = true -> In c2 processed.
 
-Lemma process_pixel_maintains_invariant : forall img adj check_neighbors s c processed,
-  (forall a b, adj a b = adj b a) ->
-  check_neighbors = check_prior_neighbors_4 \/ 
-  check_neighbors = check_prior_neighbors_8 ->
-  strong_partial_correct img adj s processed ->
-  raster_prefix processed ->
-  ~ In c processed ->
-  (forall c', In c' processed -> raster_lt c' c = true) ->
-  strong_partial_correct img adj 
-    (process_pixel img adj check_neighbors s c) 
-    (c :: processed).
+(** ** Helper Lemmas for process_pixel_maintains_invariant *)
+
+(** The next_label is always positive throughout the algorithm *)
+Lemma initial_state_next_label_positive : 
+  next_label initial_state > 0.
 Proof.
-  intros img adj check_neighbors s c processed Hadj_sym Hcheck Hinv Hprefix Hnot_in Hbefore.
-  unfold strong_partial_correct in *.
-  destruct Hinv as [Hbg [Hfg [Hunproc Hconn]]].
-  
-  (* Case analysis on whether c is foreground or background *)
-  destruct (get_pixel img c) eqn:Hpixel.
-2: { (* Background case *)
-    (* When c is background, process_pixel doesn't change anything *)
-    rewrite process_pixel_background_unchanged.
-    2: { assumption. } (* This uses Hpixel : get_pixel img c = false *)
-split; [|split; [|split]].
-    - (* background pixels stay 0 *)
-      intros c0 [Hc0_eq | Hc0_in] Hc0_bg.
-      + (* c0 = c *)
-        subst c0. 
-        apply Hunproc. assumption.
-      + (* c0 ∈ processed *)
-        apply Hbg; assumption.
-- (* foreground pixels stay positive *)
-      intros c0 [Hc0_eq | Hc0_in] Hc0_fg.
-      + (* c0 = c *)
-        subst c0. 
-        (* But c is background (Hpixel), contradicting Hc0_fg *)
-        rewrite Hpixel in Hc0_fg. discriminate.
-      + (* c0 ∈ processed *)
-        apply Hfg; assumption.
-- (* unprocessed pixels stay 0 *)
-      intros c0 Hc0_not_in.
-      apply Hunproc. 
-      intro H. 
-      apply Hc0_not_in. 
-      right. 
-      assumption.
-- (* connectivity preserved *)
-      intros c1 c2 Hc1_in Hc2_in Hc1_fg Hc2_fg.
-      destruct Hc1_in as [Hc1_eq | Hc1_in];
-      destruct Hc2_in as [Hc2_eq | Hc2_in].
-      + (* c1 = c, c2 = c *)
-        subst c1 c2. 
-        rewrite Hpixel in Hc1_fg. discriminate.
-      + (* c1 = c, c2 ∈ processed *)
-        subst c1. 
-        rewrite Hpixel in Hc1_fg. discriminate.
-      + (* c1 ∈ processed, c2 = c *)
-        subst c2. 
-        rewrite Hpixel in Hc2_fg. discriminate.
-      + (* c1 ∈ processed, c2 ∈ processed *)
-        apply Hconn; assumption.
-  }
+  unfold initial_state. simpl. 
+  apply Nat.lt_0_succ.
+Qed.
+
+(** process_pixel preserves next_label positivity *)
+Lemma process_pixel_next_label_positive : forall img adj check_neighbors s c,
+  next_label s > 0 ->
+  next_label (process_pixel img adj check_neighbors s c) > 0.
+Proof.
+  intros img adj check_neighbors s c Hpos.
+  unfold process_pixel.
+  destruct (get_pixel img c).
+  - destruct (check_neighbors img c).
+    + simpl. lia.
+    + destruct (filter _ _).
+      * simpl. lia.
+      * simpl. assumption.
+  - assumption.
+Qed.
+
+(** Labels only change at the processed pixel *)
+Lemma process_pixel_labels_unchanged : forall img adj check_neighbors s c c',
+  c <> c' ->
+  labels (process_pixel img adj check_neighbors s c) c' = labels s c'.
+Proof.
+  intros img adj check_neighbors s c c' Hneq.
+  unfold process_pixel.
+  destruct (get_pixel img c); [|reflexivity].
+  destruct (check_neighbors img c).
+  - simpl. 
+    assert (coord_eqb c c' = false).
+    { apply Bool.not_true_iff_false. intro H. 
+      apply coord_eqb_true_iff in H. contradiction. }
+    rewrite H. reflexivity.
+  - destruct (filter _ _); simpl.
+    + assert (coord_eqb c c' = false).
+      { apply Bool.not_true_iff_false. intro H. 
+        apply coord_eqb_true_iff in H. contradiction. }
+      rewrite H. reflexivity.
+    + assert (coord_eqb c c' = false).
+      { apply Bool.not_true_iff_false. intro H. 
+        apply coord_eqb_true_iff in H. contradiction. }
+      rewrite H. reflexivity.
+Qed.
