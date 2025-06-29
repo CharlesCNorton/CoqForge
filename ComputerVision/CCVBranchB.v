@@ -1951,3 +1951,151 @@ Proof.
     + intro H. apply in_seq in H. lia.
     + apply IHlen.
 Qed.
+
+Lemma filter_NoDup : forall {A : Type} (f : A -> bool) (l : list A),
+  NoDup l -> NoDup (filter f l).
+Proof.
+  intros A f l HNoDup.
+  induction HNoDup.
+  - simpl. apply NoDup_nil.
+  - simpl. destruct (f x) eqn:Hfx.
+    + apply NoDup_cons.
+      * intro Hin. apply filter_In in Hin. destruct Hin as [Hin _]. contradiction.
+      * assumption.
+    + assumption.
+Qed.
+
+Lemma label_witness_exists : forall img l used_labels label,
+  label > 0 ->
+  In label used_labels ->
+  used_labels = filter (fun label => 
+    match label with 
+    | 0 => false 
+    | S _ => existsb (fun c => andb (get_pixel img c) (Nat.eqb (l c) label)) 
+                     (all_coords img)
+    end) (seq 0 (S (length used_labels))) ->
+  exists c, In c (filter (fun c => get_pixel img c) (all_coords img)) /\ l c = label.
+Proof.
+  intros img l used_labels label Hpos Hin Heq.
+  rewrite Heq in Hin.
+  apply filter_In in Hin.
+  destruct Hin as [_ Hfilter].
+  destruct label.
+  - lia.
+  - apply existsb_exists in Hfilter.
+    destruct Hfilter as [c [Hc_in Hc_prop]].
+    apply andb_prop in Hc_prop.
+    destruct Hc_prop as [Hget Heq_label].
+    apply Nat.eqb_eq in Heq_label.
+    exists c. split.
+    + apply filter_In. split; assumption.
+    + assumption.
+Qed.
+
+Lemma component_count_bound : forall img adj l max_label,
+  correct_labeling img adj l ->
+  (forall c, l c <= max_label) ->
+  num_components img l max_label <= 
+  length (filter (fun c => get_pixel img c) (all_coords img)).
+Proof.
+  intros img adj l max_label Hcorrect Hbound.
+  unfold num_components.
+  
+  set (used_labels := filter (fun label => 
+    match label with 
+    | 0 => false 
+    | S _ => existsb (fun c => andb (get_pixel img c) (Nat.eqb (l c) label)) 
+                     (all_coords img)
+    end) (seq 0 (S max_label))).
+  
+  set (foreground_pixels := filter (fun c => get_pixel img c) (all_coords img)).
+  
+  (* For each used label, we can find a pixel with that label *)
+  assert (Hmap: forall label, In label used_labels -> 
+                exists c, In c foreground_pixels /\ l c = label).
+  { intros label Hin.
+    apply (used_label_has_pixel img l label max_label) in Hin.
+    destruct Hin as [c [Hc_all [Hc_fg Hc_label]]].
+    exists c. split.
+    - unfold foreground_pixels. apply filter_In. split; assumption.
+    - assumption. }
+  
+  (* Key: the image of l restricted to foreground_pixels contains used_labels *)
+  assert (Himage: forall label, In label used_labels -> 
+                  In label (map l foreground_pixels)).
+  { intros label Hin.
+    destruct (Hmap label Hin) as [c [Hc_in Hc_label]].
+    apply in_map_iff. exists c. split; assumption. }
+  
+  (* Length of used_labels <= length of (map l foreground_pixels) *)
+  assert (Hlen: length used_labels <= length (map l foreground_pixels)).
+  { apply NoDup_incl_length.
+    - apply filter_NoDup. apply seq_NoDup.
+    - unfold incl. assumption. }
+  
+  (* Length of map = length of original list *)
+  rewrite length_map in Hlen.
+  exact Hlen.
+Qed.
+
+(** ** Concrete Examples of Connectivity and Labeling *)
+
+(** Example: Simple horizontal line *)
+Example horizontal_line_connected :
+  let img := mkImage 4 1 (fun _ => true) in
+  connected img adjacent_4 (0, 0) (3, 0).
+Proof.
+  apply connected_step with (2, 0).
+  - apply connected_step with (1, 0).
+    + apply connected_step with (0, 0).
+      * apply connected_refl. reflexivity.
+      * reflexivity.
+      * reflexivity.
+    + reflexivity.
+    + reflexivity.
+  - reflexivity.
+  - reflexivity.
+Qed.
+
+(** Example: Disconnected pixels *)
+Example disconnected_diagonal :
+  let img := mkImage 3 3 (fun c => orb (coord_eqb c (0, 0)) (coord_eqb c (2, 2))) in
+  (* Image: * . . *)
+  (*        . . . *)
+  (*        . . * *)
+  ~ connected img adjacent_4 (0, 0) (2, 2).
+Proof.
+  intro H.
+  assert (Hfg: forall c, get_pixel (mkImage 3 3 (fun c => orb (coord_eqb c (0, 0)) (coord_eqb c (2, 2)))) c = true -> 
+                        c = (0, 0) \/ c = (2, 2)).
+  { intros [x y] Hpix.
+    unfold get_pixel in Hpix.
+    destruct (in_bounds _ _) eqn:E.
+    - simpl in Hpix.
+      apply orb_prop in Hpix.
+      destruct Hpix as [H1 | H2].
+      + unfold coord_eqb in H1.
+        apply andb_prop in H1. destruct H1 as [Hx Hy].
+        apply Nat.eqb_eq in Hx, Hy.
+        left. subst. reflexivity.
+      + unfold coord_eqb in H2.
+        apply andb_prop in H2. destruct H2 as [Hx Hy].
+        apply Nat.eqb_eq in Hx, Hy.
+        right. subst. reflexivity.
+    - discriminate. }
+  
+  remember (0, 0) as start.
+  remember (2, 2) as target.
+  revert Heqstart Heqtarget.
+  induction H; intros.
+  - subst. discriminate.
+  - subst.
+    assert (c2 = (0, 0) \/ c2 = (2, 2)).
+    { apply connected_foreground in H. apply Hfg. apply H. }
+    assert ((2, 2) = (0, 0) \/ (2, 2) = (2, 2)) by (apply Hfg; assumption).
+    destruct H2; [discriminate|].
+    destruct H1; subst.
+    + unfold adjacent_4, coord_x, coord_y, abs_diff in H0.
+      simpl in H0. discriminate.
+    + eapply IHconnected; reflexivity.
+Qed.
