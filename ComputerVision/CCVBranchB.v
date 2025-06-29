@@ -2065,6 +2065,7 @@ Example disconnected_diagonal :
   (*        . . * *)
   ~ connected img adjacent_4 (0, 0) (2, 2).
 Proof.
+  simpl.
   intro H.
   assert (Hfg: forall c, get_pixel (mkImage 3 3 (fun c => orb (coord_eqb c (0, 0)) (coord_eqb c (2, 2)))) c = true -> 
                         c = (0, 0) \/ c = (2, 2)).
@@ -2084,18 +2085,18 @@ Proof.
         right. subst. reflexivity.
     - discriminate. }
   
-  remember (0, 0) as start.
-  remember (2, 2) as target.
-  revert Heqstart Heqtarget.
-  induction H; intros.
-  - subst. discriminate.
-  - subst.
-    assert (c2 = (0, 0) \/ c2 = (2, 2)).
-    { apply connected_foreground in H. apply Hfg. apply H. }
-    assert ((2, 2) = (0, 0) \/ (2, 2) = (2, 2)) by (apply Hfg; assumption).
-    destruct H2; [discriminate|].
-    destruct H1; subst.
-    + unfold adjacent_4, coord_x, coord_y, abs_diff in H0.
-      simpl in H0. discriminate.
-    + eapply IHconnected; reflexivity.
+  (* Show that any path from (0,0) to (2,2) is impossible *)
+  assert (H0: forall c1 c2, connected (mkImage 3 3 (fun c => orb (coord_eqb c (0, 0)) (coord_eqb c (2, 2)))) adjacent_4 c1 c2 ->
+                        c1 = (0, 0) -> c2 = (2, 2) -> False).
+  { intros c1 c2 Hpath.
+    induction Hpath; intros.
+    - subst. discriminate.
+    - subst c1 c3.
+      assert (Hc2: c2 = (0, 0) \/ c2 = (2, 2)).
+      { apply connected_foreground in Hpath. apply Hfg. apply Hpath. }
+      destruct Hc2; subst c2.
+      + unfold adjacent_4, coord_x, coord_y, abs_diff in H1. simpl in H1. discriminate.
+      + eapply IHHpath; reflexivity. }
+  
+  eapply H0; [exact H | reflexivity | reflexivity].
 Qed.
