@@ -6,7 +6,7 @@
     HoTT's native support for quotient types, higher inductive types,
     and homotopical reasoning, we develop a framework for exploring
     both classical and novel mathematical structures in music.
-      
+
     Author: Charles Norton
     Date: July 2nd 2025
     ================================================================= *)
@@ -643,4 +643,104 @@ Proof.
  unfold Cs, G.
  simpl.
  reflexivity.
+Defined.
+
+(** The inversion operation I_n inverts pitch classes around n/2.
+   For example, I_0 inverts around C (maps p to -p). *)
+Definition pitch_class_inversion (n : BinInt) (p : PitchClass) : PitchClass :=
+ n *pc C +pc (-pc p).
+
+Notation "'I' n" := (pitch_class_inversion n) (at level 30).
+
+(** I_0 is pitch class negation *)
+Lemma inversion_0_is_negation : forall p : PitchClass,
+  pitch_class_inversion 0%binint p = -pc p.
+Proof.
+  intro p.
+  unfold pitch_class_inversion.
+  rewrite pitch_class_scalar_mult_0.
+  apply pitch_class_add_zero_l.
+Defined.
+
+(** Negation distributes over pitch class addition *)
+Lemma pitch_class_neg_add : forall p q : PitchClass,
+ -pc (p +pc q) = (-pc p) +pc (-pc q).
+Proof.
+ intros p q.
+ revert q.
+ srapply Quotient_ind.
+ - intro n.
+   revert p.
+   srapply Quotient_ind.
+   + intro m.
+     simpl.
+     apply ap.
+     apply binint_negation_add.
+   + intros; apply path_ishprop.
+ - intros; apply path_ishprop.
+Defined.
+
+(** Negation of zero is zero *)
+Lemma binint_negation_0 : binint_negation 0%binint = 0%binint.
+Proof.
+  assert (H: (0 + binint_negation 0)%binint = 0%binint).
+  { rewrite binint_add_0_l. reflexivity. }
+  rewrite <- H.
+  rewrite binint_add_negation_r.
+  reflexivity.
+Defined.
+
+(** Double negation is the identity *)
+Lemma binint_negation_negation : forall n : BinInt,
+  binint_negation (binint_negation n) = n.
+Proof.
+  intro n.
+  apply (binint_add_cancel_l (binint_negation n)).
+  rewrite binint_add_negation_r.
+  symmetry.
+  apply binint_add_negation_l.
+Defined.
+
+(** Double negation is the identity *)
+Lemma pitch_class_neg_neg : forall p : PitchClass,
+  -pc -pc p = p.
+Proof.
+  srapply Quotient_ind.
+  - intro n.
+    simpl.
+    apply ap.
+    apply binint_negation_negation.
+  - intros; apply path_ishprop.
+Defined.
+
+(** Helper: adding inverse on right gives zero *)
+Lemma add_neg_r_helper : forall n : BinInt,
+  n *pc C +pc -pc (n *pc C) = C.
+Proof.
+  intro n.
+  apply pitch_class_add_neg_r.
+Defined.
+
+(** Helper for inversion involution *)
+Lemma inversion_involution_helper2 : forall n : BinInt, forall p : PitchClass,
+ (n *pc C +pc -pc (n *pc C)) +pc p = C +pc p.
+Proof.
+ intros n p.
+ rewrite add_neg_r_helper.
+ reflexivity.
+Defined.
+
+(** Inversion is an involution (applying it twice gives the identity) *)
+Lemma inversion_involution : forall n : BinInt, forall p : PitchClass,
+  pitch_class_inversion n (pitch_class_inversion n p) = p.
+Proof.
+  intros n p.
+  unfold pitch_class_inversion.
+  rewrite pitch_class_neg_add.
+  rewrite pitch_class_neg_neg.
+  transitivity ((n *pc C +pc -pc (n *pc C)) +pc p).
+  - rewrite <- pitch_class_add_assoc.
+    reflexivity.
+  - rewrite inversion_involution_helper2.
+    apply pitch_class_add_zero_l.
 Defined.
