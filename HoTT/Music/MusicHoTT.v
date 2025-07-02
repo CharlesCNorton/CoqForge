@@ -646,9 +646,9 @@ Proof.
 Defined.
 
 (** The inversion operation I_n inverts pitch classes around n/2.
-   For example, I_0 inverts around C (maps p to -p). *)
+    It maps pitch class p to n - p. *)
 Definition pitch_class_inversion (n : BinInt) (p : PitchClass) : PitchClass :=
- n *pc C +pc (-pc p).
+  [n] +pc (-pc p).
 
 Notation "'I' n" := (pitch_class_inversion n) (at level 30).
 
@@ -658,7 +658,7 @@ Lemma inversion_0_is_negation : forall p : PitchClass,
 Proof.
   intro p.
   unfold pitch_class_inversion.
-  rewrite pitch_class_scalar_mult_0.
+  unfold C.
   apply pitch_class_add_zero_l.
 Defined.
 
@@ -738,9 +738,29 @@ Proof.
   unfold pitch_class_inversion.
   rewrite pitch_class_neg_add.
   rewrite pitch_class_neg_neg.
-  transitivity ((n *pc C +pc -pc (n *pc C)) +pc p).
-  - rewrite <- pitch_class_add_assoc.
-    reflexivity.
-  - rewrite inversion_involution_helper2.
-    apply pitch_class_add_zero_l.
+  rewrite <- pitch_class_add_assoc.
+  rewrite pitch_class_add_neg_r.
+  apply pitch_class_add_zero_l.
+Defined.
+
+(** Example: I_0 inverts pitch classes to their negatives *)
+Example inversion_0_example : 
+  pitch_class_inversion 0%binint E = Gs.
+Proof.
+  rewrite inversion_0_is_negation.
+  unfold E, Gs.
+  simpl.
+  apply qglue.
+  exists 1%binint.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Example: I_7 (inversion around F#/Gb) maps C to G *)
+Example inversion_7_C : 
+  pitch_class_inversion 7%binint C = G.
+Proof.
+  unfold pitch_class_inversion, C, G.
+  simpl.
+  reflexivity.
 Defined.
