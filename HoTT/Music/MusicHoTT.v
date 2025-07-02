@@ -6,12 +6,7 @@
     HoTT's native support for quotient types, higher inductive types,
     and homotopical reasoning, we develop a framework for exploring
     both classical and novel mathematical structures in music.
-    
-    The formalization is designed to be extensible, supporting not
-    only traditional twelve-tone equal temperament but also 
-    generalizations to other musical systems and abstract musical
-    structures.
-    
+      
     Author: Charles Norton
     Date: July 2nd 2025
     ================================================================= *)
@@ -570,3 +565,82 @@ Proof.
 Defined.
 
 Notation "n *pc p" := (pitch_class_scalar_mult n p) (at level 40).
+
+(** Scalar multiplication by 1 is the identity *)
+Lemma pitch_class_scalar_mult_1 : forall p : PitchClass,
+  1%binint *pc p = p.
+Proof.
+  srapply Quotient_ind.
+  - intro n.
+    simpl.
+    apply ap.
+    apply binint_mul_1_l.
+  - intros; apply path_ishprop.
+Defined.
+
+Lemma pitch_class_scalar_mult_0 : forall p : PitchClass,
+  0%binint *pc p = C.
+Proof.
+  srapply Quotient_ind.
+  - intro n.
+    unfold C.
+    simpl.
+    reflexivity.
+  - intros; apply path_ishprop.
+Defined.
+
+(** Scalar multiplication distributes over pitch class addition *)
+Lemma pitch_class_scalar_mult_add : forall n : BinInt, forall p q : PitchClass,
+  n *pc (p +pc q) = (n *pc p) +pc (n *pc q).
+Proof.
+  intro n.
+  intros p q.
+  revert q.
+  srapply Quotient_ind.
+  - intro m2.
+    revert p.
+    srapply Quotient_ind.
+    + intro m1.
+      simpl.
+      apply ap.
+      apply binint_mul_add_distr_l.
+    + intros; apply path_ishprop.
+  - intros; apply path_ishprop.
+Defined.
+
+Lemma pitch_class_scalar_mult_comp : forall n m : BinInt, forall p : PitchClass,
+  n *pc (m *pc p) = (n * m)%binint *pc p.
+Proof.
+  intros n m p.
+  revert p.
+  srapply Quotient_ind.
+  - intro k.
+    simpl.
+    apply ap.
+    apply binint_mul_assoc.
+  - intros; apply path_ishprop.
+Defined.
+
+Example transpose_by_3 : 
+  (C +pc Ds, E +pc Ds, G +pc Ds) = (Ds, G, As).
+Proof.
+  unfold C, E, G, Ds, As.
+  simpl.
+  repeat split; reflexivity.
+Defined.
+
+(** Scalar multiplication by 5 maps pitch classes by perfect fourths *)
+Example scalar_mult_5 : 5%binint *pc Cs = F.
+Proof.
+  unfold Cs, F.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Scalar multiplication by 7 maps pitch classes by perfect fifths *)
+Example scalar_mult_7 : 7%binint *pc Cs = G.
+Proof.
+ unfold Cs, G.
+ simpl.
+ reflexivity.
+Defined.
