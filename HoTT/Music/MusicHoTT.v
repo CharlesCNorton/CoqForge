@@ -1,12 +1,17 @@
 (** ================================================================= *)
-(** Formalizating Musical Set Theory in Homotopy Type Theory
+(** A Full Formalization of Musical Set Theory in Homotopy Type Theory
     
     This library provides a foundation for formalizing mathematical
     music theory using Homotopy Type Theory (HoTT). By leveraging
     HoTT's native support for quotient types, higher inductive types,
     and homotopical reasoning, we develop a framework for exploring
     both classical and novel mathematical structures in music.
-      
+    
+    The formalization is designed to be extensible, supporting not
+    only traditional twelve-tone equal temperament but also 
+    generalizations to other musical systems and abstract musical
+    structures.
+    
     Author: Charles Norton
     Date: July 2nd 2025
     ================================================================= *)
@@ -433,12 +438,20 @@ Proof.
   - intros; apply path_ishprop.
 Defined.
 
+(** Negation gives right inverses *)
+Lemma pitch_class_add_neg_r : forall p : PitchClass,
+  p +pc (-pc p) = C.
+Proof.
+  intro p.
+  rewrite pitch_class_add_comm.
+  apply pitch_class_add_neg_l.
+Defined.
 
 (** ================================================================= *)
-(** Section 7: Main Theorems                                         *)
+(** Section 7: Collected Properties (so far)                                          *)
 (** ================================================================= *)
 
-(** The main algebraic structure theorem: pitch classes form an
+(** The main algebraic structures proved so far: pitch classes form an
     abelian group under addition. *)
 
 Theorem pitch_class_group_properties :
@@ -532,3 +545,28 @@ Example enharmonic : Fs = [ 6%binint ].
 Proof.
   reflexivity.
 Defined.
+
+(** ================================================================= *)
+(** General work, to be organized                                   *)
+(** ================================================================= *)
+
+(** Scalar multiplication represents transposition by a fixed interval.
+    For example, 3 *pc p transposes pitch class p up by 3 semitones. *)
+Definition pitch_class_scalar_mult (n : BinInt) (p : PitchClass) : PitchClass.
+Proof.
+  revert p.
+  srapply Quotient_rec.
+  - intro m.
+    exact (pitch_class_of (n * m)%binint).
+  - intros m1 m2 [k Hk].
+    apply qglue.
+    exists (n * k)%binint.
+    rewrite Hk.
+    rewrite binint_mul_add_distr_l.
+    rewrite binint_mul_assoc.
+    rewrite (binint_mul_comm n 12%binint).
+    rewrite binint_mul_assoc.
+    reflexivity.
+Defined.
+
+Notation "n *pc p" := (pitch_class_scalar_mult n p) (at level 40).
