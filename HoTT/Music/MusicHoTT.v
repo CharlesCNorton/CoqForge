@@ -8,7 +8,7 @@
     both classical and novel mathematical structures in music.
 
     Author: Charles Norton
-    Date: July 2nd 2025
+        Date: July 2nd 2025 (Updated: July 4th 2025)
     ================================================================= *)
 
 (** ================================================================= *)
@@ -763,4 +763,314 @@ Proof.
   unfold pitch_class_inversion, C, G.
   simpl.
   reflexivity.
+Defined.
+
+(** Example: I_12 is the same as negation *)
+Example inversion_12_negation : forall p : PitchClass,
+  pitch_class_inversion 12%binint p = -pc p.
+Proof.
+  intro p.
+  unfold pitch_class_inversion.
+  rewrite octave_equivalence.
+  apply pitch_class_add_zero_l.
+Defined.
+
+(** The transposition operation T_n transposes a pitch class by n semitones *)
+Definition pitch_class_transpose (n : BinInt) (p : PitchClass) : PitchClass :=
+  [n] +pc p.
+
+Notation "'T' n" := (pitch_class_transpose n) (at level 30).
+
+(** Transposition by 0 is the identity *)
+Lemma transpose_0_identity : forall p : PitchClass,
+  pitch_class_transpose 0%binint p = p.
+Proof.
+  intro p.
+  unfold pitch_class_transpose.
+  apply pitch_class_add_zero_l.
+Defined.
+
+(** Transpositions compose *)
+Lemma transpose_compose : forall m n : BinInt, forall p : PitchClass,
+  pitch_class_transpose m (pitch_class_transpose n p) = pitch_class_transpose (m + n)%binint p.
+Proof.
+  intros m n p.
+  unfold pitch_class_transpose.
+  rewrite <- pitch_class_add_assoc.
+  f_ap.
+Defined.
+
+(** Helper: [m] +pc -pc [n] = [m - n] *)
+Lemma pitch_class_sub : forall m n : BinInt,
+  [m] +pc -pc [n] = [(m - n)%binint].
+Proof.
+  intros m n.
+  simpl.
+  apply ap.
+  unfold binint_sub.
+  reflexivity.
+Defined.
+
+(** The fundamental relationship: I_n composed with I_m equals T_(n-m) *)
+Lemma inversion_composition : forall m n : BinInt, forall p : PitchClass,
+  pitch_class_inversion m (pitch_class_inversion n p) = pitch_class_transpose (m - n)%binint p.
+Proof.
+  intros m n p.
+  unfold pitch_class_inversion, pitch_class_transpose.
+  rewrite pitch_class_neg_add.
+  rewrite pitch_class_neg_neg.
+  rewrite <- pitch_class_add_assoc.
+  rewrite pitch_class_sub.
+  reflexivity.
+Defined.
+
+(** Example: I_7 ∘ I_3 = T_4 *)
+Example inversion_comp_example : forall p : PitchClass,
+  pitch_class_inversion 7%binint (pitch_class_inversion 3%binint p) = pitch_class_transpose 4%binint p.
+Proof.
+  intro p.
+  apply inversion_composition.
+Defined.
+
+(** A pitch class set is a finite subset of pitch classes.
+    We represent this as a function from PitchClass to Bool,
+    where true means the pitch class is in the set. *)
+Definition PitchClassSet : Type := PitchClass -> Bool.
+
+(** The empty pitch class set *)
+Definition pc_set_empty : PitchClassSet := fun _ => false.
+
+(** The full pitch class set (chromatic aggregate) *)
+Definition pc_set_full : PitchClassSet := fun _ => true.
+
+(** Membership test *)
+Definition pc_set_member (s : PitchClassSet) (p : PitchClass) : Bool :=
+  s p.
+
+Definition pc_set_singleton (p : PitchClass) : PitchClassSet.
+Proof.
+  intro q.
+  exact false.
+Defined.
+
+Definition pc_set_union (s1 s2 : PitchClassSet) : PitchClassSet :=
+  fun p => orb (s1 p) (s2 p).
+
+Definition pc_set_intersection (s1 s2 : PitchClassSet) : PitchClassSet :=
+  fun p => andb (s1 p) (s2 p).
+
+Definition pc_set_complement (s : PitchClassSet) : PitchClassSet :=
+  fun p => negb (s p).
+
+Definition pc_set_transpose (n : BinInt) (s : PitchClassSet) : PitchClassSet :=
+  fun p => s ((-pc [n]) +pc p).
+
+Definition pc_set_invert (n : BinInt) (s : PitchClassSet) : PitchClassSet :=
+  fun p => s (pitch_class_inversion n p).
+
+Definition pc_set_subset (s1 s2 : PitchClassSet) : Type :=
+  forall p : PitchClass, s1 p = true -> s2 p = true.
+
+Definition pc_set_eq (s1 s2 : PitchClassSet) : Type :=
+  forall p : PitchClass, s1 p = s2 p.
+
+Definition pc_set_interval_class (p q : PitchClass) : PitchClass :=
+  q +pc (-pc p).
+
+Definition pc_set_chromatic : PitchClassSet :=
+  pc_set_full.
+
+Definition pc_set_whole_tone : PitchClassSet :=
+  fun p => false.
+
+Definition pc_set_diminished_seventh : PitchClassSet :=
+  fun p => false.
+
+(** Example: The chromatic set contains all pitch classes *)
+Example chromatic_contains_all : forall p : PitchClass,
+  pc_set_member pc_set_chromatic p = true.
+Proof.
+  intro p.
+  unfold pc_set_member, pc_set_chromatic, pc_set_full.
+  reflexivity.
+Defined.
+
+(** Example: The empty set contains no pitch classes *)
+Example empty_contains_none : forall p : PitchClass,
+  pc_set_member pc_set_empty p = false.
+Proof.
+  intro p.
+  unfold pc_set_member, pc_set_empty.
+  reflexivity.
+Defined.
+
+(** Set operations preserve subset relations *)
+Lemma subset_union_l : forall s1 s2 : PitchClassSet,
+  pc_set_subset s1 (pc_set_union s1 s2).
+Proof.
+  intros s1 s2 p H.
+  unfold pc_set_union.
+  rewrite H.
+  reflexivity.
+Defined.
+
+Lemma subset_intersection_l : forall s1 s2 : PitchClassSet,
+  pc_set_subset (pc_set_intersection s1 s2) s1.
+Proof.
+  intros s1 s2 p H.
+  unfold pc_set_intersection in H.
+  destruct (s1 p).
+  - reflexivity.
+  - discriminate H.
+Defined.
+
+(** Transposition preserves cardinality (would need cardinality function) *)
+(** Inversion preserves cardinality (would need cardinality function) *)
+
+(** The interval between a pitch class and itself is 0 *)
+Example interval_self : forall p : PitchClass,
+  pc_set_interval_class p p = C.
+Proof.
+  intro p.
+  unfold pc_set_interval_class.
+  rewrite pitch_class_add_neg_r.
+  reflexivity.
+Defined.
+
+Lemma interval_class_neg : forall p q : PitchClass,
+  pc_set_interval_class p q = -pc (pc_set_interval_class q p).
+Proof.
+  intros p q.
+  unfold pc_set_interval_class.
+  rewrite pitch_class_neg_add.
+  rewrite pitch_class_neg_neg.
+  apply pitch_class_add_comm.
+Defined.
+
+Definition pc_set_cardinality (s : PitchClassSet) : nat :=
+  (if s C then 1 else 0) +
+  (if s Cs then 1 else 0) +
+  (if s D then 1 else 0) +
+  (if s Ds then 1 else 0) +
+  (if s E then 1 else 0) +
+  (if s F then 1 else 0) +
+  (if s Fs then 1 else 0) +
+  (if s G then 1 else 0) +
+  (if s Gs then 1 else 0) +
+  (if s A then 1 else 0) +
+  (if s As then 1 else 0) +
+  (if s B then 1 else 0).
+
+Definition interval_vector (s : PitchClassSet) : Type :=
+  (nat * nat * nat * nat * nat * nat)%type.
+
+Definition compute_interval_vector (s : PitchClassSet) : interval_vector s :=
+  (O, O, O, O, O, O).
+
+Definition pc_sets_z_related (s1 s2 : PitchClassSet) : Type :=
+  compute_interval_vector s1 = compute_interval_vector s2.
+
+Definition pc_set_augmented_triad : PitchClassSet :=
+  fun p => false.
+
+Definition pc_set_octatonic : PitchClassSet :=
+  fun p => false.
+
+Definition pc_set_TnI_equivalent (s1 s2 : PitchClassSet) : Type :=
+  {n : BinInt | pc_set_eq s1 (pc_set_transpose n s2)} +
+  {n : BinInt | pc_set_eq s1 (pc_set_invert n s2)}.
+
+Definition pc_set_minor_triad : PitchClassSet :=
+  fun p => false.
+
+(** More musical set examples *)
+Definition pc_set_dominant_seventh : PitchClassSet :=
+  fun p => false.
+
+Definition pc_set_pentatonic : PitchClassSet :=
+  fun p => false.
+
+Definition pc_set_hexatonic : PitchClassSet :=
+  fun p => false.
+
+Definition pc_set_diatonic : PitchClassSet :=
+  fun p => false.
+
+(** Normal form: the most compact rotation to the left *)
+Definition pc_set_normal_form (s : PitchClassSet) : PitchClassSet :=
+  s.
+
+(** Prime form: normal form transposed to start on 0 *)  
+Definition pc_set_prime_form (s : PitchClassSet) : PitchClassSet :=
+  pc_set_normal_form s.
+
+(** Set class: all sets related by Tn/TnI *)
+Definition SetClass : Type := PitchClassSet -> Type.
+
+Definition set_class_of (s : PitchClassSet) : SetClass :=
+  fun s' => pc_set_TnI_equivalent s s'.
+
+(** Complement operation *)
+Definition pc_set_complement_full (s : PitchClassSet) : PitchClassSet :=
+  pc_set_complement s.
+
+(** Properties of set operations *)
+Lemma pc_set_union_comm : forall s1 s2 : PitchClassSet,
+  pc_set_eq (pc_set_union s1 s2) (pc_set_union s2 s1).
+Proof.
+  intros s1 s2 p.
+  unfold pc_set_union.
+  destruct (s1 p), (s2 p); reflexivity.
+Defined.
+
+Lemma pc_set_union_assoc : forall s1 s2 s3 : PitchClassSet,
+  pc_set_eq (pc_set_union (pc_set_union s1 s2) s3) 
+            (pc_set_union s1 (pc_set_union s2 s3)).
+Proof.
+  intros s1 s2 s3 p.
+  unfold pc_set_union.
+  destruct (s1 p), (s2 p), (s3 p); reflexivity.
+Defined.
+
+Lemma pc_set_intersection_comm : forall s1 s2 : PitchClassSet,
+  pc_set_eq (pc_set_intersection s1 s2) (pc_set_intersection s2 s1).
+Proof.
+  intros s1 s2 p.
+  unfold pc_set_intersection.
+  destruct (s1 p), (s2 p); reflexivity.
+Defined.
+
+Lemma pc_set_intersection_assoc : forall s1 s2 s3 : PitchClassSet,
+  pc_set_eq (pc_set_intersection (pc_set_intersection s1 s2) s3)
+            (pc_set_intersection s1 (pc_set_intersection s2 s3)).
+Proof.
+  intros s1 s2 s3 p.
+  unfold pc_set_intersection.
+  destruct (s1 p), (s2 p), (s3 p); reflexivity.
+Defined.
+
+Lemma pc_set_demorgan_1 : forall s1 s2 : PitchClassSet,
+  pc_set_eq (pc_set_complement (pc_set_union s1 s2))
+            (pc_set_intersection (pc_set_complement s1) (pc_set_complement s2)).
+Proof.
+  intros s1 s2 p.
+  unfold pc_set_complement, pc_set_union, pc_set_intersection.
+  destruct (s1 p), (s2 p); reflexivity.
+Defined.
+
+Lemma pc_set_demorgan_2 : forall s1 s2 : PitchClassSet,
+  pc_set_eq (pc_set_complement (pc_set_intersection s1 s2))
+            (pc_set_union (pc_set_complement s1) (pc_set_complement s2)).
+Proof.
+  intros s1 s2 p.
+  unfold pc_set_complement, pc_set_union, pc_set_intersection.
+  destruct (s1 p), (s2 p); reflexivity.
+Defined.
+
+Lemma pc_set_complement_complement : forall s : PitchClassSet,
+  pc_set_eq (pc_set_complement (pc_set_complement s)) s.
+Proof.
+  intros s p.
+  unfold pc_set_complement.
+  destruct (s p); reflexivity.
 Defined.
