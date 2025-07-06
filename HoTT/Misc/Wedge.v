@@ -567,6 +567,15 @@ Proof.
     + exact HZ.
 Defined.
 
+(** Theorem: The wedge sum of path-connected spaces is path-connected *)
+Theorem wedge_path_connected (X Y : pType)
+  (HX : IsConnected 0 X) (HY : IsConnected 0 Y) :
+  IsConnected 0 (pWedge X Y).
+Proof.
+  apply wedge_preserves_connectedness; assumption.
+Defined.
+
+
 (** ** Related Concepts and Further Reading
     
     - **Pushouts**: The wedge sum is a special case of a pushout. See the
@@ -597,7 +606,11 @@ Defined.
     3. **Universe levels**: The construction is universe polymorphic, though
        we don't explicitly annotate universe levels here.
        
-    4. **Generalization**: This result should generalize to wedges of 
+    4. **Coherence**: The most delicate part of the proof is managing the
+       coherence condition in pushout induction. This requires careful 
+       tracking of how transport behaves on path types.
+       
+    5. **Generalization**: This result should generalize to wedges of 
        arbitrary families of types, not just binary wedges, though the 
        coherence becomes more complex.
 *)
