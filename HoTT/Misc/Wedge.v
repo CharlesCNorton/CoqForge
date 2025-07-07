@@ -28,14 +28,6 @@ Require Import HoTT.Colimits.Pushout.
     establishes that if X and Y are n-connected pointed types, then their 
     wedge sum X ∨ Y is also n-connected.
     
-    While this is a standard result in classical homotopy theory, formalizing 
-    it synthetically in HoTT requires careful management of:
-    
-    - Higher inductive types (pushouts)
-    - Truncation levels and connectivity
-    - Path algebra and coherence conditions
-    - The interplay between pointed types and their underlying types
-    
     This formalization provides a foundation for more advanced results in 
     synthetic homotopy theory that use wedge constructions.
 *)
