@@ -1,8 +1,7 @@
 (** * Wedge Sums Preserve Connectivity in HoTT
     
     This module proves that wedge sums (coproducts in the category of pointed 
-    types) preserve n-connectedness. This fundamental result appears to be 
-    original in the context of synthetic homotopy theory.
+    types) preserve n-connectedness.
     
     Author: Charles Norton
     Date: July 6th 2025
