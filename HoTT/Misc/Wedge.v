@@ -575,24 +575,70 @@ Proof.
   apply wedge_preserves_connectedness; assumption.
 Defined.
 
+(** Theorem: The wedge of n-fold iterated wedges is n-connected if base is *)
+Theorem wedge_nested_connected (n : trunc_index) (X : pType) (k : nat)
+  (HX : IsConnected n X) :
+  IsConnected n (nat_rect (fun _ => pType)
+                          X
+                          (fun _ acc => pWedge X acc)
+                          k).
+Proof.
+  induction k.
+  - simpl. exact HX.
+  - simpl. apply wedge_preserves_connectedness.
+    + exact HX.
+    + exact IHk.
+Defined.
 
-(** ** Related Concepts and Further Reading
-    
-    - **Pushouts**: The wedge sum is a special case of a pushout. See the
-      HoTT book Chapter 6 for more on higher inductive types.
-      
-    - **Connectivity**: See Chapter 7 of the HoTT book for the theory of
-      n-connected types and maps.
-      
-    - **Van Kampen's theorem**: Uses wedge sums extensively. A synthetic
-      proof exists in the HoTT library.
-      
-    - **Cohomology**: Wedge sums appear in the Mayer-Vietoris sequence and
-      other cohomological computations.
-      
-    - **Classical homotopy theory**: In classical settings, this result 
-      follows from the Seifert-van Kampen theorem or homology calculations.
-*)
+(** Helper: In a contractible wedge, all left elements are equal *)
+Lemma wedge_contr_pushl_eq (X Y : pType) (H : Contr (pWedge X Y)) (x x' : X) :
+  pushl x = pushl x' :> Wedge X Y.
+Proof.
+  transitivity (@center _ H).
+  - exact (@contr _ H (pushl x))^.
+  - exact (@contr _ H (pushl x')).
+Defined.
+
+(** Helper: In a contractible wedge, all right elements are equal *)
+Lemma wedge_contr_pushr_eq (X Y : pType) (H : Contr (pWedge X Y)) (y y' : Y) :
+  pushr y = pushr y' :> Wedge X Y.
+Proof.
+  transitivity (@center _ H).
+  - exact (@contr _ H (pushr y))^.
+  - exact (@contr _ H (pushr y')).
+Defined.
+
+(** Theorem: If wedge with Unit is contractible, then the space is contractible *)
+Theorem wedge_unit_contr_reflects (X : pType)
+  (H : Contr (pWedge X (Build_pType Unit tt))) :
+  Contr X.
+Proof.
+  apply (Build_Contr _ (point X)).
+  intro x.
+  assert (p : pushl x = pushl (point X) :> Wedge X (Build_pType Unit tt)).
+  { apply wedge_contr_pushl_eq. exact H. }
+  pose (f := @Pushout_rec Unit X Unit (unit_name (point X)) (unit_name tt) 
+                          X idmap (fun _ => point X) (fun u => 1)).
+  exact (ap f p)^.
+Defined.
+
+(** Test theorem: The wedge of any n-connected type with itself is n-connected *)
+Theorem wedge_self_connected_test (n : trunc_index) (X : pType) 
+  (HX : IsConnected n X) : 
+  IsConnected n (pWedge X X).
+Proof.
+  exact (wedge_preserves_connectedness n X X HX HX).
+Defined.
+
+(** The wedge of Unit with any n-connected type is n-connected *)
+Theorem wedge_unit_preserves_connected_test (n : trunc_index) (X : pType)
+  (HX : IsConnected n X) :
+  IsConnected n (pWedge (Build_pType Unit tt) X).
+Proof.
+  apply wedge_preserves_connectedness.
+  - exact _.  (* Unit is n-connected for any n *)
+  - exact HX.
+Defined.
 
 (** ** Technical Notes
     
@@ -605,12 +651,8 @@ Defined.
        
     3. **Universe levels**: The construction is universe polymorphic, though
        we don't explicitly annotate universe levels here.
-       
-    4. **Coherence**: The most delicate part of the proof is managing the
-       coherence condition in pushout induction. This requires careful 
-       tracking of how transport behaves on path types.
-       
-    5. **Generalization**: This result should generalize to wedges of 
+
+    4. **Generalization**: This result should generalize to wedges of 
        arbitrary families of types, not just binary wedges, though the 
        coherence becomes more complex.
 *)
