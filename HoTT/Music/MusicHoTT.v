@@ -27,7 +27,7 @@
     - Constructive proofs yield computational content
 
     Author: Charles Norton
-        Date: July 2nd 2025 (Updated: July 27th 2025)
+    Date: July 2nd 2025 (Updated: July 27th 2025)
     ================================================================= *)
 
 (** ================================================================= *)
@@ -1863,11 +1863,14 @@ Proof.
 Defined.
 
 (** ================================================================= *)
-(** End of Formalization                                             *)
+(** Section 15: Modular Arithmetic in Z/12Z                          *)
 (** ================================================================= *)
 
+(** These lemmas establish how integers reduce modulo 12 to their 
+    pitch class equivalents. They form the computational foundation
+    for all our musical calculations. *)
 
-(** Helper: 12 semitones equals 0 in pitch class arithmetic *)
+(** 12 semitones equals 0 in pitch class arithmetic *)
 Lemma twelve_equals_zero : [ 12%binint ] = C.
 Proof.
   apply qglue.
@@ -1879,7 +1882,208 @@ Proof.
   apply binint_add_negation_r.
 Defined.
 
-(** Helper: Transposition by 0 is identity for sets *)
+(** 14 equals 2 in pitch class arithmetic *)
+Lemma fourteen_equals_two : [14%binint] = [2%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 16 equals 4 in pitch class arithmetic *)
+Lemma sixteen_equals_four : [16%binint] = [4%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 18 equals 6 in pitch class arithmetic *)
+Lemma eighteen_equals_six : [18%binint] = [6%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 21 equals 9 in pitch class arithmetic *)
+Lemma twentyone_equals_nine : [21%binint] = [9%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 28 equals 4 in pitch class arithmetic *)
+Lemma twentyeight_equals_four : [28%binint] = [4%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 2%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 35 equals 11 in pitch class arithmetic *)
+Lemma thirtyfive_equals_eleven : [35%binint] = [11%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 2%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 42 equals 6 in pitch class arithmetic *)
+Lemma fortytwo_equals_six : [42%binint] = [6%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 3%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 49 equals 1 in pitch class arithmetic *)
+Lemma fortynine_equals_one : [49%binint] = [1%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 4%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 11 equals -1 in pitch class arithmetic *)
+Lemma eleven_equals_neg_one : [ 11%binint ] = [ (-1)%binint ].
+Proof.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** Simple arithmetic fact: 11 + 1 = 12 *)
+Lemma eleven_plus_one : (11 + 1)%binint = 12%binint.
+Proof.
+  reflexivity.
+Defined.
+
+(** Negation of 7 is 5 in pitch class arithmetic *)
+Lemma neg_seven_equals_five : -pc [7%binint] = [5%binint].
+Proof.
+  simpl.
+  apply qglue.
+  exists 1%binint.
+  simpl.
+  reflexivity.
+Defined.
+
+
+(** ================================================================= *)
+(** Section 16: Scalar Multiplication Properties                     *)
+(** ================================================================= *)
+
+(** These lemmas explore how scalar multiplication behaves in Z/12Z,
+    particularly focusing on multiplication by 5 and 7, which generate
+    important musical structures. *)
+
+(** Scalar multiplication by -1 is negation *)
+Lemma scalar_mult_neg_1 : forall p : PitchClass,
+  (-1)%binint *pc p = -pc p.
+Proof.
+  srapply Quotient_ind.
+  - intro n.
+    simpl.
+    apply ap.
+    destruct n.
+    + reflexivity.  (* case 0 *)
+    + reflexivity.  (* case pos *)
+    + reflexivity.  (* case neg *)
+  - intros; apply path_ishprop.
+Defined.
+
+(** Scalar multiplication by 0 gives C *)
+Lemma scalar_mult_0_gives_C : forall p : PitchClass,
+  0%binint *pc p = C.
+Proof.
+  intro p.
+  apply pitch_class_scalar_mult_0.
+Defined.
+
+(** Scalar multiplication by 5 on [1] gives [5] *)
+Lemma scalar_mult_5_on_one : 5%binint *pc [1%binint] = [5%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Scalar multiplication by 7 on [1] gives [7] *)
+Lemma scalar_mult_7_on_one : 7%binint *pc [1%binint] = [7%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** 7 * 2 = 14 *)
+Lemma scalar_mult_7_twice : 7%binint *pc [2%binint] = [14%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** 7 * 3 = 21 *)
+Lemma scalar_mult_7_on_three : 7%binint *pc [3%binint] = [21%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** 7 * 4 = 28 *)
+Lemma scalar_mult_7_on_four : 7%binint *pc [4%binint] = [28%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** 7 * 5 = 35 *)
+Lemma scalar_mult_7_on_five : 7%binint *pc [5%binint] = [35%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** 7 * 6 = 42 *)
+Lemma scalar_mult_7_on_six : 7%binint *pc [6%binint] = [42%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** 7 * 7 = 49 ≡ 1 (mod 12) *)
+Lemma scalar_mult_7_on_seven : 7%binint *pc [7%binint] = [49%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** 7 is its own multiplicative inverse modulo 12 *)
+Lemma scalar_mult_7_generates_1 : 7%binint *pc (7%binint *pc [1%binint]) = [1%binint].
+Proof.
+  rewrite scalar_mult_7_on_one.
+  rewrite scalar_mult_7_on_seven.
+  apply fortynine_equals_one.
+Defined.
+
+
+(** ================================================================= *)
+(** Section 17: Set Transposition Properties                         *)
+(** ================================================================= *)
+
+(** Properties of transposing pitch class sets, including special
+    cases and the tritone involution. *)
+
+(** Transposition by 0 is identity for sets *)
 Lemma pc_set_transpose_zero : forall s : PitchClassSet,
   pc_set_eq (pc_set_transpose 0%binint s) s.
 Proof.
@@ -1892,7 +2096,19 @@ Proof.
   reflexivity.
 Defined.
 
-(** Example: Transposition by 6 (tritone) is its own inverse *)
+(** Transposition by 12 is identity *)
+Lemma pc_set_transpose_12 : forall s : PitchClassSet,
+  pc_set_eq (pc_set_transpose 12%binint s) s.
+Proof.
+  intro s.
+  intro p.
+  unfold pc_set_transpose.
+  rewrite twelve_equals_zero.
+  rewrite pitch_class_add_zero_l.
+  reflexivity.
+Defined.
+
+(** The tritone transposition (by 6 semitones) is its own inverse *)
 Example tritone_transposition_involution : forall s : PitchClassSet,
   pc_set_eq (pc_set_transpose 6%binint (pc_set_transpose 6%binint s)) s.
 Proof.
@@ -1908,193 +2124,17 @@ Proof.
   reflexivity.
 Defined.
 
-(** Helper: Scalar multiplication by -1 is negation *)
-Lemma scalar_mult_neg_1 : forall p : PitchClass,
-  (-1)%binint *pc p = -pc p.
-Proof.
-  srapply Quotient_ind.
-  - intro n.
-    simpl.
-    apply ap.
-    destruct n.
-    + reflexivity.  (* case 0 *)
-    + reflexivity.  (* case pos *)
-    + reflexivity.  (* case neg *)
-  - intros; apply path_ishprop.
-Defined.
 
-(** Helper: Transposition by 12 is identity *)
-Lemma pc_set_transpose_12 : forall s : PitchClassSet,
-  pc_set_eq (pc_set_transpose 12%binint s) s.
-Proof.
-  intro s.
-  intro p.
-  unfold pc_set_transpose.
-  rewrite twelve_equals_zero.
-  rewrite pitch_class_add_zero_l.
-  reflexivity.
-Defined.
+(** ================================================================= *)
+(** Section 18: Circle of Fifths and Fourths                         *)
+(** ================================================================= *)
 
-(** Helper: Scalar multiplication by 0 gives C *)
-Lemma scalar_mult_0_gives_C : forall p : PitchClass,
-  0%binint *pc p = C.
-Proof.
-  intro p.
-  apply pitch_class_scalar_mult_0.
-Defined.
+(** The circle of fifths is one of the most fundamental structures
+    in Western music theory. Moving by perfect fifths (7 semitones)
+    generates all 12 pitch classes. The circle of fourths is its
+    inverse, moving by 5 semitones. *)
 
-(** Helper: 11 equals -1 in pitch class arithmetic *)
-Lemma eleven_equals_neg_one : [ 11%binint ] = [ (-1)%binint ].
-Proof.
-  apply qglue.
-  exists (binint_negation 1%binint).
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 11 + 1 = 12 *)
-Lemma eleven_plus_one : (11 + 1)%binint = 12%binint.
-Proof.
-  reflexivity.
-Defined.
-
-(** Helper: Scalar multiplication by 5 on [1] gives [5] *)
-Lemma scalar_mult_5_on_one : 5%binint *pc [1%binint] = [5%binint].
-Proof.
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: Scalar multiplication by 7 on [1] gives [7] *)
-Lemma scalar_mult_7_on_one : 7%binint *pc [1%binint] = [7%binint].
-Proof.
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 7 * 2 = 14 ≡ 2 (mod 12) *)
-Lemma scalar_mult_7_twice : 7%binint *pc [2%binint] = [14%binint].
-Proof.
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 14 equals 2 in pitch class arithmetic *)
-Lemma fourteen_equals_two : [14%binint] = [2%binint].
-Proof.
-  apply qglue.
-  exists (binint_negation 1%binint).
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 7 * 7 = 49 ≡ 1 (mod 12) *)
-Lemma scalar_mult_7_on_seven : 7%binint *pc [7%binint] = [49%binint].
-Proof.
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 49 equals 1 in pitch class arithmetic *)
-Lemma fortynine_equals_one : [49%binint] = [1%binint].
-Proof.
-  apply qglue.
-  exists (binint_negation 4%binint).
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: Scalar multiplication by 7 generates different pitch classes *)
-Lemma scalar_mult_7_generates_1 : 7%binint *pc (7%binint *pc [1%binint]) = [1%binint].
-Proof.
-  rewrite scalar_mult_7_on_one.
-  rewrite scalar_mult_7_on_seven.
-  apply fortynine_equals_one.
-Defined.
-
-(** Helper: 7 * 3 = 21 ≡ 9 (mod 12) *)
-Lemma scalar_mult_7_on_three : 7%binint *pc [3%binint] = [21%binint].
-Proof.
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 21 equals 9 in pitch class arithmetic *)
-Lemma twentyone_equals_nine : [21%binint] = [9%binint].
-Proof.
-  apply qglue.
-  exists (binint_negation 1%binint).
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 7 * 4 = 28 ≡ 4 (mod 12) *)
-Lemma scalar_mult_7_on_four : 7%binint *pc [4%binint] = [28%binint].
-Proof.
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 28 equals 4 in pitch class arithmetic *)
-Lemma twentyeight_equals_four : [28%binint] = [4%binint].
-Proof.
-  apply qglue.
-  exists (binint_negation 2%binint).
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 7 * 5 = 35 ≡ 11 (mod 12) *)
-Lemma scalar_mult_7_on_five : 7%binint *pc [5%binint] = [35%binint].
-Proof.
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 35 equals 11 in pitch class arithmetic *)
-Lemma thirtyfive_equals_eleven : [35%binint] = [11%binint].
-Proof.
-  apply qglue.
-  exists (binint_negation 2%binint).
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 7 * 6 = 42 ≡ 6 (mod 12) *)
-Lemma scalar_mult_7_on_six : 7%binint *pc [6%binint] = [42%binint].
-Proof.
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 42 equals 6 in pitch class arithmetic *)
-Lemma fortytwo_equals_six : [42%binint] = [6%binint].
-Proof.
-  apply qglue.
-  exists (binint_negation 3%binint).
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 16 equals 4 in pitch class arithmetic *)
-Lemma sixteen_equals_four : [16%binint] = [4%binint].
-Proof.
-  apply qglue.
-  exists (binint_negation 1%binint).
-  simpl.
-  reflexivity.
-Defined.
-
-(** Helper: 18 equals 6 in pitch class arithmetic *)
-Lemma eighteen_equals_six : [18%binint] = [6%binint].
-Proof.
-  apply qglue.
-  exists (binint_negation 1%binint).
-  simpl.
-  reflexivity.
-Defined.
-
-(** Musical Example: The circle of fifths pattern using addition *)
+(** The circle of fifths pattern using addition *)
 Example circle_of_fifths_first_six : 
   ([0%binint] +pc [7%binint] = G) /\
   (G +pc [7%binint] = D) /\
@@ -2117,19 +2157,10 @@ Proof.
            ++ simpl. apply eighteen_equals_six.
 Defined.
 
-(** Helper: Negation of 7 is 5 in pitch class arithmetic *)
-Lemma neg_seven_equals_five : -pc [7%binint] = [5%binint].
-Proof.
-  simpl.
-  apply qglue.
-  exists 1%binint.
-  simpl.
-  reflexivity.
-Defined.
-
 (** The circle of fourths is the inversion of the circle of fifths *)
 Example circle_of_fourths_is_inverted_fifths : forall p : PitchClass,
-  pitch_class_inversion 0%binint (p +pc [7%binint]) = (pitch_class_inversion 0%binint p) +pc [5%binint].
+  pitch_class_inversion 0%binint (p +pc [7%binint]) = 
+  (pitch_class_inversion 0%binint p) +pc [5%binint].
 Proof.
   intro p.
   unfold pitch_class_inversion.
@@ -2141,6 +2172,15 @@ Proof.
   apply neg_seven_equals_five.
 Defined.
 
+
+(** ================================================================= *)
+(** Section 19: Musical Scale Generations                            *)
+(** ================================================================= *)
+
+(** These examples demonstrate how various musical scales and chords
+    are generated by repeated transposition. This reveals the deep
+    mathematical structure underlying musical harmony. *)
+
 (** Whole tone scales are generated by repeated transposition by 2 *)
 Example whole_tone_generation : 
   let p0 := C in
@@ -2150,34 +2190,13 @@ Example whole_tone_generation :
   let p4 := p3 +pc [2%binint] in
   let p5 := p4 +pc [2%binint] in
   let p6 := p5 +pc [2%binint] in
-  (p0 = C) /\ (p1 = D) /\ (p2 = E) /\ (p3 = Fs) /\ (p4 = Gs) /\ (p5 = As) /\ (p6 = C).
+  (p0 = C) /\ (p1 = D) /\ (p2 = E) /\ (p3 = Fs) /\ 
+  (p4 = Gs) /\ (p5 = As) /\ (p6 = C).
 Proof.
   unfold C, D, E, Fs, Gs, As.
   simpl.
   repeat split; try reflexivity.
   apply twelve_equals_zero.
-Defined.
-
-(** Helper: Rearranging three pitch class additions *)
-Lemma pitch_class_add_rearrange : forall p q r : PitchClass,
-  p +pc q +pc r = p +pc r +pc q.
-Proof.
-  intros p q r.
-  rewrite pitch_class_add_assoc.
-  rewrite (pitch_class_add_comm q r).
-  rewrite <- pitch_class_add_assoc.
-  reflexivity.
-Defined.
-
-(** Combining transposition and inversion gives another inversion *)
-Example transpose_then_invert : forall n m : BinInt, forall p : PitchClass,
-  pitch_class_inversion n (pitch_class_transpose m p) = pitch_class_inversion (n - m)%binint p.
-Proof.
-  intros n m p.
-  unfold pitch_class_inversion, pitch_class_transpose.
-  rewrite pitch_class_neg_add.
-  rewrite <- pitch_class_add_assoc.
-  f_ap.
 Defined.
 
 (** Diminished seventh chords are generated by minor thirds (3 semitones) *)
@@ -2194,4 +2213,119 @@ Proof.
   repeat split; try reflexivity.
   apply twelve_equals_zero.
 Defined.
-    
+
+(** Transposition by 3 four times returns to origin *)
+Example transpose_3_cycle :
+  pitch_class_transpose 3%binint 
+    (pitch_class_transpose 3%binint 
+      (pitch_class_transpose 3%binint 
+        (pitch_class_transpose 3%binint C))) = C.
+Proof.
+  unfold pitch_class_transpose, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+(** ================================================================= *)
+(** Section 20: Transformation Algebra                               *)
+(** ================================================================= *)
+
+(** These results explore how musical transformations compose and
+    interact, revealing the algebraic structure of musical operations. *)
+
+(** Rearranging three pitch class additions *)
+Lemma pitch_class_add_rearrange : forall p q r : PitchClass,
+  p +pc q +pc r = p +pc r +pc q.
+Proof.
+  intros p q r.
+  rewrite pitch_class_add_assoc.
+  rewrite (pitch_class_add_comm q r).
+  rewrite <- pitch_class_add_assoc.
+  reflexivity.
+Defined.
+
+(** Combining transposition and inversion gives another inversion *)
+Example transpose_then_invert : forall n m : BinInt, forall p : PitchClass,
+  pitch_class_inversion n (pitch_class_transpose m p) = 
+  pitch_class_inversion (n - m)%binint p.
+Proof.
+  intros n m p.
+  unfold pitch_class_inversion, pitch_class_transpose.
+  rewrite pitch_class_neg_add.
+  rewrite <- pitch_class_add_assoc.
+  f_ap.
+Defined.
+
+(** Helper: 5 generates different pitch classes through scalar multiplication *)
+Example scalar_mult_5_generates_pattern :
+  (5%binint *pc [0%binint] = [0%binint]) /\
+  (5%binint *pc [1%binint] = [5%binint]) /\
+  (5%binint *pc [2%binint] = [10%binint]) /\
+  (5%binint *pc [3%binint] = [15%binint]) /\
+  (5%binint *pc [4%binint] = [20%binint]) /\
+  (5%binint *pc [5%binint] = [25%binint]).
+Proof.
+  simpl.
+  repeat split; reflexivity.
+Defined.
+
+(** Helper: 15 equals 3 in pitch class arithmetic *)
+Lemma fifteen_equals_three : [15%binint] = [3%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper: 20 equals 8 in pitch class arithmetic *)
+Lemma twenty_equals_eight : [20%binint] = [8%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper: 25 equals 1 in pitch class arithmetic *)
+Lemma twentyfive_equals_one : [25%binint] = [1%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 2%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 5 generates all pitch classes (circle of fourths) *)
+Example scalar_mult_5_generates_all :
+  let gen n := 5%binint *pc [n] in
+  (gen 0%binint = C) /\ (gen 1%binint = F) /\ (gen 2%binint = As) /\ (gen 3%binint = Ds) /\ 
+  (gen 4%binint = Gs) /\ (gen 5%binint = Cs) /\ (gen 6%binint = Fs) /\ (gen 7%binint = B) /\ 
+  (gen 8%binint = E) /\ (gen 9%binint = A) /\ (gen 10%binint = D) /\ (gen 11%binint = G).
+Proof.
+  unfold C, F, As, Ds, Gs, Cs, Fs, B, E, A, D, G.
+  simpl.
+  split.
+  - reflexivity.
+  - split.
+    + reflexivity.
+    + split.
+      * reflexivity.
+      * split.
+        -- apply fifteen_equals_three.
+        -- split.
+           ++ apply twenty_equals_eight.
+           ++ split.
+              ** apply twentyfive_equals_one.
+              ** split.
+                 --- apply qglue. exists (binint_negation 2%binint). simpl. reflexivity.
+                 --- split.
+                     +++ apply qglue. exists (binint_negation 2%binint). simpl. reflexivity.
+                     +++ split.
+                         *** apply qglue. exists (binint_negation 3%binint). simpl. reflexivity.
+                         *** split.
+                             ---- apply qglue. exists (binint_negation 3%binint). simpl. reflexivity.
+                             ---- split.
+                                  ++++ apply qglue. exists (binint_negation 4%binint). simpl. reflexivity.
+                                  ++++ apply qglue. exists (binint_negation 4%binint). simpl. reflexivity.
+Defined.
