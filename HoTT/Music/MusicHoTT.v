@@ -1074,3 +1074,60 @@ Proof.
   unfold pc_set_complement.
   destruct (s p); reflexivity.
 Defined.
+
+(** Transposition of sets composes *)
+Lemma pc_set_transpose_compose : forall m n : BinInt, forall s : PitchClassSet,
+  pc_set_eq (pc_set_transpose m (pc_set_transpose n s))
+            (pc_set_transpose (m + n)%binint s).
+Proof.
+  intros m n s p.
+  unfold pc_set_transpose.
+  rewrite <- pitch_class_add_assoc.
+  rewrite <- pitch_class_neg_add.
+  f_ap.
+  simpl.
+f_ap.
+  apply ap.
+  rewrite binint_add_comm.
+  reflexivity.
+Defined.
+
+(** Inversion of sets is an involution *)
+Lemma pc_set_invert_involution : forall n : BinInt, forall s : PitchClassSet,
+  pc_set_eq (pc_set_invert n (pc_set_invert n s)) s.
+Proof.
+  intros n s p.
+  unfold pc_set_invert.
+  rewrite inversion_involution.
+  reflexivity.
+Defined.
+
+(** Transposition distributes over union *)
+Lemma pc_set_transpose_union : forall n : BinInt, forall s1 s2 : PitchClassSet,
+  pc_set_eq (pc_set_transpose n (pc_set_union s1 s2))
+            (pc_set_union (pc_set_transpose n s1) (pc_set_transpose n s2)).
+Proof.
+  intros n s1 s2 p.
+  unfold pc_set_transpose, pc_set_union.
+  reflexivity.
+Defined.
+
+(** Transposition distributes over intersection *)
+Lemma pc_set_transpose_intersection : forall n : BinInt, forall s1 s2 : PitchClassSet,
+  pc_set_eq (pc_set_transpose n (pc_set_intersection s1 s2))
+            (pc_set_intersection (pc_set_transpose n s1) (pc_set_transpose n s2)).
+Proof.
+  intros n s1 s2 p.
+  unfold pc_set_transpose, pc_set_intersection.
+  reflexivity.
+Defined.
+
+(** Inversion distributes over union *)
+Lemma pc_set_invert_union : forall n : BinInt, forall s1 s2 : PitchClassSet,
+  pc_set_eq (pc_set_invert n (pc_set_union s1 s2))
+            (pc_set_union (pc_set_invert n s1) (pc_set_invert n s2)).
+Proof.
+  intros n s1 s2 p.
+  unfold pc_set_invert, pc_set_union.
+  reflexivity.
+Defined.
