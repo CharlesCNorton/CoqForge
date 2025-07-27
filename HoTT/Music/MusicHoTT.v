@@ -2839,4 +2839,16 @@ Proof.
                                   ++++ apply seventy_equals_ten.
                                   ++++ apply seventyseven_equals_five.
 Defined.
-    
+
+(** 6 generates only two pitch classes (the tritone) *)
+Example six_generates_tritone :
+  let p0 := C in
+  let p1 := 6%binint *pc [1%binint] in
+  let p2 := 6%binint *pc [2%binint] in
+  (p0 = C) /\ (p1 = Fs) /\ (p2 = C).
+Proof.
+  unfold C, Fs.
+  simpl.
+  repeat split; try reflexivity.
+  apply twelve_equals_zero.
+Defined.
