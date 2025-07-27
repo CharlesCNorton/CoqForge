@@ -2660,3 +2660,89 @@ Proof.
       apply scalar_mult_11_pos.
   - intros; apply path_ishprop.
 Defined.
+
+(** 1 and 11 are inverse generators *)
+Example inverse_generators : forall n : BinInt,
+  11%binint *pc (1%binint *pc [n]) = -pc [n].
+Proof.
+  intro n.
+  rewrite pitch_class_scalar_mult_1.
+  apply scalar_mult_11_is_negation.
+Defined.
+
+(** The octave (adding 12) is the identity transformation *)
+Example octave_is_identity : forall p : PitchClass,
+  p +pc [12%binint] = p.
+Proof.
+  intro p.
+  rewrite pitch_class_add_comm.
+  rewrite twelve_equals_zero.
+  apply pitch_class_add_zero_l.
+Defined.
+
+(** Scalar multiplication distributes over transposition *)
+Example scalar_mult_distributes_transpose : forall n : BinInt, forall p q : PitchClass,
+  n *pc (p +pc q) = (n *pc p) +pc (n *pc q).
+Proof.
+  intros n p q.
+  apply pitch_class_scalar_mult_add.
+Defined.
+
+(** The tritone is its own inverse under addition *)
+Example tritone_self_inverse : forall p : PitchClass,
+  (p +pc [6%binint]) +pc [6%binint] = p.
+Proof.
+  intro p.
+  rewrite pitch_class_add_assoc.
+  assert (H: ([6%binint] +pc [6%binint]) = [12%binint]).
+  { simpl. reflexivity. }
+  rewrite H.
+  rewrite twelve_equals_zero.
+  apply pitch_class_add_zero_r.
+Defined.
+
+Example three_generates_dim_cycle : 
+  let p0 := C in
+  let p1 := 3%binint *pc [1%binint] in
+  let p2 := 3%binint *pc [2%binint] in
+  let p3 := 3%binint *pc [3%binint] in
+  let p4 := 3%binint *pc [4%binint] in
+  (p0 = C) /\ (p1 = Ds) /\ (p2 = Fs) /\ (p3 = A) /\ (p4 = C).
+Proof.
+  unfold C, Ds, Fs, A.
+  simpl.
+  repeat split; try reflexivity.
+  apply twelve_equals_zero.
+Defined.
+
+(** 4 generates the augmented triad cycle *)
+Example four_generates_aug_cycle :
+  let p0 := C in
+  let p1 := 4%binint *pc [1%binint] in
+  let p2 := 4%binint *pc [2%binint] in
+  let p3 := 4%binint *pc [3%binint] in
+  (p0 = C) /\ (p1 = E) /\ (p2 = Gs) /\ (p3 = C).
+Proof.
+  unfold C, E, Gs.
+  simpl.
+  repeat split; try reflexivity.
+  apply twelve_equals_zero.
+Defined.
+
+(** 2 generates whole tone scale *)
+Example two_generates_whole_tone :
+  let p0 := C in
+  let p1 := 2%binint *pc [1%binint] in
+  let p2 := 2%binint *pc [2%binint] in
+  let p3 := 2%binint *pc [3%binint] in
+  let p4 := 2%binint *pc [4%binint] in
+  let p5 := 2%binint *pc [5%binint] in
+  let p6 := 2%binint *pc [6%binint] in
+  (p0 = C) /\ (p1 = D) /\ (p2 = E) /\ (p3 = Fs) /\ 
+  (p4 = Gs) /\ (p5 = As) /\ (p6 = C).
+Proof.
+  unfold C, D, E, Fs, Gs, As.
+  simpl.
+  repeat split; try reflexivity.
+  apply twelve_equals_zero.
+Defined.
