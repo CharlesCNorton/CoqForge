@@ -2753,3 +2753,90 @@ Proof.
   repeat split; try reflexivity.
   apply twelve_equals_zero.
 Defined.
+
+(** 1 generates the chromatic scale (all 12 pitch classes) *)
+Example one_generates_chromatic :
+  let gen n := 1%binint *pc [n] in
+  (gen 0%binint = C) /\ (gen 1%binint = Cs) /\ (gen 2%binint = D) /\ 
+  (gen 3%binint = Ds) /\ (gen 4%binint = E) /\ (gen 5%binint = F) /\ 
+  (gen 6%binint = Fs) /\ (gen 7%binint = G) /\ (gen 8%binint = Gs) /\ 
+  (gen 9%binint = A) /\ (gen 10%binint = As) /\ (gen 11%binint = B) /\ 
+  (gen 12%binint = C).
+Proof.
+  unfold C, Cs, D, Ds, E, F, Fs, G, Gs, A, As, B.
+  simpl.
+  repeat split; try reflexivity.
+  apply twelve_equals_zero.
+Defined.
+
+(** Helper: 56 equals 8 in pitch class arithmetic *)
+Lemma fiftysix_equals_eight : [56%binint] = [8%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 4%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper: 63 equals 3 in pitch class arithmetic *)
+Lemma sixtythree_equals_three : [63%binint] = [3%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 5%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper: 70 equals 10 in pitch class arithmetic *)
+Lemma seventy_equals_ten : [70%binint] = [10%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 5%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper: 77 equals 5 in pitch class arithmetic *)
+Lemma seventyseven_equals_five : [77%binint] = [5%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 6%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 7 generates the circle of fifths (all 12 pitch classes) *)
+Example seven_generates_circle_of_fifths :
+  let gen n := 7%binint *pc [n] in
+  (gen 0%binint = C) /\ (gen 1%binint = G) /\ (gen 2%binint = D) /\ 
+  (gen 3%binint = A) /\ (gen 4%binint = E) /\ (gen 5%binint = B) /\ 
+  (gen 6%binint = Fs) /\ (gen 7%binint = Cs) /\ (gen 8%binint = Gs) /\ 
+  (gen 9%binint = Ds) /\ (gen 10%binint = As) /\ (gen 11%binint = F).
+Proof.
+  unfold C, G, D, A, E, B, Fs, Cs, Gs, Ds, As, F.
+  simpl.
+  split.
+  - reflexivity.
+  - split.
+    + reflexivity.
+    + split.
+      * apply fourteen_equals_two.
+      * split.
+        -- apply twentyone_equals_nine.
+        -- split.
+           ++ apply twentyeight_equals_four.
+           ++ split.
+              ** apply thirtyfive_equals_eleven.
+              ** split.
+                 --- apply fortytwo_equals_six.
+                 --- split.
+                     +++ apply fortynine_equals_one.
+                     +++ split.
+                         *** apply fiftysix_equals_eight.
+                         *** split.
+                             ---- apply sixtythree_equals_three.
+                             ---- split.
+                                  ++++ apply seventy_equals_ten.
+                                  ++++ apply seventyseven_equals_five.
+Defined.
+    
