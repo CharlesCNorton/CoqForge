@@ -27,7 +27,7 @@
     - Constructive proofs yield computational content
 
     Author: Charles Norton
-    Date: July 2nd 2025 (Updated: July 4th 2025)
+    Date: July 2nd 2025 (Updated: July 27th 2025)
     ================================================================= *)
 
 (** ================================================================= *)
