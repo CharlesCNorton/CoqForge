@@ -2329,3 +2329,334 @@ Proof.
                                   ++++ apply qglue. exists (binint_negation 4%binint). simpl. reflexivity.
                                   ++++ apply qglue. exists (binint_negation 4%binint). simpl. reflexivity.
 Defined.
+
+(** Helper: 11 * 2 = 22 ≡ 10 (mod 12) *)
+Lemma scalar_mult_11_on_two : 11%binint *pc [2%binint] = [22%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper: 22 equals 10 in pitch class arithmetic *)
+Lemma twentytwo_equals_ten : [22%binint] = [10%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** 11 generates all pitch classes in reverse (descending chromatic scale) *)
+Example scalar_mult_11_generates_reverse :
+  let gen n := 11%binint *pc [n] in
+  (gen 1%binint = B) /\ (gen 2%binint = As) /\ (gen 3%binint = A) /\ 
+  (gen 4%binint = Gs) /\ (gen 5%binint = G) /\ (gen 6%binint = Fs).
+Proof.
+  unfold B, As, A, Gs, G, Fs.
+  simpl.
+  split.
+  - reflexivity.
+  - split.
+    + apply twentytwo_equals_ten.
+    + split.
+      * apply qglue. exists (binint_negation 2%binint). simpl. reflexivity.
+      * split.
+        -- apply qglue. exists (binint_negation 3%binint). simpl. reflexivity.
+        -- split.
+           ++ apply qglue. exists (binint_negation 4%binint). simpl. reflexivity.
+           ++ apply qglue. exists (binint_negation 5%binint). simpl. reflexivity.
+Defined.
+
+(** 11 equals -1 in pitch class arithmetic *)
+Lemma eleven_equals_neg_one_v2 : [11%binint] = [binint_negation 1%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper: 11 * n + n = 12 * n *)
+Lemma eleven_mult_plus_n : forall n : BinInt,
+  (11 * n + n)%binint = (12 * n)%binint.
+Proof.
+  intro n.
+  assert (H: (11 * n + n)%binint = (11 * n + 1 * n)%binint).
+  { f_ap. symmetry. apply binint_mul_1_l. }
+  rewrite H.
+  rewrite <- binint_mul_add_distr_r.
+  reflexivity.
+Defined.
+
+(** Helper: 11 * n = -n + 12 * n *)
+Lemma eleven_mult_equals_neg_plus_twelve : forall n : BinInt,
+  (11 * n)%binint = (binint_negation n + 12 * n)%binint.
+Proof.
+  intro n.
+  apply (binint_add_cancel_l n).
+  rewrite binint_add_assoc.
+  rewrite binint_add_negation_r.
+  rewrite binint_add_0_l.
+  rewrite binint_add_comm.
+  apply eleven_mult_plus_n.
+Defined.
+
+(** Helper: 11 * 0 = -0 *)
+Lemma scalar_mult_11_zero : 11%binint *pc [0%binint] = -pc [0%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper: 11 * 1 = -1 in pitch class arithmetic *)
+Lemma scalar_mult_11_one : 11%binint *pc [1%binint] = -pc [1%binint].
+Proof.
+  simpl.
+  apply eleven_equals_neg_one.
+Defined.
+
+(** Helper: 11 * 2 = -2 in pitch class arithmetic *) 
+Lemma scalar_mult_11_two : 11%binint *pc [2%binint] = -pc [2%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 2%binint).
+  reflexivity.
+Defined.
+
+(** Helper: 11 * 3 = -3 in pitch class arithmetic *) 
+Lemma scalar_mult_11_three : 11%binint *pc [3%binint] = -pc [3%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 3%binint).
+  reflexivity.
+Defined.
+
+(** Helper: 11 * 4 = -4 in pitch class arithmetic *) 
+Lemma scalar_mult_11_four : 11%binint *pc [4%binint] = -pc [4%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 4%binint).
+  reflexivity.
+Defined.
+
+(** Helper: 11 * 5 = -5 in pitch class arithmetic *) 
+Lemma scalar_mult_11_five : 11%binint *pc [5%binint] = -pc [5%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 5%binint).
+  reflexivity.
+Defined.
+
+(** Helper: 11 * 6 = -6 in pitch class arithmetic *) 
+Lemma scalar_mult_11_six : 11%binint *pc [6%binint] = -pc [6%binint].
+Proof.
+  apply qglue.
+  exists (binint_negation 6%binint).
+  reflexivity.
+Defined.
+
+(** Helper: 11 * (-1) = -(-1) in pitch class arithmetic *)
+Lemma scalar_mult_11_neg_one : 11%binint *pc [binint_negation 1%binint] = -pc [binint_negation 1%binint].
+Proof.
+  apply qglue.
+  exists 1%binint.
+  reflexivity.
+Defined.
+
+(** Helper: 11 * (-2) = -(-2) in pitch class arithmetic *)
+Lemma scalar_mult_11_neg_two : 11%binint *pc [binint_negation 2%binint] = -pc [binint_negation 2%binint].
+Proof.
+  apply qglue.
+  exists 2%binint.
+  reflexivity.
+Defined.
+
+(** Helper: -n * 12 = -(n * 12) *)
+Lemma neg_mult_twelve : forall n : BinInt,
+  (binint_negation n * 12)%binint = binint_negation (n * 12)%binint.
+Proof.
+  intro n.
+  rewrite binint_mul_comm.
+  rewrite <- binint_negation_mult_r.
+  rewrite binint_mul_comm.
+  reflexivity.
+Defined.
+
+(** Helper: n * 11 = 11 * n *)
+Lemma mult_eleven_comm : forall n : BinInt,
+  (n * 11)%binint = (11 * n)%binint.
+Proof.
+  intro n.
+  apply binint_mul_comm.
+Defined.
+
+(** Helper: 11 + 12 = 23 *)
+Lemma eleven_plus_twelve : (11 + 12)%binint = 23%binint.
+Proof.
+  reflexivity.
+Defined.
+
+(** Helper: 11 - 12 = -1 *)
+Lemma eleven_minus_twelve : (11 - 12)%binint = binint_negation 1%binint.
+Proof.
+  reflexivity.
+Defined.
+
+(** Helper: 11*n + (-n)*12 = n*11 + (-n)*12 *)
+Lemma rewrite_to_factor_form : forall n : BinInt,
+  (11 * n + binint_negation n * 12)%binint = (n * 11 + binint_negation n * 12)%binint.
+Proof.
+  intro n.
+  f_ap.
+  apply binint_mul_comm.
+Defined.
+
+(** Helper: (-n)*12 = -(n*12) *)
+Lemma neg_n_mult_twelve : forall n : BinInt,
+  (binint_negation n * 12)%binint = binint_negation (n * 12)%binint.
+Proof.
+  intro n.
+  apply neg_mult_twelve.
+Defined.
+
+(** Helper: (-12) * n = -(12 * n) *)
+Lemma neg_twelve_mult_n : forall n : BinInt,
+  (binint_negation 12 * n)%binint = binint_negation (12 * n)%binint.
+Proof.
+  intro n.
+  rewrite binint_mul_comm.
+  rewrite <- binint_negation_mult_r.
+  rewrite binint_mul_comm.
+  reflexivity.
+Defined.
+
+(** Helper: -(n * 12) = n * (-12) *)
+Lemma neg_n_twelve_eq_n_neg_twelve : forall n : BinInt,
+  binint_negation (n * 12)%binint = (n * binint_negation 12)%binint.
+Proof.
+  intro n.
+  rewrite binint_mul_comm.
+  rewrite <- neg_twelve_mult_n.
+  rewrite binint_mul_comm.
+  reflexivity.
+Defined.
+
+(** Helper: 11*n + -(n*12) = n*(11-12) *)
+Lemma factor_n_from_difference : forall n : BinInt,
+  (11 * n + binint_negation (n * 12))%binint = (n * (11 - 12))%binint.
+Proof.
+  intro n.
+  unfold binint_sub.
+  rewrite binint_mul_add_distr_l.
+  f_ap.
+  - apply binint_mul_comm.
+  - apply neg_n_twelve_eq_n_neg_twelve.
+Defined.
+
+(** Helper: n * (11 - 12) = n * (-1) *)
+Lemma n_mult_eleven_minus_twelve : forall n : BinInt,
+  (n * (11 - 12))%binint = (n * binint_negation 1)%binint.
+Proof.
+  intro n.
+  f_ap.
+Defined.
+
+(** Helper: (-1) * n = -n *)
+Lemma neg_one_mult_n : forall n : BinInt,
+  (binint_negation 1 * n)%binint = binint_negation n.
+Proof.
+  intro n.
+  destruct n.
+  - reflexivity.  (* n = 0 *)
+  - reflexivity.  (* n = pos p *)
+  - reflexivity.  (* n = neg p *)
+Defined.
+
+(** Helper: n * (-1) = -n (using commutativity) *)
+Lemma n_mult_neg_one : forall n : BinInt,
+  (n * binint_negation 1)%binint = binint_negation n.
+Proof.
+  intro n.
+  rewrite binint_mul_comm.
+  apply neg_one_mult_n.
+Defined.
+
+(** Helper: 12 * (-n) = (-n) * 12 *)
+Lemma twelve_neg_n_comm : forall n : BinInt,
+  (12 * binint_negation n)%binint = (binint_negation n * 12)%binint.
+Proof.
+  intro n.
+  apply binint_mul_comm.
+Defined.
+
+(** Helper: For any n, 11*n + 12*(-n) = -n *)
+Lemma eleven_mult_plus_twelve_neg_witness : forall n : BinInt,
+  (11 * n + 12 * binint_negation n)%binint = binint_negation n.
+Proof.
+  intro n.
+  rewrite twelve_neg_n_comm.
+  rewrite neg_mult_twelve.
+  rewrite factor_n_from_difference.
+  rewrite n_mult_eleven_minus_twelve.
+  apply n_mult_neg_one.
+Defined.
+
+(** Helper: 11 * neg p + 12 * pos p = pos p *)
+Lemma eleven_neg_plus_twelve_pos : forall p : Core.Pos,
+  (11 * neg p + 12 * pos p)%binint = pos p.
+Proof.
+  intro p.
+  assert (H: (neg p) = binint_negation (pos p)).
+  { reflexivity. }
+  rewrite H.
+  apply eleven_mult_plus_twelve_neg_witness.
+Defined.
+
+(** Helper: 11 * (neg p) = -(neg p) *)
+Lemma scalar_mult_11_neg : forall p : Core.Pos,
+  11%binint *pc [neg p] = -pc [neg p].
+Proof.
+  intro p.
+  apply qglue.
+  exists (pos p).
+  symmetry.
+  apply eleven_neg_plus_twelve_pos.
+Defined.
+
+(** Helper: 11 * pos p + 12 * neg p = neg p *)
+Lemma eleven_pos_plus_twelve_neg : forall p : Core.Pos,
+  (11 * pos p + 12 * neg p)%binint = neg p.
+Proof.
+  intro p.
+  assert (H: (pos p) = binint_negation (neg p)).
+  { reflexivity. }
+  rewrite H.
+  apply eleven_mult_plus_twelve_neg_witness.
+Defined.
+
+(** Helper: 11 * (pos p) = -(pos p) *)
+Lemma scalar_mult_11_pos : forall p : Core.Pos,
+  11%binint *pc [pos p] = -pc [pos p].
+Proof.
+  intro p.
+  apply qglue.
+  exists (neg p).
+  symmetry.
+  apply eleven_pos_plus_twelve_neg.
+Defined.
+
+(** 11 acts as -1 in scalar multiplication *)
+Example scalar_mult_11_is_negation : forall p : PitchClass,
+  11%binint *pc p = -pc p.
+Proof.
+  srapply Quotient_ind.
+  - intro n.
+    destruct n.
+    + (* neg p case *)
+      apply scalar_mult_11_neg.
+    + (* zero case *)
+      apply scalar_mult_11_zero.
+    + (* pos p case *)
+      apply scalar_mult_11_pos.
+  - intros; apply path_ishprop.
+Defined.
