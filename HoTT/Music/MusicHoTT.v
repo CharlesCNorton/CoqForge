@@ -1122,6 +1122,16 @@ Proof.
   reflexivity.
 Defined.
 
+(** Inversion distributes over complement *)
+Lemma pc_set_invert_complement : forall n : BinInt, forall s : PitchClassSet,
+  pc_set_eq (pc_set_invert n (pc_set_complement s))
+            (pc_set_complement (pc_set_invert n s)).
+Proof.
+  intros n s p.
+  unfold pc_set_invert, pc_set_complement.
+  reflexivity.
+Defined.
+
 (** Inversion distributes over union *)
 Lemma pc_set_invert_union : forall n : BinInt, forall s1 s2 : PitchClassSet,
   pc_set_eq (pc_set_invert n (pc_set_union s1 s2))
@@ -1129,5 +1139,301 @@ Lemma pc_set_invert_union : forall n : BinInt, forall s1 s2 : PitchClassSet,
 Proof.
   intros n s1 s2 p.
   unfold pc_set_invert, pc_set_union.
+  reflexivity.
+Defined.
+
+(** Inversion distributes over intersection *)
+Lemma pc_set_invert_intersection : forall n : BinInt, forall s1 s2 : PitchClassSet,
+  pc_set_eq (pc_set_invert n (pc_set_intersection s1 s2))
+            (pc_set_intersection (pc_set_invert n s1) (pc_set_invert n s2)).
+Proof.
+  intros n s1 s2 p.
+  unfold pc_set_invert, pc_set_intersection.
+  reflexivity.
+Defined.
+
+(** Transposition distributes over complement *)
+Lemma pc_set_transpose_complement : forall n : BinInt, forall s : PitchClassSet,
+  pc_set_eq (pc_set_transpose n (pc_set_complement s))
+            (pc_set_complement (pc_set_transpose n s)).
+Proof.
+  intros n s p.
+  unfold pc_set_transpose, pc_set_complement.
+  reflexivity.
+Defined.
+
+(** Transposition preserves the empty set *)
+Lemma pc_set_transpose_empty : forall n : BinInt,
+  pc_set_eq (pc_set_transpose n pc_set_empty) pc_set_empty.
+Proof.
+  intros n p.
+  unfold pc_set_transpose, pc_set_empty.
+  reflexivity.
+Defined.
+
+(** Inversion preserves the empty set *)
+Lemma pc_set_invert_empty : forall n : BinInt,
+  pc_set_eq (pc_set_invert n pc_set_empty) pc_set_empty.
+Proof.
+  intros n p.
+  unfold pc_set_invert, pc_set_empty.
+  reflexivity.
+Defined.
+
+(** Transposition preserves the full set *)
+Lemma pc_set_transpose_full : forall n : BinInt,
+  pc_set_eq (pc_set_transpose n pc_set_full) pc_set_full.
+Proof.
+  intros n p.
+  unfold pc_set_transpose, pc_set_full.
+  reflexivity.
+Defined.
+
+(** Inversion preserves the full set *)
+Lemma pc_set_invert_full : forall n : BinInt,
+  pc_set_eq (pc_set_invert n pc_set_full) pc_set_full.
+Proof.
+  intros n p.
+  unfold pc_set_invert, pc_set_full.
+  reflexivity.
+Defined.
+
+(** The empty set is a subset of any set *)
+Lemma pc_set_empty_subset : forall s : PitchClassSet,
+  pc_set_subset pc_set_empty s.
+Proof.
+  intros s p H.
+  unfold pc_set_empty in H.
+  discriminate H.
+Defined.
+
+(** Any set is a subset of the full set *)
+Lemma pc_set_subset_full : forall s : PitchClassSet,
+  pc_set_subset s pc_set_full.
+Proof.
+  intros s p H.
+  unfold pc_set_full.
+  reflexivity.
+Defined.
+
+(** Subset relation is reflexive *)
+Lemma pc_set_subset_refl : forall s : PitchClassSet,
+  pc_set_subset s s.
+Proof.
+  intros s p H.
+  exact H.
+Defined.
+
+(** Subset relation is transitive *)
+Lemma pc_set_subset_trans : forall s1 s2 s3 : PitchClassSet,
+  pc_set_subset s1 s2 -> pc_set_subset s2 s3 -> pc_set_subset s1 s3.
+Proof.
+  intros s1 s2 s3 H12 H23 p H1.
+  apply H23.
+  apply H12.
+  exact H1.
+Defined.
+
+(** Union with empty set is identity *)
+Lemma pc_set_union_empty_l : forall s : PitchClassSet,
+  pc_set_eq (pc_set_union pc_set_empty s) s.
+Proof.
+  intros s p.
+  unfold pc_set_union, pc_set_empty.
+  reflexivity.
+Defined.
+
+(** Union with empty set is identity (right) *)
+Lemma pc_set_union_empty_r : forall s : PitchClassSet,
+  pc_set_eq (pc_set_union s pc_set_empty) s.
+Proof.
+  intros s p.
+  unfold pc_set_union, pc_set_empty.
+  destruct (s p); reflexivity.
+Defined.
+
+(** Intersection with full set is identity *)
+Lemma pc_set_intersection_full_l : forall s : PitchClassSet,
+  pc_set_eq (pc_set_intersection pc_set_full s) s.
+Proof.
+  intros s p.
+  unfold pc_set_intersection, pc_set_full.
+  reflexivity.
+Defined.
+
+(** Intersection with full set is identity (right) *)
+Lemma pc_set_intersection_full_r : forall s : PitchClassSet,
+  pc_set_eq (pc_set_intersection s pc_set_full) s.
+Proof.
+  intros s p.
+  unfold pc_set_intersection, pc_set_full.
+  destruct (s p); reflexivity.
+Defined.
+
+(** Intersection with empty set is empty *)
+Lemma pc_set_intersection_empty_l : forall s : PitchClassSet,
+  pc_set_eq (pc_set_intersection pc_set_empty s) pc_set_empty.
+Proof.
+  intros s p.
+  unfold pc_set_intersection, pc_set_empty.
+  reflexivity.
+Defined.
+
+(** Intersection with empty set is empty (right) *)
+Lemma pc_set_intersection_empty_r : forall s : PitchClassSet,
+  pc_set_eq (pc_set_intersection s pc_set_empty) pc_set_empty.
+Proof.
+  intros s p.
+  unfold pc_set_intersection, pc_set_empty.
+  destruct (s p); reflexivity.
+Defined.
+
+(** Union with full set is full *)
+Lemma pc_set_union_full_l : forall s : PitchClassSet,
+  pc_set_eq (pc_set_union pc_set_full s) pc_set_full.
+Proof.
+  intros s p.
+  unfold pc_set_union, pc_set_full.
+  reflexivity.
+Defined.
+
+(** Union with full set is full (right) *)
+Lemma pc_set_union_full_r : forall s : PitchClassSet,
+  pc_set_eq (pc_set_union s pc_set_full) pc_set_full.
+Proof.
+  intros s p.
+  unfold pc_set_union, pc_set_full.
+  destruct (s p); reflexivity.
+Defined.
+
+(** Complement of empty is full *)
+Lemma pc_set_complement_empty : 
+  pc_set_eq (pc_set_complement pc_set_empty) pc_set_full.
+Proof.
+  intro p.
+  unfold pc_set_complement, pc_set_empty, pc_set_full.
+  reflexivity.
+Defined.
+
+
+(** Idempotence of union *)
+Lemma pc_set_union_idempotent : forall s : PitchClassSet,
+  pc_set_eq (pc_set_union s s) s.
+Proof.
+  intros s p.
+  unfold pc_set_union.
+  destruct (s p); reflexivity.
+Defined.
+
+(** Idempotence of intersection *)
+Lemma pc_set_intersection_idempotent : forall s : PitchClassSet,
+  pc_set_eq (pc_set_intersection s s) s.
+Proof.
+  intros s p.
+  unfold pc_set_intersection.
+  destruct (s p); reflexivity.
+Defined.
+
+(** Union with complement is full *)
+Lemma pc_set_union_complement : forall s : PitchClassSet,
+  pc_set_eq (pc_set_union s (pc_set_complement s)) pc_set_full.
+Proof.
+  intros s p.
+  unfold pc_set_union, pc_set_complement, pc_set_full.
+  destruct (s p); reflexivity.
+Defined.
+
+(** Intersection with complement is empty *)
+Lemma pc_set_intersection_complement : forall s : PitchClassSet,
+  pc_set_eq (pc_set_intersection s (pc_set_complement s)) pc_set_empty.
+Proof.
+  intros s p.
+  unfold pc_set_intersection, pc_set_complement, pc_set_empty.
+  destruct (s p); reflexivity.
+Defined.
+
+(** Subset preserved by transposition *)
+Lemma pc_set_transpose_subset : forall n : BinInt, forall s1 s2 : PitchClassSet,
+  pc_set_subset s1 s2 -> pc_set_subset (pc_set_transpose n s1) (pc_set_transpose n s2).
+Proof.
+  intros n s1 s2 H p H1.
+  unfold pc_set_transpose in *.
+  apply H.
+  exact H1.
+Defined.
+
+(** Subset preserved by inversion *)
+Lemma pc_set_invert_subset : forall n : BinInt, forall s1 s2 : PitchClassSet,
+  pc_set_subset s1 s2 -> pc_set_subset (pc_set_invert n s1) (pc_set_invert n s2).
+Proof.
+  intros n s1 s2 H p H1.
+  unfold pc_set_invert in *.
+  apply H.
+  exact H1.
+Defined.
+
+(** Transposition by n followed by transposition by m equals 
+    transposition by m+n (already follows from transpose_compose) *)
+Lemma pc_set_transpose_transpose : forall m n : BinInt, forall s : PitchClassSet,
+  pc_set_eq (pc_set_transpose m (pc_set_transpose n s))
+            (pc_set_transpose (m + n)%binint s).
+Proof.
+  exact pc_set_transpose_compose.
+Defined.
+
+(** Double complement with a transposition in between *)
+Lemma pc_set_complement_transpose_complement : forall n : BinInt, forall s : PitchClassSet,
+  pc_set_eq (pc_set_complement (pc_set_transpose n (pc_set_complement s)))
+            (pc_set_transpose n s).
+Proof.
+  intros n s p.
+  unfold pc_set_complement, pc_set_transpose.
+  destruct (s (-pc [n] +pc p)); reflexivity.
+Defined.
+
+(** Complement and inversion commute *)
+Lemma pc_set_complement_invert_commute : forall n : BinInt, forall s : PitchClassSet,
+  pc_set_eq (pc_set_complement (pc_set_invert n s))
+            (pc_set_invert n (pc_set_complement s)).
+Proof.
+  intros n s p.
+  rewrite pc_set_invert_complement.
+  reflexivity.
+Defined.
+
+(** Union of a set with its transposition *)
+Lemma pc_set_union_transpose_self : forall n : BinInt, forall s : PitchClassSet,
+  pc_set_subset s (pc_set_union s (pc_set_transpose n s)).
+Proof.
+  intros n s.
+  apply subset_union_l.
+Defined.
+
+(** Intersection of a set with its inversion *)
+Lemma pc_set_intersection_invert_self : forall n : BinInt, forall s : PitchClassSet,
+  pc_set_subset (pc_set_intersection s (pc_set_invert n s)) s.
+Proof.
+  intros n s.
+  apply subset_intersection_l.
+Defined.
+
+
+(** Empty set is invariant under all transpositions *)
+Lemma pc_set_transpose_empty_invariant : forall n m : BinInt,
+  pc_set_eq (pc_set_transpose n pc_set_empty) (pc_set_transpose m pc_set_empty).
+Proof.
+  intros n m p.
+  rewrite pc_set_transpose_empty.
+  rewrite pc_set_transpose_empty.
+  reflexivity.
+Defined.
+
+(** Full set is invariant under all inversions *)
+Lemma pc_set_invert_full_invariant : forall n m : BinInt,
+  pc_set_eq (pc_set_invert n pc_set_full) (pc_set_invert m pc_set_full).
+Proof.
+  intros n m p.
+  rewrite pc_set_invert_full.
+  rewrite pc_set_invert_full.
   reflexivity.
 Defined.
