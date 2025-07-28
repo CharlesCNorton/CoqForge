@@ -27,7 +27,7 @@
     - Constructive proofs yield computational content
 
     Author: Charles Norton
-    Date: July 2nd 2025 (Updated: July 27th 2025)
+    Date: July 2nd 2025 (Updated: July 28th 2025)
     ================================================================= *)
 
 (** ================================================================= *)
@@ -2852,3 +2852,79 @@ Proof.
   repeat split; try reflexivity.
   apply twelve_equals_zero.
 Defined.
+
+(** The diminished seventh chord repeats every 3 semitones *)
+Example diminished_seventh_period : forall p : PitchClass,
+  p +pc [3%binint] +pc [3%binint] +pc [3%binint] +pc [3%binint] = p.
+Proof.
+  intro p.
+  rewrite pitch_class_add_assoc.
+  rewrite pitch_class_add_assoc.
+  rewrite pitch_class_add_assoc.
+  assert (H: ([3%binint] +pc ([3%binint] +pc ([3%binint] +pc [3%binint]))) = [12%binint]).
+  { simpl. reflexivity. }
+  rewrite H.
+  rewrite twelve_equals_zero.
+  apply pitch_class_add_zero_r.
+Defined.
+
+(** Inversion and transposition combine to give all 24 operations of the T/I group *)
+Example ti_group_element : forall n m : BinInt, forall p : PitchClass,
+  pitch_class_transpose n (pitch_class_inversion m p) = 
+  pitch_class_inversion (n + m)%binint p.
+Proof.
+  intros n m p.
+  unfold pitch_class_transpose, pitch_class_inversion.
+  rewrite <- pitch_class_add_assoc.
+  f_ap.
+Defined.
+
+(** Interval classes are symmetric: the interval from p to q equals the interval from q to p inverted *)
+Example interval_class_symmetry : forall p q : PitchClass,
+  pc_set_interval_class p q = -pc (pc_set_interval_class q p).
+Proof.
+  intros p q.
+  apply interval_class_neg.
+Defined.
+
+(** The interval class from any pitch to itself is always 0 *)
+Example interval_class_reflexive : forall p : PitchClass,
+  pc_set_interval_class p p = C.
+Proof.
+  intro p.
+  apply interval_self.
+Defined.
+
+(** Transposition preserves interval classes *)
+Example transposition_preserves_intervals : forall n : BinInt, forall p q : PitchClass,
+  pc_set_interval_class (p +pc [n]) (q +pc [n]) = pc_set_interval_class p q.
+Proof.
+  intros n p q.
+  unfold pc_set_interval_class.
+  rewrite pitch_class_neg_add.
+  rewrite <- pitch_class_add_assoc.
+  rewrite pitch_class_add_rearrange.
+  f_ap.
+  rewrite pitch_class_add_assoc.
+  rewrite pitch_class_add_neg_r.
+  apply pitch_class_add_zero_r.
+Defined.
+
+(** Inversion preserves interval classes (but reverses them) *)
+Example inversion_preserves_intervals : forall n : BinInt, forall p q : PitchClass,
+  pc_set_interval_class (pitch_class_inversion n p) (pitch_class_inversion n q) = 
+  -pc (pc_set_interval_class p q).
+Proof.
+  intros n p q.
+  unfold pc_set_interval_class, pitch_class_inversion.
+  rewrite pitch_class_neg_add.
+  rewrite pitch_class_neg_neg.
+  rewrite pitch_class_add_rearrange.
+  rewrite <- pitch_class_add_assoc.
+  rewrite pitch_class_add_neg_r.
+  rewrite pitch_class_add_zero_l.
+  rewrite pitch_class_neg_add.
+  rewrite pitch_class_neg_neg.
+  apply pitch_class_add_comm.
+Defined.
+    
