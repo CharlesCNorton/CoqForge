@@ -27,7 +27,7 @@
     - Constructive proofs yield computational content
 
     Author: Charles Norton
-    Date: July 2nd 2025 (Updated: July 28th 2025)
+    Date: July 2nd 2025 (Updated: July 27th 2025)
     ================================================================= *)
 
 (** ================================================================= *)
@@ -2927,4 +2927,127 @@ Proof.
   rewrite pitch_class_neg_neg.
   apply pitch_class_add_comm.
 Defined.
-    
+
+(** The whole tone scale is invariant under transposition by 2 *)
+Example whole_tone_t2_invariant : forall p : PitchClass,
+    sum (p = C) (sum (p = D) (sum (p = E) (sum (p = Fs) (sum (p = Gs) (p = As))))) ->
+    {q : PitchClass & 
+      sum (q = C) (sum (q = D) (sum (q = E) (sum (q = Fs) (sum (q = Gs) (q = As))))) *
+      (p +pc [2%binint] = q)}.
+Proof.
+  intros p H.
+  exists (p +pc [2%binint]).
+  split.
+  - destruct H as [H1 | [H2 | [H3 | [H4 | [H5 | H6]]]]].
+    + rewrite H1. unfold C, D. simpl. right. left. reflexivity.
+    + rewrite H2. unfold D, E. simpl. right. right. left. reflexivity.
+    + rewrite H3. unfold E, Fs. simpl. right. right. right. left. reflexivity.
+    + rewrite H4. unfold Fs, Gs. simpl. right. right. right. right. left. reflexivity.
+    + rewrite H5. unfold Gs, As. simpl. right. right. right. right. right. reflexivity.
+    + rewrite H6. unfold As, C. simpl. left. apply twelve_equals_zero.
+  - reflexivity.
+Defined.
+
+(** build decidable equality from the ground up (still blocking singleton sets and proper set membership tests) *)
+
+(** Check if Core.Pos has decidable equality *)
+Definition check_pos_dec : Core.Pos -> Core.Pos -> Type.
+Proof.
+  intros p q.
+  exact ((p = q) + (p <> q)).
+Defined.
+
+(** Helper: Decidable equality for positive numbers *)
+Definition pos_eq_dec : forall (p q : Core.Pos), (p = q) + (p <> q).
+Proof.
+  fix pos_eq_dec 1.
+  intros p q.
+  destruct p, q.
+  - (* xH, xH *)
+    left. reflexivity.
+  - (* xH, x0 *)
+    right. intro H. discriminate H.
+  - (* xH, x1 *)
+    right. intro H. discriminate H.
+  - (* x0, xH *)
+    right. intro H. discriminate H.
+  - (* x0, x0 *)
+    destruct (pos_eq_dec p q).
+    + left. f_ap.
+    + right. intro H. apply n. injection H. auto.
+  - (* x0, x1 *)
+    right. intro H. discriminate H.
+  - (* x1, xH *)
+    right. intro H. discriminate H.
+  - (* x1, x0 *)
+    right. intro H. discriminate H.
+  - (* x1, x1 *)
+    destruct (pos_eq_dec p q).
+    + left. f_ap.
+    + right. intro H. apply n. injection H. auto.
+Defined.
+
+(** Helper: If p = p0 then pos p = pos p0 *)
+Lemma pos_ap : forall (p p0 : Core.Pos), p = p0 -> pos p = pos p0.
+Proof.
+  intros p p0 H.
+  rewrite H.
+  reflexivity.
+Defined.
+
+(** Helper: If p = p0 then neg p = neg p0 *)
+Lemma neg_ap : forall (p p0 : Core.Pos), p = p0 -> neg p = neg p0.
+Proof.
+  intros p p0 H.
+  rewrite H.
+  reflexivity.
+Defined.
+
+(** Decidable equality for BinInt *)
+Definition binint_eq_dec : forall (a b : BinInt), (a = b) + (a <> b).
+Proof.
+  intros a b.
+  destruct a, b.
+  - (* neg p, neg p0 *)
+    destruct (pos_eq_dec p p0) as [e|n].
+    + left. apply neg_ap. exact e.
+    + right. intro H. apply n. injection H. auto.
+    - (* neg p, 0 *)
+    right. intro H. discriminate H.
+    - (* neg p, pos p0 *)
+    right. intro H. discriminate H.
+    - (* 0, neg p0 *)
+    right. intro H. discriminate H.
+    - (* 0, 0 *)
+    left. reflexivity.
+    - (* 0, pos p0 *)
+    right. intro H. discriminate H.
+    - (* pos p, neg p0 *)
+    right. intro H. discriminate H.
+    - (* pos p, 0 *)
+    right. intro H. discriminate H.
+    - (* pos p, pos p0 *)
+    destruct (pos_eq_dec p p0) as [e|n].
+    + left. apply pos_ap. exact e.
+    + right. intro H. apply n. injection H. auto.
+Defined.
+
+(** Check available operations *)
+Definition check_binint_ops : BinInt -> BinInt -> BinInt.
+Proof.
+  intros n m.
+  exact (binint_sub n m).
+Defined.
+
+(** Helper: Check if n is divisible by 12 *)
+Definition divisible_by_12 (n : BinInt) : Type.
+Proof.
+  exact {k : BinInt | n = (12 * k)%binint}.
+Defined.
+
+(** Helper: Convert decidable equality to bool *)
+Definition dec_to_bool {A : Type} (d : A + (~ A)) : Bool :=
+  match d with
+  | inl _ => true
+  | inr _ => false
+  end.
