@@ -27,7 +27,7 @@
     - Constructive proofs yield computational content
 
     Author: Charles Norton
-    Date: July 2nd 2025 (Updated: July 27th 2025)
+    Date: July 2nd 2025 (Updated: July 28th 2025)
     ================================================================= *)
 
 (** ================================================================= *)
@@ -2948,7 +2948,24 @@ Proof.
   - reflexivity.
 Defined.
 
-(** build decidable equality from the ground up (still blocking singleton sets and proper set membership tests) *)
+(** ================================================================= *)
+(** Section 21: Decidable Equality                                   *)
+(** ================================================================= *)
+
+(** To implement singleton sets and proper set membership tests, we need
+    decidable equality for pitch classes. Since PitchClass is a quotient
+    type, we must build decidable equality from the ground up, starting
+    with Core.Pos and BinInt.
+    
+    This section provides:
+    - Decidable equality for positive numbers (Core.Pos)
+    - Decidable equality for binary integers (BinInt)
+    - Bounded search for octave equivalence witnesses
+    - Helper functions for pitch class equality
+    
+    The main challenge is that pitch classes are equivalence classes,
+    so we need to check if two integers differ by a multiple of 12.
+    Without a built-in modulo operation, we use bounded search. *)
 
 (** Check if Core.Pos has decidable equality *)
 Definition check_pos_dec : Core.Pos -> Core.Pos -> Type.
@@ -2957,7 +2974,8 @@ Proof.
   exact ((p = q) + (p <> q)).
 Defined.
 
-(** Helper: Decidable equality for positive numbers *)
+(** Decidable equality for positive numbers.
+    This is defined by structural recursion on the binary representation. *)
 Definition pos_eq_dec : forall (p q : Core.Pos), (p = q) + (p <> q).
 Proof.
   fix pos_eq_dec 1.
@@ -2987,7 +3005,7 @@ Proof.
     + right. intro H. apply n. injection H. auto.
 Defined.
 
-(** Helper: If p = p0 then pos p = pos p0 *)
+(** Helper lemmas for applying equality to constructors *)
 Lemma pos_ap : forall (p p0 : Core.Pos), p = p0 -> pos p = pos p0.
 Proof.
   intros p p0 H.
@@ -2995,7 +3013,6 @@ Proof.
   reflexivity.
 Defined.
 
-(** Helper: If p = p0 then neg p = neg p0 *)
 Lemma neg_ap : forall (p p0 : Core.Pos), p = p0 -> neg p = neg p0.
 Proof.
   intros p p0 H.
@@ -3003,7 +3020,8 @@ Proof.
   reflexivity.
 Defined.
 
-(** Decidable equality for BinInt *)
+(** Decidable equality for binary integers.
+    This uses the decidable equality for positive numbers. *)
 Definition binint_eq_dec : forall (a b : BinInt), (a = b) + (a <> b).
 Proof.
   intros a b.
@@ -3012,42 +3030,159 @@ Proof.
     destruct (pos_eq_dec p p0) as [e|n].
     + left. apply neg_ap. exact e.
     + right. intro H. apply n. injection H. auto.
-    - (* neg p, 0 *)
+  - (* neg p, 0 *)
     right. intro H. discriminate H.
-    - (* neg p, pos p0 *)
+  - (* neg p, pos p0 *)
     right. intro H. discriminate H.
-    - (* 0, neg p0 *)
+  - (* 0, neg p0 *)
     right. intro H. discriminate H.
-    - (* 0, 0 *)
+  - (* 0, 0 *)
     left. reflexivity.
-    - (* 0, pos p0 *)
+  - (* 0, pos p0 *)
     right. intro H. discriminate H.
-    - (* pos p, neg p0 *)
+  - (* pos p, neg p0 *)
     right. intro H. discriminate H.
-    - (* pos p, 0 *)
+  - (* pos p, 0 *)
     right. intro H. discriminate H.
-    - (* pos p, pos p0 *)
+  - (* pos p, pos p0 *)
     destruct (pos_eq_dec p p0) as [e|n].
     + left. apply pos_ap. exact e.
     + right. intro H. apply n. injection H. auto.
 Defined.
 
-(** Check available operations *)
-Definition check_binint_ops : BinInt -> BinInt -> BinInt.
-Proof.
-  intros n m.
-  exact (binint_sub n m).
-Defined.
+(** ================================================================= *)
+(** Bounded Search for Octave Equivalence                            *)
+(** ================================================================= *)
 
-(** Helper: Check if n is divisible by 12 *)
-Definition divisible_by_12 (n : BinInt) : Type.
-Proof.
-  exact {k : BinInt | n = (12 * k)%binint}.
-Defined.
+(** Since we don't have a modulo operation, we use bounded search to
+    check if two integers represent the same pitch class. This is not
+    ideal but is fully constructive. *)
 
-(** Helper: Convert decidable equality to bool *)
+(** Convert decidable proposition to boolean *)
 Definition dec_to_bool {A : Type} (d : A + (~ A)) : Bool :=
   match d with
   | inl _ => true
   | inr _ => false
   end.
+
+(** Check if n is divisible by 12 (i.e., represents pitch class C) *)
+Definition divisible_by_12 (n : BinInt) : Type :=
+  {k : BinInt | n = (12 * k)%binint}.
+
+(** Check if a specific k witnesses octave equivalence: n = m + 12k *)
+Definition check_octave_witness (m n k : BinInt) : Bool :=
+  dec_to_bool (binint_eq_dec n (m + 12 * k)%binint).
+
+(** Convert nat to Core.Pos for use in bounded search *)
+Fixpoint nat_to_pos (n : nat) : Core.Pos :=
+  match n with
+  | O => Core.xH
+  | S n' => Core.pos_succ (nat_to_pos n')
+  end.
+
+(** Check octave equivalence for k in range -bound to +bound.
+    Returns true if we find a k such that n = m + 12k. *)
+Fixpoint check_k_range (m n : BinInt) (bound : nat) : Bool :=
+  match bound with
+  | O => check_octave_witness m n 0%binint
+  | S bound' => orb (check_octave_witness m n (pos (nat_to_pos (S bound'))))
+                   (orb (check_octave_witness m n (neg (nat_to_pos (S bound'))))
+                        (check_k_range m n bound'))
+  end.
+
+(** Check if n represents pitch class C (i.e., n = 12k for some k) *)
+Definition check_represents_C (n : BinInt) : Bool :=
+  check_k_range 0%binint n 100.
+
+(** Check if two integers represent the same pitch class *)
+Definition same_pitch_class (m n : BinInt) : Bool :=
+  check_represents_C (n - m)%binint.
+
+(** ================================================================= *)
+(** Pitch Class Representatives                                      *)
+(** ================================================================= *)
+
+(** To work with pitch classes concretely, we often need to find a
+    canonical representative in the range 0-11. *)
+
+(** Normalize n to its representative in 0-11 if already in range *)
+Definition normalize_to_12 (n : BinInt) : BinInt :=
+  if binint_eq_dec n 0%binint then 0%binint
+  else if binint_eq_dec n 1%binint then 1%binint
+  else if binint_eq_dec n 2%binint then 2%binint
+  else if binint_eq_dec n 3%binint then 3%binint
+  else if binint_eq_dec n 4%binint then 4%binint
+  else if binint_eq_dec n 5%binint then 5%binint
+  else if binint_eq_dec n 6%binint then 6%binint
+  else if binint_eq_dec n 7%binint then 7%binint
+  else if binint_eq_dec n 8%binint then 8%binint
+  else if binint_eq_dec n 9%binint then 9%binint
+  else if binint_eq_dec n 10%binint then 10%binint
+  else if binint_eq_dec n 11%binint then 11%binint
+  else n.
+
+(** Find the representative of n in range 0-11.
+    This is a bounded approximation - for integers outside our search
+    range, it returns 0 as a default. *)
+Definition find_representative (n : BinInt) : BinInt.
+Proof.
+  (* Check if n is already in range 0-11 *)
+  destruct (binint_eq_dec n 0%binint).
+  - exact 0%binint.
+  - destruct (binint_eq_dec n 1%binint).
+    + exact 1%binint.
+    + destruct (binint_eq_dec n 2%binint).
+      * exact 2%binint.
+      * destruct (binint_eq_dec n 3%binint).
+        -- exact 3%binint.
+        -- destruct (binint_eq_dec n 4%binint).
+           ++ exact 4%binint.
+           ++ destruct (binint_eq_dec n 5%binint).
+              ** exact 5%binint.
+              ** destruct (binint_eq_dec n 6%binint).
+                 --- exact 6%binint.
+                 --- destruct (binint_eq_dec n 7%binint).
+                     +++ exact 7%binint.
+                     +++ destruct (binint_eq_dec n 8%binint).
+                         *** exact 8%binint.
+                         *** destruct (binint_eq_dec n 9%binint).
+                             ---- exact 9%binint.
+                             ---- destruct (binint_eq_dec n 10%binint).
+                                  ++++ exact 10%binint.
+                                  ++++ destruct (binint_eq_dec n 11%binint).
+                                       **** exact 11%binint.
+                                       **** (* Not in 0-11, would need to search *)
+                                            exact 0%binint. (* Default *)
+Defined.
+
+(** Get a pitch class representative (currently simplified) *)
+Definition get_representative (n : BinInt) : BinInt :=
+  if check_k_range 0%binint n 100 then 0%binint else n.
+
+(** ================================================================= *)
+(** Pitch Class Equality Helpers                                     *)
+(** ================================================================= *)
+
+(** Check if a pitch class equals a specific integer representative *)
+Definition pitch_class_is_n (p : PitchClass) (n : BinInt) : Type :=
+  p = [n].
+
+(** Check if pitch class is zero (C) *)
+Definition is_zero_pitch_class (p : PitchClass) : Type :=
+  p = C.
+
+(** Two pitch classes are equal iff they act the same on all elements.
+    This is a characterization of equality in the group. *)
+Definition pitch_classes_equal_action (p q : PitchClass) : Type :=
+  forall r : PitchClass, p +pc r = q +pc r.
+
+(** An integer represents pitch class C if it's divisible by 12 *)
+Definition represents_C (n : BinInt) : Type :=
+  {k : BinInt | n = (12 * k)%binint}.
+
+(** Note: Full decidable equality for PitchClass requires either:
+    1. A complete modulo operation on BinInt
+    2. Showing that our bounded search is sufficient
+    3. Using the finite nature of Z/12Z more directly
+    
+    This remains an open challenge in the formalization. *)
