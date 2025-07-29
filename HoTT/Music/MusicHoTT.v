@@ -5731,22 +5731,75 @@ Defined.
 
 (** The Coltrane pattern works starting from any pitch class *)
 Example coltrane_pattern_from_any_root : forall (root : PitchClass),
-  let key1 := root in
-  let key2 := key1 +pc [8%binint] in
-  let key3 := key2 +pc [8%binint] in
-  let key4 := key3 +pc [8%binint] in
-  key4 = root.
+  root +pc [8%binint] +pc [8%binint] +pc [8%binint] = root.
 Proof.
   intro root.
-  unfold key1, key2, key3, key4.
-  rewrite <- pitch_class_add_assoc.
-  rewrite <- pitch_class_add_assoc.
-  assert (H: [8%binint] +pc [8%binint] +pc [8%binint] = [24%binint]).
+  rewrite pitch_class_add_assoc.
+  rewrite pitch_class_add_assoc.
+  assert (H: [8%binint] +pc ([8%binint] +pc [8%binint]) = [24%binint]).
   { simpl. reflexivity. }
   rewrite H.
-  assert (H2: root +pc [24%binint] = root +pc [(0 + 24)%binint]).
-  { f_ap. simpl. reflexivity. }
+  assert (H2: [24%binint] = [0%binint]).
+  { apply qglue. exists (binint_negation 2%binint). simpl. reflexivity. }
   rewrite H2.
-  apply chord_octave_equivalence.
+  apply pitch_class_add_zero_r.
 Defined.
-      
+
+(** The complete Coltrane changes progression showing ii-V movements *)
+Example coltrane_full_progression :
+  (* First key: C major *)
+  let Dm7 := D in          (* ii7 of C *)
+  let G7 := G in           (* V7 of C *)
+  let Cmaj := C in         (* I of C *)
+  (* Pivot to Ab *)
+  let Bbm7 := As in        (* ii7 of Ab *)
+  let Eb7 := Ds in         (* V7 of Ab *)
+  let Abmaj := Gs in       (* I of Ab *)
+  (* Pivot to E *)
+  let Fm7 := F in          (* ii7 of E *)
+  let Bb7 := As in         (* V7 of E *)
+  let Emaj := E in         (* I of E *)
+  (* Each ii-V is a perfect fourth apart *)
+  (G7 = Dm7 +pc [5%binint]) /\
+  (Eb7 = Bbm7 +pc [5%binint]) /\
+  (Bb7 = Fm7 +pc [5%binint]) /\
+  (* The key centers are major thirds apart *)
+  (Abmaj = Cmaj +pc [8%binint]) /\
+  (Emaj = Abmaj +pc [8%binint]) /\
+  (Cmaj = Emaj +pc [8%binint]).
+Proof.
+  simpl.
+  split.
+  - unfold D, G. simpl. reflexivity.
+  - split.
+    + unfold As, Ds. simpl. symmetry. apply fifteen_equals_three.
+    + split.
+      * unfold F, As. simpl. reflexivity.
+      * split.
+        -- unfold C, Gs. simpl. reflexivity.
+        -- split.
+           ++ unfold Gs, E. simpl. symmetry. apply sixteen_equals_four.
+           ++ unfold E, C. simpl. symmetry. apply twelve_equals_zero.
+Defined.
+
+(** Giant Steps uses the Coltrane cycle with specific melodic patterns *)
+Example giant_steps_key_sequence :
+  (* The tune moves through the cycle multiple times *)
+  let measure1_key := B in     (* Start in B *)
+  let measure2_key := G in     (* Down M3 *)
+  let measure3_key := Ds in    (* Down M3 = Eb *)
+  let measure4_key := B in     (* Complete cycle *)
+  (* Verify the cycle *)
+  (measure2_key = measure1_key +pc [8%binint]) /\
+  (measure3_key = measure2_key +pc [8%binint]) /\
+  (measure4_key = measure3_key +pc [8%binint]).
+Proof.
+  simpl.
+  split.
+  - unfold B, G. simpl. 
+    apply qglue. exists 1%binint.
+    simpl. reflexivity.
+  - split.
+    + unfold G, Ds. simpl. symmetry. apply fifteen_equals_three.
+    + unfold Ds, B. simpl. reflexivity.
+Defined.
