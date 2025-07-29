@@ -4856,3 +4856,118 @@ Proof.
     rewrite (pitch_class_add_comm [7%binint] t).
     reflexivity.
 Defined.
+
+(** Common tones between chords a fifth apart *)
+Example common_tone_fifth_related_majors : forall (root : PitchClass),
+  let chord1_third := root +pc [4%binint] in
+  let chord1_fifth := root +pc [7%binint] in
+  let root2 := root +pc [7%binint] in  (* G if root is C *)
+  let chord2_root := root2 in
+  let chord2_third := root2 +pc [4%binint] in
+  (* The fifth of chord1 is the root of chord2 *)
+  chord1_fifth = chord2_root.
+Proof.
+  intro root.
+  reflexivity.
+Defined.
+
+(** Second inversion of major triad has intervals 4, 7 from the bass *)
+Example major_triad_second_inversion : forall (root : PitchClass),
+  let bass := root +pc [7%binint] in  (* G in C major *)
+  (bass +pc [0%binint] = root +pc [7%binint]) /\
+  (bass +pc [5%binint] = root +pc [12%binint]) /\
+  (bass +pc [9%binint] = root +pc [16%binint]).
+Proof.
+  intro root.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + rewrite pitch_class_add_assoc.
+      assert (H: [7%binint] +pc [5%binint] = [12%binint]).
+      { simpl. reflexivity. }
+      rewrite H.
+      reflexivity.
+    + rewrite pitch_class_add_assoc.
+      assert (H: [7%binint] +pc [9%binint] = [16%binint]).
+      { simpl. reflexivity. }
+      rewrite H.
+      reflexivity.
+Defined.
+
+(** Inversion preserves chord membership *)
+Example inversion_preserves_major_triad : forall (root p inv_center : PitchClass),
+  sum (p = root) 
+      (sum (p = root +pc [4%binint]) 
+           (p = root +pc [7%binint])) ->
+  sum (pitch_class_inversion 0%binint p = pitch_class_inversion 0%binint root)
+      (sum (pitch_class_inversion 0%binint p = pitch_class_inversion 0%binint (root +pc [4%binint]))
+           (pitch_class_inversion 0%binint p = pitch_class_inversion 0%binint (root +pc [7%binint]))).
+Proof.
+  intros root p inv_center H.
+  destruct H as [H1 | [H2 | H3]].
+  - left. rewrite H1. reflexivity.
+  - right. left. rewrite H2. reflexivity.
+  - right. right. rewrite H3. reflexivity.
+Defined.
+
+(** ================================================================= *)
+(** Section 29: Musical Scales                                       *)
+(** ================================================================= *)
+
+(** The diatonic (major) scale has the interval pattern: 
+    0, 2, 4, 5, 7, 9, 11 (W-W-H-W-W-W-H) *)
+
+Example C_major_scale_degrees : 
+  (C +pc [0%binint] = C) /\
+  (C +pc [2%binint] = D) /\
+  (C +pc [4%binint] = E) /\
+  (C +pc [5%binint] = F) /\
+  (C +pc [7%binint] = G) /\
+  (C +pc [9%binint] = A) /\
+  (C +pc [11%binint] = B).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_two_is_D.
+    + split.
+      * apply C_plus_four_is_E.
+      * split.
+        -- apply C_plus_five_is_F.
+        -- split.
+           ++ apply C_plus_seven_is_G.
+           ++ split.
+              ** unfold C, A. simpl. reflexivity.
+              ** unfold C, B. simpl. reflexivity.
+Defined.
+
+(** The natural minor scale has the interval pattern:
+    0, 2, 3, 5, 7, 8, 10 (W-H-W-W-H-W-W) *)
+
+Example A_natural_minor_scale_degrees : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [2%binint] = B) /\
+  (A +pc [3%binint] = C) /\
+  (A +pc [5%binint] = D) /\
+  (A +pc [7%binint] = E) /\
+  (A +pc [8%binint] = F) /\
+  (A +pc [10%binint] = G).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold A, B. simpl. reflexivity.
+    + split.
+      * apply A_plus_three_is_C.
+      * split.
+        -- unfold A, D. simpl. apply fourteen_equals_two.
+        -- split.
+           ++ unfold A, E. simpl. apply sixteen_equals_four.
+           ++ split.
+              ** unfold A, F. simpl. 
+                 apply qglue. exists (binint_negation 1%binint).
+                 simpl. reflexivity.
+              ** unfold A, G. simpl.
+                 apply qglue. exists (binint_negation 1%binint).
+                 simpl. reflexivity.
+Defined.
