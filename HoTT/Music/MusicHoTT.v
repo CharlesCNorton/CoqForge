@@ -3186,3 +3186,184 @@ Definition represents_C (n : BinInt) : Type :=
     3. Using the finite nature of Z/12Z more directly
     
     This remains an open challenge in the formalization. *)
+  
+(* Just verify that your check_represents_C function works on 0 *)
+Example check_C_is_true : check_represents_C 0%binint = true.
+Proof.
+  unfold check_represents_C.
+  unfold check_k_range.
+  simpl.
+  (* This should reduce to checking if 0 = 0 + 12*0 *)
+  reflexivity.
+Defined.
+
+Example check_octave_witness_12_works : 
+  check_octave_witness 0%binint 12%binint 1%binint = true.
+Proof.
+  unfold check_octave_witness.
+  unfold dec_to_bool.
+  simpl.
+  reflexivity.
+Defined.
+
+Example check_k_range_finds_12_trace : 
+  orb (check_octave_witness 0%binint 12%binint 1%binint) 
+      (check_octave_witness 0%binint 12%binint 0%binint) = true.
+Proof.
+  reflexivity.
+Defined.
+
+Example nat_to_pos_1_is_2 : nat_to_pos 1 = Core.x0 Core.xH.
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+Example nat_to_pos_0_is_1 : nat_to_pos 0 = Core.xH.
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+Example nat_to_pos_values : 
+  (nat_to_pos 0 = Core.xH) /\
+  (nat_to_pos 1 = Core.x0 Core.xH) /\
+  (nat_to_pos 2 = Core.x1 Core.xH).
+Proof.
+  simpl.
+  repeat split; reflexivity.
+Defined.
+
+Example check_octave_witness_minus_12_works : 
+  check_octave_witness 0%binint (-12)%binint (neg Core.xH) = true.
+Proof.
+  unfold check_octave_witness, dec_to_bool.
+  simpl.
+  reflexivity.
+Defined.
+
+Example trace_k_range_minus_12 :
+  orb (check_octave_witness 0%binint (-12)%binint (pos Core.xH))
+      (orb (check_octave_witness 0%binint (-12)%binint (neg Core.xH))
+           (check_octave_witness 0%binint (-12)%binint 0%binint)) = true.
+Proof.
+  simpl.
+  assert (H: check_octave_witness 0%binint (-12)%binint (neg Core.xH) = true).
+  { apply check_octave_witness_minus_12_works. }
+  (* The middle witness should make the whole expression true *)
+  reflexivity.
+Defined.
+
+Example check_represents_C_zero : check_represents_C 0%binint = true.
+Proof.
+  unfold check_represents_C, check_k_range.
+  simpl.
+  unfold check_octave_witness, dec_to_bool.
+  simpl.
+  reflexivity.
+Defined.
+
+Example C_plus_G_equals_G : C +pc G = G.
+Proof.
+  unfold C, G.
+  simpl.
+  reflexivity.
+Defined.
+
+Example twelve_plus_zero_equals_twelve : [12%binint] +pc [0%binint] = [12%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+Example interval_C_to_G : pc_set_interval_class C G = G.
+Proof.
+  unfold pc_set_interval_class, C, G.
+  simpl.
+  reflexivity.
+Defined.
+
+Example interval_C_to_F : pc_set_interval_class C F = F.
+Proof.
+  unfold pc_set_interval_class, C, F.
+  simpl.
+  reflexivity.
+Defined.
+
+Example neg_C_is_C : -pc C = C.
+Proof.
+  unfold C.
+  simpl.
+  apply qglue.
+  exists 0%binint.
+  rewrite binint_mul_0_r.
+  rewrite binint_add_0_r.
+  apply binint_negation_0.
+Defined.
+
+Example interval_from_C_is_identity : forall p : PitchClass,
+  pc_set_interval_class C p = p.
+Proof.
+  intro p.
+  unfold pc_set_interval_class, C.
+  rewrite neg_C_is_C.
+  unfold C.
+  apply pitch_class_add_zero_r.
+Defined.
+
+(** ================================================================= *)
+(** Section 22: Completing Musical Set Definitions                   *)
+(** ================================================================= *)
+
+(** Since we lack decidable equality, we'll define sets using 
+    characteristic properties based on intervals and transpositions *)
+
+
+Example G_minus_G_is_C : G +pc (-pc G) = C.
+Proof.
+  apply pitch_class_add_neg_r.
+Defined.
+
+Example D_plus_D_is_E : D +pc D = E.
+Proof.
+  unfold D, E.
+  simpl.
+  reflexivity.
+Defined.
+
+Example F_plus_F_is_As : F +pc F = As.
+Proof.
+  unfold F, As.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Fs_plus_Fs_is_C : Fs +pc Fs = C.
+Proof.
+  unfold Fs, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+Example difference_equals_C_implies_equal : forall p q : PitchClass,
+  p +pc (-pc q) = C -> p = q.
+Proof.
+  intros p q H.
+  assert (H2: (p +pc (-pc q)) +pc q = C +pc q).
+  { rewrite H. reflexivity. }
+  rewrite pitch_class_add_assoc in H2.
+  rewrite (pitch_class_add_comm (-pc q) q) in H2.
+  rewrite pitch_class_add_neg_r in H2.
+  rewrite pitch_class_add_zero_r in H2.
+  rewrite pitch_class_add_zero_l in H2.
+  exact H2.
+Defined.
+
+Example equal_implies_difference_C : forall p q : PitchClass,
+  p = q -> p +pc (-pc q) = C.
+Proof.
+  intros p q H.
+  rewrite H.
+  apply pitch_class_add_neg_r.
+Defined.
+      
