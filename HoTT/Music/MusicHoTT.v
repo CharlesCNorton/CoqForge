@@ -5609,3 +5609,144 @@ Defined.
     This final example shows that our formalization captures
     the essential musical fact that transposition preserves
     all intervallic relationships. *)
+
+Example transposition_preserves_all_intervals : 
+  forall (p q t : PitchClass),
+  pc_set_interval_class p q = pc_set_interval_class (p +pc t) (q +pc t).
+Proof.
+  intros p q t.
+  unfold pc_set_interval_class.
+  rewrite pitch_class_neg_add.
+  (* Goal: q +pc -pc p = q +pc t +pc (-pc p +pc -pc t) *)
+  symmetry.
+  (* Goal: q +pc t +pc -pc p +pc -pc t = q +pc -pc p *)
+  rewrite pitch_class_add_assoc.
+  (* Goal: q +pc (t +pc (-pc p +pc -pc t)) = q +pc -pc p *)
+  f_ap.
+  (* Goal: t +pc (-pc p +pc -pc t) = -pc p *)
+  rewrite <- pitch_class_add_assoc.
+  (* Goal: (t +pc -pc p) +pc -pc t = -pc p *)
+  rewrite (pitch_class_add_comm (t +pc -pc p) (-pc t)).
+  (* Goal: -pc t +pc (t +pc -pc p) = -pc p *)
+  rewrite <- pitch_class_add_assoc.
+  (* Goal: (-pc t +pc t) +pc -pc p = -pc p *)
+  rewrite (pitch_class_add_comm (-pc t) t).
+  rewrite pitch_class_add_neg_r.
+  apply pitch_class_add_zero_l.
+Defined.
+
+(** ================================================================= *)
+(** Section 32: The Coltrane Cycle                                   *)
+(** ================================================================= *)
+
+(** The Coltrane cycle moves through three key centers separated by
+    major thirds (4 semitones). This creates a symmetric division
+    of the octave, similar to an augmented triad. *)
+
+Example coltrane_cycle_symmetry :
+  let key1 := C in
+  let key2 := key1 +pc [8%binint] in  (* Down a major third = up 8 *)
+  let key3 := key2 +pc [8%binint] in
+  let key4 := key3 +pc [8%binint] in
+  (key1 = C) /\
+  (key2 = Gs) /\  (* Ab *)
+  (key3 = E) /\
+  (key4 = C).
+Proof.
+  simpl.
+  split.
+  - reflexivity.
+  - split.
+    + reflexivity.
+    + split.
+      * apply sixteen_equals_four.
+      * apply qglue.
+        exists (binint_negation 2%binint).
+        simpl.
+        reflexivity.
+Defined.
+
+(** The Coltrane changes use ii-V-I progressions to move between key centers *)
+Example coltrane_progression_C_to_Ab :
+  let C_tonic := C in
+  let D_minor := D in     (* ii of C *)
+  let G_dom := G in       (* V of C *)
+  let Eb_minor := Ds in   (* ii of Db, but used as passing *)
+  let Ab_dom := Gs in     (* V7 of Db, but resolves to Ab *)
+  let Ab_tonic := Gs in   (* Resolution *)
+  (* The progression moves by specific intervals *)
+  (D_minor = C_tonic +pc [2%binint]) /\
+  (G_dom = D_minor +pc [5%binint]) /\
+  (Eb_minor = C_tonic +pc [3%binint]) /\
+  (Ab_dom = Eb_minor +pc [5%binint]) /\
+  (Ab_tonic = C_tonic +pc [8%binint]).
+Proof.
+  simpl.
+  split.
+  - apply C_plus_two_is_D.
+  - split.
+    + unfold D, G. simpl. reflexivity.
+    + split.
+      * apply C_plus_three_is_Ds.
+      * split.
+        -- unfold Ds, Gs. simpl. reflexivity.
+        -- unfold C, Gs. simpl. reflexivity.
+Defined.
+
+(** The three key centers of the Coltrane cycle form an augmented triad *)
+Example coltrane_centers_form_augmented_triad :
+  let center1 := C in
+  let center2 := Gs in  (* Ab *)
+  let center3 := E in
+  (center2 = center1 +pc [8%binint]) /\
+  (center3 = center2 +pc [8%binint]) /\
+  (center1 = center3 +pc [8%binint]).
+Proof.
+  simpl.
+  split.
+  - unfold C, Gs. simpl. reflexivity.
+  - split.
+    + unfold Gs, E. simpl. symmetry. apply sixteen_equals_four.
+    + unfold E, C. simpl. symmetry. apply twelve_equals_zero.
+Defined.
+
+(** The Coltrane cycle is the same as moving down by major thirds *)
+Example coltrane_cycle_as_descending_thirds :
+  let start := C in
+  let move_down_M3 := fun p => p +pc [8%binint] in  (* Down M3 = up 8 *)
+  (move_down_M3 start = Gs) /\
+  (move_down_M3 (move_down_M3 start) = E) /\
+  (move_down_M3 (move_down_M3 (move_down_M3 start)) = C).
+Proof.
+  simpl.
+  split.
+  - reflexivity.
+  - split.
+    + apply sixteen_equals_four.
+    + apply qglue.
+      exists (binint_negation 2%binint).
+      simpl.
+      reflexivity.
+Defined.
+
+(** The Coltrane pattern works starting from any pitch class *)
+Example coltrane_pattern_from_any_root : forall (root : PitchClass),
+  let key1 := root in
+  let key2 := key1 +pc [8%binint] in
+  let key3 := key2 +pc [8%binint] in
+  let key4 := key3 +pc [8%binint] in
+  key4 = root.
+Proof.
+  intro root.
+  unfold key1, key2, key3, key4.
+  rewrite <- pitch_class_add_assoc.
+  rewrite <- pitch_class_add_assoc.
+  assert (H: [8%binint] +pc [8%binint] +pc [8%binint] = [24%binint]).
+  { simpl. reflexivity. }
+  rewrite H.
+  assert (H2: root +pc [24%binint] = root +pc [(0 + 24)%binint]).
+  { f_ap. simpl. reflexivity. }
+  rewrite H2.
+  apply chord_octave_equivalence.
+Defined.
+      
