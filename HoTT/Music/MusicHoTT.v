@@ -3366,4 +3366,263 @@ Proof.
   rewrite H.
   apply pitch_class_add_neg_r.
 Defined.
-      
+
+Example E_plus_Gs_is_C : E +pc Gs = C.
+Proof.
+  unfold E, Gs, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+Example C_plus_four_is_E : C +pc [4%binint] = E.
+Proof.
+  unfold C, E.
+  simpl.
+  reflexivity.
+Defined.
+
+Example E_plus_four_is_Gs : E +pc [4%binint] = Gs.
+Proof.
+  unfold E, Gs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Gs_plus_four_is_C : Gs +pc [4%binint] = C.
+Proof.
+  unfold Gs, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+Example intervals_from_C_047 : 
+  (C +pc [0%binint] = C) /\ 
+  (C +pc [4%binint] = E) /\ 
+  (C +pc [7%binint] = G).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_four_is_E.
+    + unfold C, G. simpl. reflexivity.
+Defined.
+
+Example C_plus_three_is_Ds : C +pc [3%binint] = Ds.
+Proof.
+  unfold C, Ds.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Ds_plus_three_is_Fs : Ds +pc [3%binint] = Fs.
+Proof.
+  unfold Ds, Fs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Fs_plus_three_is_A : Fs +pc [3%binint] = A.
+Proof.
+  unfold Fs, A.
+  simpl.
+  reflexivity.
+Defined.
+
+Example A_plus_three_is_C : A +pc [3%binint] = C.
+Proof.
+  unfold A, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+Example is_augmented_from_C : forall p : PitchClass,
+  sum (p = C) (sum (p = E) (p = Gs)) -> 
+  sum (p +pc (-pc C) = C) (sum (p +pc (-pc C) = E) (p +pc (-pc C) = Gs)).
+Proof.
+  intros p H.
+  rewrite neg_C_is_C.
+  rewrite pitch_class_add_zero_r.
+  exact H.
+Defined.
+
+Example C_plus_two_is_D : C +pc [2%binint] = D.
+Proof.
+  unfold C, D.
+  simpl.
+  reflexivity.
+Defined.
+
+Example D_plus_two_is_E : D +pc [2%binint] = E.
+Proof.
+  unfold D, E.
+  simpl.
+  reflexivity.
+Defined.
+
+Example E_plus_two_is_Fs : E +pc [2%binint] = Fs.
+Proof.
+  unfold E, Fs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Fs_plus_two_is_Gs : Fs +pc [2%binint] = Gs.
+Proof.
+  unfold Fs, Gs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Gs_plus_two_is_As : Gs +pc [2%binint] = As.
+Proof.
+  unfold Gs, As.
+  simpl.
+  reflexivity.
+Defined.
+
+Example As_plus_two_is_C : As +pc [2%binint] = C.
+Proof.
+  unfold As, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+(* Chromatic scale - intervals of 1 *)
+Example C_plus_one_is_Cs : C +pc [1%binint] = Cs.
+Proof.
+  unfold C, Cs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Cs_plus_one_is_D : Cs +pc [1%binint] = D.
+Proof.
+  unfold Cs, D.
+  simpl.
+  reflexivity.
+Defined.
+
+Example D_plus_one_is_Ds : D +pc [1%binint] = Ds.
+Proof.
+  unfold D, Ds.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Ds_plus_one_is_E : Ds +pc [1%binint] = E.
+Proof.
+  unfold Ds, E.
+  simpl.
+  reflexivity.
+Defined.
+
+Example E_plus_one_is_F : E +pc [1%binint] = F.
+Proof.
+  unfold E, F.
+  simpl.
+  reflexivity.
+Defined.
+
+Example F_plus_one_is_Fs : F +pc [1%binint] = Fs.
+Proof.
+  unfold F, Fs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Fs_plus_one_is_G : Fs +pc [1%binint] = G.
+Proof.
+  unfold Fs, G.
+  simpl.
+  reflexivity.
+Defined.
+
+Example G_plus_one_is_Gs : G +pc [1%binint] = Gs.
+Proof.
+  unfold G, Gs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Gs_plus_one_is_A : Gs +pc [1%binint] = A.
+Proof.
+  unfold Gs, A.
+  simpl.
+  reflexivity.
+Defined.
+
+Example A_plus_one_is_As : A +pc [1%binint] = As.
+Proof.
+  unfold A, As.
+  simpl.
+  reflexivity.
+Defined.
+
+Example As_plus_one_is_B : As +pc [1%binint] = B.
+Proof.
+  unfold As, B.
+  simpl.
+  reflexivity.
+Defined.
+
+Example B_plus_one_is_C : B +pc [1%binint] = C.
+Proof.
+  unfold B, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+(* Perfect fifth intervals (7 semitones) *)
+Example C_plus_seven_is_G : C +pc [7%binint] = G.
+Proof.
+  unfold C, G.
+  simpl.
+  reflexivity.
+Defined.
+
+Example G_plus_seven_is_D : G +pc [7%binint] = D.
+Proof.
+  unfold G, D.
+  simpl.
+  apply fourteen_equals_two.
+Defined.
+
+(* Perfect fourth intervals (5 semitones) *)
+Example C_plus_five_is_F : C +pc [5%binint] = F.
+Proof.
+  unfold C, F.
+  simpl.
+  reflexivity.
+Defined.
+
+Example F_plus_five_is_As : F +pc [5%binint] = As.
+Proof.
+  unfold F, As.
+  simpl.
+  reflexivity.
+Defined.
+
+(* Minor triad intervals from root *)
+Example C_plus_three_is_Ds_v2 : C +pc [3%binint] = Ds.
+Proof.
+  apply C_plus_three_is_Ds.
+Defined.
+
+Example C_plus_seven_is_G_v2 : C +pc [7%binint] = G.
+Proof.
+  apply C_plus_seven_is_G.
+Defined.
+
+(* Major triad intervals from root *)
+Example C_plus_four_is_E_v2 : C +pc [4%binint] = E.
+Proof.
+  apply C_plus_four_is_E.
+Defined.
+
+(* Dominant seventh intervals *)
+Example C_plus_ten_is_As : C +pc [10%binint] = As.
+Proof.
+  unfold C, As.
+  simpl.
+  reflexivity.
+Defined.
