@@ -4971,3 +4971,435 @@ Proof.
                  apply qglue. exists (binint_negation 1%binint).
                  simpl. reflexivity.
 Defined.
+
+(** The harmonic minor scale has the interval pattern:
+    0, 2, 3, 5, 7, 8, 11 (W-H-W-W-H-Aug2nd-H) *)
+
+Example A_harmonic_minor_scale_degrees : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [2%binint] = B) /\
+  (A +pc [3%binint] = C) /\
+  (A +pc [5%binint] = D) /\
+  (A +pc [7%binint] = E) /\
+  (A +pc [8%binint] = F) /\
+  (A +pc [11%binint] = Gs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold A, B. simpl. reflexivity.
+    + split.
+      * apply A_plus_three_is_C.
+      * split.
+        -- unfold A, D. simpl. apply fourteen_equals_two.
+        -- split.
+           ++ unfold A, E. simpl. apply sixteen_equals_four.
+           ++ split.
+              ** unfold A, F. simpl. 
+                 apply qglue. exists (binint_negation 1%binint).
+                 simpl. reflexivity.
+              ** unfold A, Gs. simpl. apply twenty_equals_eight.
+Defined.
+
+(** The melodic minor scale (ascending) has the interval pattern:
+    0, 2, 3, 5, 7, 9, 11 (W-H-W-W-W-W-H) *)
+
+Example A_melodic_minor_ascending_degrees : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [2%binint] = B) /\
+  (A +pc [3%binint] = C) /\
+  (A +pc [5%binint] = D) /\
+  (A +pc [7%binint] = E) /\
+  (A +pc [9%binint] = Fs) /\
+  (A +pc [11%binint] = Gs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold A, B. simpl. reflexivity.
+    + split.
+      * apply A_plus_three_is_C.
+      * split.
+        -- unfold A, D. simpl. apply fourteen_equals_two.
+        -- split.
+           ++ unfold A, E. simpl. apply sixteen_equals_four.
+           ++ split.
+              ** unfold A, Fs. simpl. apply eighteen_equals_six.
+              ** unfold A, Gs. simpl. apply twenty_equals_eight.
+Defined.
+
+(** The pentatonic major scale has the interval pattern:
+    0, 2, 4, 7, 9 (W-W-min3rd-W-min3rd) *)
+
+Example C_pentatonic_major_degrees : 
+  (C +pc [0%binint] = C) /\
+  (C +pc [2%binint] = D) /\
+  (C +pc [4%binint] = E) /\
+  (C +pc [7%binint] = G) /\
+  (C +pc [9%binint] = A).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_two_is_D.
+    + split.
+      * apply C_plus_four_is_E.
+      * split.
+        -- apply C_plus_seven_is_G.
+        -- unfold C, A. simpl. reflexivity.
+Defined.
+
+(** The pentatonic minor scale has the interval pattern:
+    0, 3, 5, 7, 10 (min3rd-W-W-min3rd-W) *)
+
+Example A_pentatonic_minor_degrees : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [3%binint] = C) /\
+  (A +pc [5%binint] = D) /\
+  (A +pc [7%binint] = E) /\
+  (A +pc [10%binint] = G).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply A_plus_three_is_C.
+    + split.
+      * unfold A, D. simpl. apply fourteen_equals_two.
+      * split.
+        -- unfold A, E. simpl. apply sixteen_equals_four.
+        -- unfold A, G. simpl.
+           apply qglue. exists (binint_negation 1%binint).
+           simpl. reflexivity.
+Defined.
+
+(** The blues scale has the interval pattern:
+    0, 3, 5, 6, 7, 10 (min3rd-W-H-H-min3rd-W) *)
+
+Example A_blues_scale_degrees : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [3%binint] = C) /\
+  (A +pc [5%binint] = D) /\
+  (A +pc [6%binint] = Ds) /\
+  (A +pc [7%binint] = E) /\
+  (A +pc [10%binint] = G).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply A_plus_three_is_C.
+    + split.
+      * unfold A, D. simpl. apply fourteen_equals_two.
+      * split.
+        -- unfold A, Ds. simpl. apply fifteen_equals_three.
+        -- split.
+           ++ unfold A, E. simpl. apply sixteen_equals_four.
+           ++ unfold A, G. simpl.
+              apply qglue. exists (binint_negation 1%binint).
+              simpl. reflexivity.
+Defined.
+
+(** The Dorian mode has the interval pattern:
+    0, 2, 3, 5, 7, 9, 10 (W-H-W-W-W-H-W) *)
+
+Example D_dorian_mode_degrees : 
+  (D +pc [0%binint] = D) /\
+  (D +pc [2%binint] = E) /\
+  (D +pc [3%binint] = F) /\
+  (D +pc [5%binint] = G) /\
+  (D +pc [7%binint] = A) /\
+  (D +pc [9%binint] = B) /\
+  (D +pc [10%binint] = C).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply D_plus_two_is_E.
+    + split.
+      * unfold D, F. simpl. reflexivity.
+      * split.
+        -- unfold D, G. simpl. reflexivity.
+        -- split.
+           ++ unfold D, A. simpl. reflexivity.
+           ++ split.
+              ** unfold D, B. simpl. reflexivity.
+              ** unfold D, C. simpl. apply twelve_equals_zero.
+Defined.
+
+(** The Phrygian mode has the interval pattern:
+    0, 1, 3, 5, 7, 8, 10 (H-W-W-W-H-W-W) *)
+
+Example E_phrygian_mode_degrees : 
+  (E +pc [0%binint] = E) /\
+  (E +pc [1%binint] = F) /\
+  (E +pc [3%binint] = G) /\
+  (E +pc [5%binint] = A) /\
+  (E +pc [7%binint] = B) /\
+  (E +pc [8%binint] = C) /\
+  (E +pc [10%binint] = D).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply E_plus_one_is_F.
+    + split.
+      * unfold E, G. simpl. reflexivity.
+      * split.
+        -- unfold E, A. simpl. reflexivity.
+        -- split.
+           ++ unfold E, B. simpl. reflexivity.
+           ++ split.
+              ** unfold E, C. simpl. apply twelve_equals_zero.
+              ** unfold E, D. simpl. apply fourteen_equals_two.
+Defined.
+
+(** The Lydian mode has the interval pattern:
+    0, 2, 4, 6, 7, 9, 11 (W-W-W-H-W-W-H) *)
+
+Example F_lydian_mode_degrees : 
+  (F +pc [0%binint] = F) /\
+  (F +pc [2%binint] = G) /\
+  (F +pc [4%binint] = A) /\
+  (F +pc [6%binint] = B) /\
+  (F +pc [7%binint] = C) /\
+  (F +pc [9%binint] = D) /\
+  (F +pc [11%binint] = E).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold F, G. simpl. reflexivity.
+    + split.
+      * unfold F, A. simpl. reflexivity.
+      * split.
+        -- unfold F, B. simpl. reflexivity.
+        -- split.
+           ++ unfold F, C. simpl. apply twelve_equals_zero.
+           ++ split.
+              ** unfold F, D. simpl. apply fourteen_equals_two.
+              ** unfold F, E. simpl. apply sixteen_equals_four.
+Defined.
+
+(** The Mixolydian mode has the interval pattern:
+    0, 2, 4, 5, 7, 9, 10 (W-W-H-W-W-H-W) *)
+
+Example G_mixolydian_mode_degrees : 
+  (G +pc [0%binint] = G) /\
+  (G +pc [2%binint] = A) /\
+  (G +pc [4%binint] = B) /\
+  (G +pc [5%binint] = C) /\
+  (G +pc [7%binint] = D) /\
+  (G +pc [9%binint] = E) /\
+  (G +pc [10%binint] = F).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold G, A. simpl. reflexivity.
+    + split.
+      * unfold G, B. simpl. reflexivity.
+      * split.
+        -- unfold G, C. simpl. apply twelve_equals_zero.
+        -- split.
+           ++ apply G_plus_seven_is_D.
+           ++ split.
+              ** unfold G, E. simpl. apply sixteen_equals_four.
+              ** unfold G, F. simpl. 
+                 apply qglue. exists (binint_negation 1%binint).
+                 simpl. reflexivity.
+Defined.
+
+(** The Locrian mode has the interval pattern:
+    0, 1, 3, 5, 6, 8, 10 (H-W-W-H-W-W-W) *)
+
+Example B_locrian_mode_degrees : 
+  (B +pc [0%binint] = B) /\
+  (B +pc [1%binint] = C) /\
+  (B +pc [3%binint] = D) /\
+  (B +pc [5%binint] = E) /\
+  (B +pc [6%binint] = F) /\
+  (B +pc [8%binint] = G) /\
+  (B +pc [10%binint] = A).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply B_plus_one_is_C.
+    + split.
+      * unfold B, D. simpl. apply fourteen_equals_two.
+      * split.
+        -- unfold B, E. simpl. apply sixteen_equals_four.
+        -- split.
+           ++ unfold B, F. simpl. 
+              apply qglue. exists (binint_negation 1%binint).
+              simpl. reflexivity.
+           ++ split.
+              ** unfold B, G. simpl.
+                 apply qglue. exists (binint_negation 1%binint).
+                 simpl. reflexivity.
+              ** unfold B, A. simpl. apply twentyone_equals_nine.
+Defined.
+
+(** The octatonic scale (diminished scale) has the interval pattern:
+    0, 2, 3, 5, 6, 8, 9, 11 (W-H-W-H-W-H-W-H) *)
+
+Example C_octatonic_scale_degrees : 
+  (C +pc [0%binint] = C) /\
+  (C +pc [2%binint] = D) /\
+  (C +pc [3%binint] = Ds) /\
+  (C +pc [5%binint] = F) /\
+  (C +pc [6%binint] = Fs) /\
+  (C +pc [8%binint] = Gs) /\
+  (C +pc [9%binint] = A) /\
+  (C +pc [11%binint] = B).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_two_is_D.
+    + split.
+      * apply C_plus_three_is_Ds.
+      * split.
+        -- apply C_plus_five_is_F.
+        -- split.
+           ++ unfold C, Fs. simpl. reflexivity.
+           ++ split.
+              ** unfold C, Gs. simpl. reflexivity.
+              ** split.
+                 --- unfold C, A. simpl. reflexivity.
+                 --- unfold C, B. simpl. reflexivity.
+Defined.
+
+(** The bebop dominant scale has the interval pattern:
+    0, 2, 4, 5, 7, 9, 10, 11 (W-W-H-W-W-H-H-H) *)
+
+Example C_bebop_dominant_degrees : 
+  (C +pc [0%binint] = C) /\
+  (C +pc [2%binint] = D) /\
+  (C +pc [4%binint] = E) /\
+  (C +pc [5%binint] = F) /\
+  (C +pc [7%binint] = G) /\
+  (C +pc [9%binint] = A) /\
+  (C +pc [10%binint] = As) /\
+  (C +pc [11%binint] = B).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_two_is_D.
+    + split.
+      * apply C_plus_four_is_E.
+      * split.
+        -- apply C_plus_five_is_F.
+        -- split.
+           ++ apply C_plus_seven_is_G.
+           ++ split.
+              ** unfold C, A. simpl. reflexivity.
+              ** split.
+                 --- apply C_plus_ten_is_As.
+                 --- unfold C, B. simpl. reflexivity.
+Defined.
+
+(** ================================================================= *)
+(** Section 30: Scale Relationships                                  *)
+(** ================================================================= *)
+
+(** The relative minor is a minor third below (or major sixth above) the major *)
+Example relative_minor_relationship : 
+  (C +pc [9%binint] = A) /\
+  (A +pc [3%binint] = C).
+Proof.
+  split.
+  - unfold C, A. simpl. reflexivity.
+  - apply A_plus_three_is_C.
+Defined.
+
+(** All modes of C major share the same pitch classes *)
+Example modes_share_pitch_classes : 
+  let c_major := fun p => sum (p = C) (sum (p = D) (sum (p = E) (sum (p = F) (sum (p = G) (sum (p = A) (p = B)))))) in
+  let d_dorian := fun p => sum (p = D) (sum (p = E) (sum (p = F) (sum (p = G) (sum (p = A) (sum (p = B) (p = C)))))) in
+  forall p, c_major p <-> d_dorian p.
+Proof.
+  intro p.
+  split.
+  - intro H.
+    destruct H as [HC | [HD | [HE | [HF | [HG | [HA | HB]]]]]].
+    + right. right. right. right. right. right. exact HC.
+    + left. exact HD.
+    + right. left. exact HE.
+    + right. right. left. exact HF.
+    + right. right. right. left. exact HG.
+    + right. right. right. right. left. exact HA.
+    + right. right. right. right. right. left. exact HB.
+  - intro H.
+    destruct H as [HD | [HE | [HF | [HG | [HA | [HB | HC]]]]]].
+    + right. left. exact HD.
+    + right. right. left. exact HE.
+    + right. right. right. left. exact HF.
+    + right. right. right. right. left. exact HG.
+    + right. right. right. right. right. left. exact HA.
+    + right. right. right. right. right. right. exact HB.
+    + left. exact HC.
+Defined.
+
+(** Parallel major/minor relationship *)
+Example parallel_major_minor : 
+  let c_major_third := C +pc [4%binint] in
+  let c_minor_third := C +pc [3%binint] in
+  (c_major_third = E) /\ (c_minor_third = Ds).
+Proof.
+  split.
+  - apply C_plus_four_is_E.
+  - apply C_plus_three_is_Ds.
+Defined.
+
+(** Transposing a scale preserves its interval structure *)
+Example transpose_preserves_major_scale : forall (root t p : PitchClass),
+  sum (p = root) 
+    (sum (p = root +pc [2%binint])
+    (sum (p = root +pc [4%binint])
+    (sum (p = root +pc [5%binint])
+    (sum (p = root +pc [7%binint])
+    (sum (p = root +pc [9%binint])
+         (p = root +pc [11%binint])))))) ->
+  sum (p +pc t = root +pc t) 
+    (sum (p +pc t = (root +pc t) +pc [2%binint])
+    (sum (p +pc t = (root +pc t) +pc [4%binint])
+    (sum (p +pc t = (root +pc t) +pc [5%binint])
+    (sum (p +pc t = (root +pc t) +pc [7%binint])
+    (sum (p +pc t = (root +pc t) +pc [9%binint])
+         (p +pc t = (root +pc t) +pc [11%binint])))))).
+Proof.
+  intros root t p H.
+  destruct H as [H1 | H].
+  - left. rewrite H1. reflexivity.
+  - destruct H as [H2 | H].
+    + right. left. rewrite H2. 
+      rewrite pitch_class_add_assoc.
+      rewrite pitch_class_add_assoc.
+      f_ap. apply pitch_class_add_comm.
+    + destruct H as [H4 | H].
+      * right. right. left. rewrite H4.
+        rewrite pitch_class_add_assoc.
+        rewrite pitch_class_add_assoc.
+        f_ap. apply pitch_class_add_comm.
+      * destruct H as [H5 | H].
+        -- right. right. right. left. rewrite H5.
+           rewrite pitch_class_add_assoc.
+           rewrite pitch_class_add_assoc.
+           f_ap. apply pitch_class_add_comm.
+        -- destruct H as [H7 | H].
+           ++ right. right. right. right. left. rewrite H7.
+              rewrite pitch_class_add_assoc.
+              rewrite pitch_class_add_assoc.
+              f_ap. apply pitch_class_add_comm.
+           ++ destruct H as [H9 | H11].
+              ** right. right. right. right. right. left. rewrite H9.
+                 rewrite pitch_class_add_assoc.
+                 rewrite pitch_class_add_assoc.
+                 f_ap. apply pitch_class_add_comm.
+              ** right. right. right. right. right. right. rewrite H11.
+                 rewrite pitch_class_add_assoc.
+                 rewrite pitch_class_add_assoc.
+                 f_ap. apply pitch_class_add_comm.
+Defined.
+          
