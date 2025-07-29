@@ -3838,3 +3838,897 @@ Proof.
   simpl.
   reflexivity.
 Defined.
+
+Example C_E_G_are_major_third_apart : 
+  (E = C +pc [4%binint]) /\
+  (G = C +pc [7%binint]) /\
+  (C = C +pc [0%binint]).
+Proof.
+  split.
+  - symmetry. apply C_plus_four_is_E.
+  - split.
+    + symmetry. apply C_plus_seven_is_G.
+    + symmetry. apply pitch_class_add_zero_r.
+Defined.
+
+Example pitch_in_C_major_iff : forall p : PitchClass,
+  sum (p = C) (sum (p = E) (p = G)) <-> 
+  {n : BinInt & (sum (n = 0%binint) (sum (n = 4%binint) (n = 7%binint))) * (p = C +pc [n])}.
+Proof.
+  intro p.
+  split.
+  - intro H.
+    destruct H as [H1 | [H2 | H3]].
+    + exists 0%binint. split.
+      * left. reflexivity.
+      * rewrite H1. symmetry. apply pitch_class_add_zero_r.
+    + exists 4%binint. split.
+      * right. left. reflexivity.
+      * rewrite H2. symmetry. apply C_plus_four_is_E.
+    + exists 7%binint. split.
+      * right. right. reflexivity.
+      * rewrite H3. symmetry. apply C_plus_seven_is_G.
+  - intros [n [Hn Hp]].
+    destruct Hn as [H1 | [H2 | H3]].
+    + left. rewrite Hp, H1. apply pitch_class_add_zero_r.
+    + right. left. rewrite Hp, H2. apply C_plus_four_is_E.
+    + right. right. rewrite Hp, H3. apply C_plus_seven_is_G.
+Defined.
+
+Example transpose_preserves_major_triad : forall p t : PitchClass,
+  sum (p = C) (sum (p = E) (p = G)) ->
+  sum (p +pc t = C +pc t) (sum (p +pc t = E +pc t) (p +pc t = G +pc t)).
+Proof.
+  intros p t H.
+  destruct H as [H1 | [H2 | H3]].
+  - left. rewrite H1. reflexivity.
+  - right. left. rewrite H2. reflexivity.
+  - right. right. rewrite H3. reflexivity.
+Defined.
+
+Example F_major_triad : 
+  (F +pc [0%binint] = F) /\
+  (F +pc [4%binint] = A) /\
+  (F +pc [7%binint] = C).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold F, A. simpl. reflexivity.
+    + unfold F, C. simpl. apply twelve_equals_zero.
+Defined.
+
+Example G_major_triad : 
+  (G +pc [0%binint] = G) /\
+  (G +pc [4%binint] = B) /\
+  (G +pc [7%binint] = D).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold G, B. simpl. reflexivity.
+    + unfold G, D. simpl. apply fourteen_equals_two.
+Defined.
+
+(** All 12 major triads showing root + major third + perfect fifth *)
+
+Example Cs_major_triad : 
+  (Cs +pc [0%binint] = Cs) /\
+  (Cs +pc [4%binint] = F) /\
+  (Cs +pc [7%binint] = Gs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Cs, F. simpl. reflexivity.
+    + unfold Cs, Gs. simpl. reflexivity.
+Defined.
+
+Example D_major_triad : 
+  (D +pc [0%binint] = D) /\
+  (D +pc [4%binint] = Fs) /\
+  (D +pc [7%binint] = A).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold D, Fs. simpl. reflexivity.
+    + unfold D, A. simpl. reflexivity.
+Defined.
+
+Example Ds_major_triad : 
+  (Ds +pc [0%binint] = Ds) /\
+  (Ds +pc [4%binint] = G) /\
+  (Ds +pc [7%binint] = As).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Ds, G. simpl. reflexivity.
+    + unfold Ds, As. simpl. reflexivity.
+Defined.
+
+Example E_major_triad : 
+  (E +pc [0%binint] = E) /\
+  (E +pc [4%binint] = Gs) /\
+  (E +pc [7%binint] = B).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold E, Gs. simpl. reflexivity.
+    + unfold E, B. simpl. reflexivity.
+Defined.
+
+Example Fs_major_triad : 
+  (Fs +pc [0%binint] = Fs) /\
+  (Fs +pc [4%binint] = As) /\
+  (Fs +pc [7%binint] = Cs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Fs, As. simpl. reflexivity.
+    + unfold Fs, Cs. simpl. 
+      apply qglue. exists (binint_negation 1%binint). 
+      simpl. reflexivity.
+Defined.
+
+Example Gs_major_triad : 
+  (Gs +pc [0%binint] = Gs) /\
+  (Gs +pc [4%binint] = C) /\
+  (Gs +pc [7%binint] = Ds).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Gs, C. simpl. apply twelve_equals_zero.
+    + unfold Gs, Ds. simpl. apply fifteen_equals_three.
+Defined.
+
+Example A_major_triad : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [4%binint] = Cs) /\
+  (A +pc [7%binint] = E).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold A, Cs. simpl. 
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+    + unfold A, E. simpl. apply sixteen_equals_four.
+Defined.
+
+Example As_major_triad : 
+  (As +pc [0%binint] = As) /\
+  (As +pc [4%binint] = D) /\
+  (As +pc [7%binint] = F).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold As, D. simpl. apply fourteen_equals_two.
+    + unfold As, F. simpl. 
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+Defined.
+
+Example B_major_triad : 
+  (B +pc [0%binint] = B) /\
+  (B +pc [4%binint] = Ds) /\
+  (B +pc [7%binint] = Fs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold B, Ds. simpl. apply fifteen_equals_three.
+    + unfold B, Fs. simpl. apply eighteen_equals_six.
+Defined.
+
+(** ================================================================= *)
+(** Section 24: Minor Triads                                         *)
+(** ================================================================= *)
+
+(** Minor triads have the interval pattern: root, minor third (3 semitones), 
+    perfect fifth (7 semitones). These are fundamental to tonal music. *)
+
+Example C_minor_triad : 
+  (C +pc [0%binint] = C) /\
+  (C +pc [3%binint] = Ds) /\
+  (C +pc [7%binint] = G).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_three_is_Ds.
+    + apply C_plus_seven_is_G.
+Defined.
+
+Example Cs_minor_triad : 
+  (Cs +pc [0%binint] = Cs) /\
+  (Cs +pc [3%binint] = E) /\
+  (Cs +pc [7%binint] = Gs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Cs, E. simpl. reflexivity.
+    + unfold Cs, Gs. simpl. reflexivity.
+Defined.
+
+Example D_minor_triad : 
+  (D +pc [0%binint] = D) /\
+  (D +pc [3%binint] = F) /\
+  (D +pc [7%binint] = A).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold D, F. simpl. reflexivity.
+    + unfold D, A. simpl. reflexivity.
+Defined.
+
+Example Ds_minor_triad : 
+  (Ds +pc [0%binint] = Ds) /\
+  (Ds +pc [3%binint] = Fs) /\
+  (Ds +pc [7%binint] = As).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Ds, Fs. simpl. reflexivity.
+    + unfold Ds, As. simpl. reflexivity.
+Defined.
+
+Example E_minor_triad : 
+  (E +pc [0%binint] = E) /\
+  (E +pc [3%binint] = G) /\
+  (E +pc [7%binint] = B).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold E, G. simpl. reflexivity.
+    + unfold E, B. simpl. reflexivity.
+Defined.
+
+Example F_minor_triad : 
+  (F +pc [0%binint] = F) /\
+  (F +pc [3%binint] = Gs) /\
+  (F +pc [7%binint] = C).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold F, Gs. simpl. reflexivity.
+    + unfold F, C. simpl. apply twelve_equals_zero.
+Defined.
+
+Example Fs_minor_triad : 
+  (Fs +pc [0%binint] = Fs) /\
+  (Fs +pc [3%binint] = A) /\
+  (Fs +pc [7%binint] = Cs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Fs, A. simpl. reflexivity.
+    + unfold Fs, Cs. simpl. 
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+Defined.
+
+Example G_minor_triad : 
+  (G +pc [0%binint] = G) /\
+  (G +pc [3%binint] = As) /\
+  (G +pc [7%binint] = D).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold G, As. simpl. reflexivity.
+    + unfold G, D. simpl. apply fourteen_equals_two.
+Defined.
+
+Example Gs_minor_triad : 
+  (Gs +pc [0%binint] = Gs) /\
+  (Gs +pc [3%binint] = B) /\
+  (Gs +pc [7%binint] = Ds).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Gs, B. simpl. reflexivity.
+    + unfold Gs, Ds. simpl. apply fifteen_equals_three.
+Defined.
+
+Example A_minor_triad : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [3%binint] = C) /\
+  (A +pc [7%binint] = E).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold A, C. simpl. apply twelve_equals_zero.
+    + unfold A, E. simpl. apply sixteen_equals_four.
+Defined.
+
+Example As_minor_triad : 
+  (As +pc [0%binint] = As) /\
+  (As +pc [3%binint] = Cs) /\
+  (As +pc [7%binint] = F).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold As, Cs. simpl. 
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+    + unfold As, F. simpl.
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+Defined.
+
+Example B_minor_triad : 
+  (B +pc [0%binint] = B) /\
+  (B +pc [3%binint] = D) /\
+  (B +pc [7%binint] = Fs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold B, D. simpl. apply fourteen_equals_two.
+    + unfold B, Fs. simpl. apply eighteen_equals_six.
+Defined.
+
+(** ================================================================= *)
+(** Section 25: Diminished Triads                                    *)
+(** ================================================================= *)
+
+(** Diminished triads have the interval pattern: root, minor third (3 semitones), 
+    diminished fifth (6 semitones). These create tension and are important
+    in harmonic progressions. *)
+
+Example C_diminished_triad : 
+  (C +pc [0%binint] = C) /\
+  (C +pc [3%binint] = Ds) /\
+  (C +pc [6%binint] = Fs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_three_is_Ds.
+    + unfold C, Fs. simpl. reflexivity.
+Defined.
+
+Example Cs_diminished_triad : 
+  (Cs +pc [0%binint] = Cs) /\
+  (Cs +pc [3%binint] = E) /\
+  (Cs +pc [6%binint] = G).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Cs, E. simpl. reflexivity.
+    + unfold Cs, G. simpl. reflexivity.
+Defined.
+
+Example D_diminished_triad : 
+  (D +pc [0%binint] = D) /\
+  (D +pc [3%binint] = F) /\
+  (D +pc [6%binint] = Gs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold D, F. simpl. reflexivity.
+    + unfold D, Gs. simpl. reflexivity.
+Defined.
+
+Example Ds_diminished_triad : 
+  (Ds +pc [0%binint] = Ds) /\
+  (Ds +pc [3%binint] = Fs) /\
+  (Ds +pc [6%binint] = A).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Ds, Fs. simpl. reflexivity.
+    + unfold Ds, A. simpl. reflexivity.
+Defined.
+
+Example E_diminished_triad : 
+  (E +pc [0%binint] = E) /\
+  (E +pc [3%binint] = G) /\
+  (E +pc [6%binint] = As).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold E, G. simpl. reflexivity.
+    + unfold E, As. simpl. reflexivity.
+Defined.
+
+Example F_diminished_triad : 
+  (F +pc [0%binint] = F) /\
+  (F +pc [3%binint] = Gs) /\
+  (F +pc [6%binint] = B).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold F, Gs. simpl. reflexivity.
+    + unfold F, B. simpl. reflexivity.
+Defined.
+
+Example Fs_diminished_triad : 
+  (Fs +pc [0%binint] = Fs) /\
+  (Fs +pc [3%binint] = A) /\
+  (Fs +pc [6%binint] = C).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Fs, A. simpl. reflexivity.
+    + unfold Fs, C. simpl. apply twelve_equals_zero.
+Defined.
+
+Example G_diminished_triad : 
+  (G +pc [0%binint] = G) /\
+  (G +pc [3%binint] = As) /\
+  (G +pc [6%binint] = Cs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold G, As. simpl. reflexivity.
+    + unfold G, Cs. simpl.
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+Defined.
+
+Example Gs_diminished_triad : 
+  (Gs +pc [0%binint] = Gs) /\
+  (Gs +pc [3%binint] = B) /\
+  (Gs +pc [6%binint] = D).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Gs, B. simpl. reflexivity.
+    + unfold Gs, D. simpl. apply fourteen_equals_two.
+Defined.
+
+Example A_diminished_triad : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [3%binint] = C) /\
+  (A +pc [6%binint] = Ds).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold A, C. simpl. apply twelve_equals_zero.
+    + unfold A, Ds. simpl. apply fifteen_equals_three.
+Defined.
+
+Example As_diminished_triad : 
+  (As +pc [0%binint] = As) /\
+  (As +pc [3%binint] = Cs) /\
+  (As +pc [6%binint] = E).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold As, Cs. simpl.
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+    + unfold As, E. simpl. apply sixteen_equals_four.
+Defined.
+
+Example B_diminished_triad : 
+  (B +pc [0%binint] = B) /\
+  (B +pc [3%binint] = D) /\
+  (B +pc [6%binint] = F).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold B, D. simpl. apply fourteen_equals_two.
+    + unfold B, F. simpl.
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+Defined.
+
+(** ================================================================= *)
+(** Section 26: Augmented Triads                                     *)
+(** ================================================================= *)
+
+(** Augmented triads have the interval pattern: root, major third (4 semitones), 
+    augmented fifth (8 semitones). These divide the octave symmetrically into
+    three equal parts and have a distinctive, unstable sound. *)
+
+Example C_augmented_triad : 
+  (C +pc [0%binint] = C) /\
+  (C +pc [4%binint] = E) /\
+  (C +pc [8%binint] = Gs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_four_is_E.
+    + unfold C, Gs. simpl. reflexivity.
+Defined.
+
+Example Cs_augmented_triad : 
+  (Cs +pc [0%binint] = Cs) /\
+  (Cs +pc [4%binint] = F) /\
+  (Cs +pc [8%binint] = A).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Cs, F. simpl. reflexivity.
+    + unfold Cs, A. simpl. reflexivity.
+Defined.
+
+Example D_augmented_triad : 
+  (D +pc [0%binint] = D) /\
+  (D +pc [4%binint] = Fs) /\
+  (D +pc [8%binint] = As).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold D, Fs. simpl. reflexivity.
+    + unfold D, As. simpl. reflexivity.
+Defined.
+
+Example Ds_augmented_triad : 
+  (Ds +pc [0%binint] = Ds) /\
+  (Ds +pc [4%binint] = G) /\
+  (Ds +pc [8%binint] = B).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Ds, G. simpl. reflexivity.
+    + unfold Ds, B. simpl. reflexivity.
+Defined.
+
+Example E_augmented_triad : 
+  (E +pc [0%binint] = E) /\
+  (E +pc [4%binint] = Gs) /\
+  (E +pc [8%binint] = C).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold E, Gs. simpl. reflexivity.
+    + unfold E, C. simpl. apply twelve_equals_zero.
+Defined.
+
+Example F_augmented_triad : 
+  (F +pc [0%binint] = F) /\
+  (F +pc [4%binint] = A) /\
+  (F +pc [8%binint] = Cs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold F, A. simpl. reflexivity.
+    + unfold F, Cs. simpl.
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+Defined.
+
+Example Fs_augmented_triad : 
+  (Fs +pc [0%binint] = Fs) /\
+  (Fs +pc [4%binint] = As) /\
+  (Fs +pc [8%binint] = D).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Fs, As. simpl. reflexivity.
+    + unfold Fs, D. simpl. apply fourteen_equals_two.
+Defined.
+
+Example G_augmented_triad : 
+  (G +pc [0%binint] = G) /\
+  (G +pc [4%binint] = B) /\
+  (G +pc [8%binint] = Ds).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold G, B. simpl. reflexivity.
+    + unfold G, Ds. simpl. apply fifteen_equals_three.
+Defined.
+
+Example Gs_augmented_triad : 
+  (Gs +pc [0%binint] = Gs) /\
+  (Gs +pc [4%binint] = C) /\
+  (Gs +pc [8%binint] = E).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Gs, C. simpl. apply twelve_equals_zero.
+    + unfold Gs, E. simpl. apply sixteen_equals_four.
+Defined.
+
+Example A_augmented_triad : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [4%binint] = Cs) /\
+  (A +pc [8%binint] = F).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold A, Cs. simpl.
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+    + unfold A, F. simpl.
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+Defined.
+
+Example As_augmented_triad : 
+  (As +pc [0%binint] = As) /\
+  (As +pc [4%binint] = D) /\
+  (As +pc [8%binint] = Fs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold As, D. simpl. apply fourteen_equals_two.
+    + unfold As, Fs. simpl. apply eighteen_equals_six.
+Defined.
+
+Example B_augmented_triad : 
+  (B +pc [0%binint] = B) /\
+  (B +pc [4%binint] = Ds) /\
+  (B +pc [8%binint] = G).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold B, Ds. simpl. apply fifteen_equals_three.
+    + unfold B, G. simpl.
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+Defined.
+
+(** ================================================================= *)
+(** Section 27: Dominant Seventh Chords                              *)
+(** ================================================================= *)
+
+(** Dominant seventh chords have the interval pattern: root, major third (4 semitones), 
+    perfect fifth (7 semitones), minor seventh (10 semitones). These create
+    strong tension that resolves to the tonic. *)
+
+Example C_dominant_seventh : 
+  (C +pc [0%binint] = C) /\
+  (C +pc [4%binint] = E) /\
+  (C +pc [7%binint] = G) /\
+  (C +pc [10%binint] = As).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_four_is_E.
+    + split.
+      * apply C_plus_seven_is_G.
+      * apply C_plus_ten_is_As.
+Defined.
+
+Example Cs_dominant_seventh : 
+  (Cs +pc [0%binint] = Cs) /\
+  (Cs +pc [4%binint] = F) /\
+  (Cs +pc [7%binint] = Gs) /\
+  (Cs +pc [10%binint] = B).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Cs, F. simpl. reflexivity.
+    + split.
+      * unfold Cs, Gs. simpl. reflexivity.
+      * unfold Cs, B. simpl. reflexivity.
+Defined.
+
+Example D_dominant_seventh : 
+  (D +pc [0%binint] = D) /\
+  (D +pc [4%binint] = Fs) /\
+  (D +pc [7%binint] = A) /\
+  (D +pc [10%binint] = C).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold D, Fs. simpl. reflexivity.
+    + split.
+      * unfold D, A. simpl. reflexivity.
+      * unfold D, C. simpl. apply twelve_equals_zero.
+Defined.
+
+Example Ds_dominant_seventh : 
+  (Ds +pc [0%binint] = Ds) /\
+  (Ds +pc [4%binint] = G) /\
+  (Ds +pc [7%binint] = As) /\
+  (Ds +pc [10%binint] = Cs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Ds, G. simpl. reflexivity.
+    + split.
+      * unfold Ds, As. simpl. reflexivity.
+      * unfold Ds, Cs. simpl.
+        apply qglue. exists (binint_negation 1%binint).
+        simpl. reflexivity.
+Defined.
+
+Example E_dominant_seventh : 
+  (E +pc [0%binint] = E) /\
+  (E +pc [4%binint] = Gs) /\
+  (E +pc [7%binint] = B) /\
+  (E +pc [10%binint] = D).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold E, Gs. simpl. reflexivity.
+    + split.
+      * unfold E, B. simpl. reflexivity.
+      * unfold E, D. simpl. apply fourteen_equals_two.
+Defined.
+
+Example F_dominant_seventh : 
+  (F +pc [0%binint] = F) /\
+  (F +pc [4%binint] = A) /\
+  (F +pc [7%binint] = C) /\
+  (F +pc [10%binint] = Ds).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold F, A. simpl. reflexivity.
+    + split.
+      * unfold F, C. simpl. apply twelve_equals_zero.
+      * unfold F, Ds. simpl. apply fifteen_equals_three.
+Defined.
+
+Example Fs_dominant_seventh : 
+  (Fs +pc [0%binint] = Fs) /\
+  (Fs +pc [4%binint] = As) /\
+  (Fs +pc [7%binint] = Cs) /\
+  (Fs +pc [10%binint] = E).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Fs, As. simpl. reflexivity.
+    + split.
+      * unfold Fs, Cs. simpl.
+        apply qglue. exists (binint_negation 1%binint).
+        simpl. reflexivity.
+      * unfold Fs, E. simpl. apply sixteen_equals_four.
+Defined.
+
+Example G_dominant_seventh : 
+  (G +pc [0%binint] = G) /\
+  (G +pc [4%binint] = B) /\
+  (G +pc [7%binint] = D) /\
+  (G +pc [10%binint] = F).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold G, B. simpl. reflexivity.
+    + split.
+      * unfold G, D. simpl. apply fourteen_equals_two.
+      * unfold G, F. simpl.
+        apply qglue. exists (binint_negation 1%binint).
+        simpl. reflexivity.
+Defined.
+
+Example Gs_dominant_seventh : 
+  (Gs +pc [0%binint] = Gs) /\
+  (Gs +pc [4%binint] = C) /\
+  (Gs +pc [7%binint] = Ds) /\
+  (Gs +pc [10%binint] = Fs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold Gs, C. simpl. apply twelve_equals_zero.
+    + split.
+      * unfold Gs, Ds. simpl. apply fifteen_equals_three.
+      * unfold Gs, Fs. simpl. apply eighteen_equals_six.
+Defined.
+
+Example A_dominant_seventh : 
+  (A +pc [0%binint] = A) /\
+  (A +pc [4%binint] = Cs) /\
+  (A +pc [7%binint] = E) /\
+  (A +pc [10%binint] = G).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold A, Cs. simpl.
+      apply qglue. exists (binint_negation 1%binint).
+      simpl. reflexivity.
+    + split.
+      * unfold A, E. simpl. apply sixteen_equals_four.
+      * unfold A, G. simpl.
+        apply qglue. exists (binint_negation 1%binint).
+        simpl. reflexivity.
+Defined.
+
+Example As_dominant_seventh : 
+  (As +pc [0%binint] = As) /\
+  (As +pc [4%binint] = D) /\
+  (As +pc [7%binint] = F) /\
+  (As +pc [10%binint] = Gs).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold As, D. simpl. apply fourteen_equals_two.
+    + split.
+      * unfold As, F. simpl.
+        apply qglue. exists (binint_negation 1%binint).
+        simpl. reflexivity.
+      * unfold As, Gs. simpl. apply twenty_equals_eight.
+Defined.
+
+Example B_dominant_seventh : 
+  (B +pc [0%binint] = B) /\
+  (B +pc [4%binint] = Ds) /\
+  (B +pc [7%binint] = Fs) /\
+  (B +pc [10%binint] = A).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + unfold B, Ds. simpl. apply fifteen_equals_three.
+    + split.
+      * unfold B, Fs. simpl. apply eighteen_equals_six.
+      * unfold B, A. simpl. apply twentyone_equals_nine.
+Defined.
+
+(** ================================================================= *)
+(** Section 28: Chord Membership Properties                          *)
+(** ================================================================= *)
+
+Example is_in_major_triad_from : forall (root p : PitchClass),
+  sum (p = root) 
+      (sum (p = root +pc [4%binint]) 
+           (p = root +pc [7%binint])) ->
+  sum (p +pc (-pc root) = [0%binint]) 
+      (sum (p +pc (-pc root) = [4%binint]) 
+           (p +pc (-pc root) = [7%binint])).
+Proof.
+  intros root p H.
+  destruct H as [H1 | [H2 | H3]].
+  - left. rewrite H1. apply pitch_class_add_neg_r.
+  - right. left. 
+    rewrite H2.
+    rewrite pitch_class_add_comm.
+    rewrite <- pitch_class_add_assoc.
+    rewrite (pitch_class_add_comm (-pc root) root).
+    rewrite pitch_class_add_neg_r.
+    apply pitch_class_add_zero_l.
+  - right. right.
+    rewrite H3.
+    rewrite pitch_class_add_comm.
+    rewrite <- pitch_class_add_assoc.
+    rewrite (pitch_class_add_comm (-pc root) root).
+    rewrite pitch_class_add_neg_r.
+    apply pitch_class_add_zero_l.
+Defined.
+    
