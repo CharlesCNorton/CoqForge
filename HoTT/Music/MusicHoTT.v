@@ -3316,14 +3316,25 @@ Defined.
 (** ================================================================= *)
 
 (** Since we lack decidable equality, we'll define sets using 
-    characteristic properties based on intervals and transpositions *)
+    characteristic properties based on intervals and transpositions.
+    This section provides the building blocks for constructing
+    musical sets through interval relationships. *)
 
+(** ----------------------------------------------------------------- *)
+(** Basic Pitch Class Arithmetic Properties                          *)
+(** ----------------------------------------------------------------- *)
 
+(** These lemmas establish fundamental arithmetic facts about pitch
+    classes, showing how addition behaves in Z/12Z. *)
+
+(** Any pitch class minus itself equals C (the identity) *)
 Example G_minus_G_is_C : G +pc (-pc G) = C.
 Proof.
   apply pitch_class_add_neg_r.
 Defined.
 
+(** Doubling pitch classes - these show which pitch classes are
+    self-inverse under addition (only C and F#) *)
 Example D_plus_D_is_E : D +pc D = E.
 Proof.
   unfold D, E.
@@ -3338,6 +3349,7 @@ Proof.
   reflexivity.
 Defined.
 
+(** F# is self-inverse: F# + F# = C (12 ≡ 0 mod 12) *)
 Example Fs_plus_Fs_is_C : Fs +pc Fs = C.
 Proof.
   unfold Fs, C.
@@ -3345,6 +3357,23 @@ Proof.
   apply twelve_equals_zero.
 Defined.
 
+(** Special arithmetic: E + G# = C (4 + 8 = 12 ≡ 0 mod 12) *)
+Example E_plus_Gs_is_C : E +pc Gs = C.
+Proof.
+  unfold E, Gs, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+(** ----------------------------------------------------------------- *)
+(** Pitch Class Equality via Differences                             *)
+(** ----------------------------------------------------------------- *)
+
+(** These lemmas establish that we can test pitch class equality
+    by checking if their difference equals C. This gives us a
+    computational approach to equality without decidability. *)
+
+(** If p - q = C, then p = q *)
 Example difference_equals_C_implies_equal : forall p q : PitchClass,
   p +pc (-pc q) = C -> p = q.
 Proof.
@@ -3359,6 +3388,7 @@ Proof.
   exact H2.
 Defined.
 
+(** If p = q, then p - q = C *)
 Example equal_implies_difference_C : forall p q : PitchClass,
   p = q -> p +pc (-pc q) = C.
 Proof.
@@ -3367,127 +3397,14 @@ Proof.
   apply pitch_class_add_neg_r.
 Defined.
 
-Example E_plus_Gs_is_C : E +pc Gs = C.
-Proof.
-  unfold E, Gs, C.
-  simpl.
-  apply twelve_equals_zero.
-Defined.
+(** ----------------------------------------------------------------- *)
+(** Chromatic Scale: Semitone Steps (Interval = 1)                  *)
+(** ----------------------------------------------------------------- *)
 
-Example C_plus_four_is_E : C +pc [4%binint] = E.
-Proof.
-  unfold C, E.
-  simpl.
-  reflexivity.
-Defined.
+(** The chromatic scale consists of all 12 pitch classes in
+    semitone steps. These lemmas show that adding 1 moves through
+    the chromatic scale in order. *)
 
-Example E_plus_four_is_Gs : E +pc [4%binint] = Gs.
-Proof.
-  unfold E, Gs.
-  simpl.
-  reflexivity.
-Defined.
-
-Example Gs_plus_four_is_C : Gs +pc [4%binint] = C.
-Proof.
-  unfold Gs, C.
-  simpl.
-  apply twelve_equals_zero.
-Defined.
-
-Example intervals_from_C_047 : 
-  (C +pc [0%binint] = C) /\ 
-  (C +pc [4%binint] = E) /\ 
-  (C +pc [7%binint] = G).
-Proof.
-  split.
-  - apply pitch_class_add_zero_r.
-  - split.
-    + apply C_plus_four_is_E.
-    + unfold C, G. simpl. reflexivity.
-Defined.
-
-Example C_plus_three_is_Ds : C +pc [3%binint] = Ds.
-Proof.
-  unfold C, Ds.
-  simpl.
-  reflexivity.
-Defined.
-
-Example Ds_plus_three_is_Fs : Ds +pc [3%binint] = Fs.
-Proof.
-  unfold Ds, Fs.
-  simpl.
-  reflexivity.
-Defined.
-
-Example Fs_plus_three_is_A : Fs +pc [3%binint] = A.
-Proof.
-  unfold Fs, A.
-  simpl.
-  reflexivity.
-Defined.
-
-Example A_plus_three_is_C : A +pc [3%binint] = C.
-Proof.
-  unfold A, C.
-  simpl.
-  apply twelve_equals_zero.
-Defined.
-
-Example is_augmented_from_C : forall p : PitchClass,
-  sum (p = C) (sum (p = E) (p = Gs)) -> 
-  sum (p +pc (-pc C) = C) (sum (p +pc (-pc C) = E) (p +pc (-pc C) = Gs)).
-Proof.
-  intros p H.
-  rewrite neg_C_is_C.
-  rewrite pitch_class_add_zero_r.
-  exact H.
-Defined.
-
-Example C_plus_two_is_D : C +pc [2%binint] = D.
-Proof.
-  unfold C, D.
-  simpl.
-  reflexivity.
-Defined.
-
-Example D_plus_two_is_E : D +pc [2%binint] = E.
-Proof.
-  unfold D, E.
-  simpl.
-  reflexivity.
-Defined.
-
-Example E_plus_two_is_Fs : E +pc [2%binint] = Fs.
-Proof.
-  unfold E, Fs.
-  simpl.
-  reflexivity.
-Defined.
-
-Example Fs_plus_two_is_Gs : Fs +pc [2%binint] = Gs.
-Proof.
-  unfold Fs, Gs.
-  simpl.
-  reflexivity.
-Defined.
-
-Example Gs_plus_two_is_As : Gs +pc [2%binint] = As.
-Proof.
-  unfold Gs, As.
-  simpl.
-  reflexivity.
-Defined.
-
-Example As_plus_two_is_C : As +pc [2%binint] = C.
-Proof.
-  unfold As, C.
-  simpl.
-  apply twelve_equals_zero.
-Defined.
-
-(* Chromatic scale - intervals of 1 *)
 Example C_plus_one_is_Cs : C +pc [1%binint] = Cs.
 Proof.
   unfold C, Cs.
@@ -3565,6 +3482,7 @@ Proof.
   reflexivity.
 Defined.
 
+(** The chromatic scale wraps around: B + 1 = C *)
 Example B_plus_one_is_C : B +pc [1%binint] = C.
 Proof.
   unfold B, C.
@@ -3572,22 +3490,163 @@ Proof.
   apply twelve_equals_zero.
 Defined.
 
-(* Perfect fifth intervals (7 semitones) *)
-Example C_plus_seven_is_G : C +pc [7%binint] = G.
+(** ----------------------------------------------------------------- *)
+(** Whole Tone Scale: Whole Steps (Interval = 2)                    *)
+(** ----------------------------------------------------------------- *)
+
+(** The whole tone scale divides the octave into 6 equal parts.
+    Adding 2 repeatedly generates one of the two whole tone scales:
+    C, D, E, F#, G#, A# *)
+
+Example C_plus_two_is_D : C +pc [2%binint] = D.
 Proof.
-  unfold C, G.
+  unfold C, D.
   simpl.
   reflexivity.
 Defined.
 
-Example G_plus_seven_is_D : G +pc [7%binint] = D.
+Example D_plus_two_is_E : D +pc [2%binint] = E.
 Proof.
-  unfold G, D.
+  unfold D, E.
   simpl.
-  apply fourteen_equals_two.
+  reflexivity.
 Defined.
 
-(* Perfect fourth intervals (5 semitones) *)
+Example E_plus_two_is_Fs : E +pc [2%binint] = Fs.
+Proof.
+  unfold E, Fs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Fs_plus_two_is_Gs : Fs +pc [2%binint] = Gs.
+Proof.
+  unfold Fs, Gs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Gs_plus_two_is_As : Gs +pc [2%binint] = As.
+Proof.
+  unfold Gs, As.
+  simpl.
+  reflexivity.
+Defined.
+
+(** The whole tone scale cycles back: A# + 2 = C *)
+Example As_plus_two_is_C : As +pc [2%binint] = C.
+Proof.
+  unfold As, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+(** B + 2 = C# starts the other whole tone scale *)
+Example B_plus_two_is_Cs : B +pc [2%binint] = Cs.
+Proof.
+  unfold B, Cs.
+  simpl.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** ----------------------------------------------------------------- *)
+(** Diminished Seventh: Minor Thirds (Interval = 3)                  *)
+(** ----------------------------------------------------------------- *)
+
+(** The diminished seventh chord divides the octave into 4 equal
+    parts. Adding 3 repeatedly generates: C, Eb, Gb, A *)
+
+Example C_plus_three_is_Ds : C +pc [3%binint] = Ds.
+Proof.
+  unfold C, Ds.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Ds_plus_three_is_Fs : Ds +pc [3%binint] = Fs.
+Proof.
+  unfold Ds, Fs.
+  simpl.
+  reflexivity.
+Defined.
+
+Example Fs_plus_three_is_A : Fs +pc [3%binint] = A.
+Proof.
+  unfold Fs, A.
+  simpl.
+  reflexivity.
+Defined.
+
+(** The diminished seventh cycles in 4 steps: A + 3 = C *)
+Example A_plus_three_is_C : A +pc [3%binint] = C.
+Proof.
+  unfold A, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+(** Alias for consistency *)
+Example C_plus_three_is_Ds_v2 : C +pc [3%binint] = Ds.
+Proof.
+  apply C_plus_three_is_Ds.
+Defined.
+
+(** ----------------------------------------------------------------- *)
+(** Augmented Triad: Major Thirds (Interval = 4)                    *)
+(** ----------------------------------------------------------------- *)
+
+(** The augmented triad divides the octave into 3 equal parts.
+    Adding 4 repeatedly generates: C, E, G# *)
+
+Example C_plus_four_is_E : C +pc [4%binint] = E.
+Proof.
+  unfold C, E.
+  simpl.
+  reflexivity.
+Defined.
+
+Example E_plus_four_is_Gs : E +pc [4%binint] = Gs.
+Proof.
+  unfold E, Gs.
+  simpl.
+  reflexivity.
+Defined.
+
+(** The augmented triad cycles in 3 steps: G# + 4 = C *)
+Example Gs_plus_four_is_C : Gs +pc [4%binint] = C.
+Proof.
+  unfold Gs, C.
+  simpl.
+  apply twelve_equals_zero.
+Defined.
+
+(** A + 4 = C# shows a different starting point *)
+Example A_plus_four_is_Cs : A +pc [4%binint] = Cs.
+Proof.
+  unfold A, Cs.
+  simpl.
+  apply qglue.
+  exists (binint_negation 1%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** Alias for consistency *)
+Example C_plus_four_is_E_v2 : C +pc [4%binint] = E.
+Proof.
+  apply C_plus_four_is_E.
+Defined.
+
+(** ----------------------------------------------------------------- *)
+(** Perfect Fourths (Interval = 5)                                  *)
+(** ----------------------------------------------------------------- *)
+
+(** The perfect fourth is 5 semitones. Moving by fourths generates
+    the circle of fourths: C, F, Bb, Eb, Ab, Db, Gb, B, E, A, D, G *)
+
 Example C_plus_five_is_F : C +pc [5%binint] = F.
 Proof.
   unfold C, F.
@@ -3602,27 +3661,180 @@ Proof.
   reflexivity.
 Defined.
 
-(* Minor triad intervals from root *)
-Example C_plus_three_is_Ds_v2 : C +pc [3%binint] = Ds.
+(** ----------------------------------------------------------------- *)
+(** Perfect Fifths (Interval = 7)                                   *)
+(** ----------------------------------------------------------------- *)
+
+(** The perfect fifth is 7 semitones. Moving by fifths generates
+    the circle of fifths: C, G, D, A, E, B, F#, C#, G#, D#, A#, F *)
+
+Example C_plus_seven_is_G : C +pc [7%binint] = G.
 Proof.
-  apply C_plus_three_is_Ds.
+  unfold C, G.
+  simpl.
+  reflexivity.
 Defined.
 
+Example G_plus_seven_is_D : G +pc [7%binint] = D.
+Proof.
+  unfold G, D.
+  simpl.
+  apply fourteen_equals_two.
+Defined.
+
+(** Alias for consistency *)
 Example C_plus_seven_is_G_v2 : C +pc [7%binint] = G.
 Proof.
   apply C_plus_seven_is_G.
 Defined.
 
-(* Major triad intervals from root *)
-Example C_plus_four_is_E_v2 : C +pc [4%binint] = E.
-Proof.
-  apply C_plus_four_is_E.
-Defined.
+(** ----------------------------------------------------------------- *)
+(** Other Important Intervals                                        *)
+(** ----------------------------------------------------------------- *)
 
-(* Dominant seventh intervals *)
+(** Minor seventh: C + 10 = Bb *)
 Example C_plus_ten_is_As : C +pc [10%binint] = As.
 Proof.
   unfold C, As.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Summary of major/minor triad intervals from C *)
+Example intervals_from_C_047 : 
+  (C +pc [0%binint] = C) /\ 
+  (C +pc [4%binint] = E) /\ 
+  (C +pc [7%binint] = G).
+Proof.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + apply C_plus_four_is_E.
+    + unfold C, G. simpl. reflexivity.
+Defined.
+
+(** Test for membership in augmented triad pattern *)
+Example is_augmented_from_C : forall p : PitchClass,
+  sum (p = C) (sum (p = E) (p = Gs)) -> 
+  sum (p +pc (-pc C) = C) (sum (p +pc (-pc C) = E) (p +pc (-pc C) = Gs)).
+Proof.
+  intros p H.
+  rewrite neg_C_is_C.
+  rewrite pitch_class_add_zero_r.
+  exact H.
+Defined.
+
+(** ----------------------------------------------------------------- *)
+(** Bounded Search Helpers for Pitch Class Representation           *)
+(** ----------------------------------------------------------------- *)
+
+(** These functions and examples test whether integers represent
+    specific pitch classes using bounded search for octave
+    equivalence witnesses. *)
+
+(** General function to check if m represents pitch class n *)
+Definition represents_pitch_class_n (m n : BinInt) : Bool :=
+  check_k_range n m 100.
+
+(** 0 represents pitch class C *)
+Example represents_0_works : represents_pitch_class_n 0%binint 0%binint = true.
+Proof.
+  unfold represents_pitch_class_n.
+  unfold check_k_range.
+  simpl.
+  unfold check_octave_witness, dec_to_bool.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Tests showing that non-zero values don't represent C *)
+Example check_represents_C_one_is_false : 
+  check_k_range 0%binint 1%binint 0 = false.
+Proof.
+  unfold check_k_range.
+  simpl.
+  unfold check_octave_witness, dec_to_bool.
+  simpl.
+  reflexivity.
+Defined.
+
+Example check_represents_C_four_is_false : 
+  check_k_range 0%binint 4%binint 0 = false.
+Proof.
+  unfold check_k_range.
+  simpl.
+  unfold check_octave_witness, dec_to_bool.
+  simpl.
+  reflexivity.
+Defined.
+
+Example check_represents_C_seven_is_false : 
+  check_k_range 0%binint 7%binint 0 = false.
+Proof.
+  unfold check_k_range.
+  simpl.
+  unfold check_octave_witness, dec_to_bool.
+  simpl.
+  reflexivity.
+Defined.
+
+(** C major triad membership tests *)
+Example C_major_triad_membership : 
+  (check_represents_C 0%binint = true) /\
+  (check_represents_C 4%binint = false) /\
+  (check_represents_C 7%binint = false).
+Proof.
+  split.
+  - apply check_C_is_true.
+  - split.
+    + apply check_represents_C_four_is_false.
+    + apply check_represents_C_seven_is_false.
+Defined.
+
+(** General function to check if n represents a specific pitch class *)
+Definition check_represents_pitch_class (n : BinInt) (pc_value : BinInt) : Bool :=
+  check_k_range pc_value n 100.
+
+(** 4 represents pitch class E *)
+Example check_represents_E : check_represents_pitch_class 4%binint 4%binint = true.
+Proof.
+  unfold check_represents_pitch_class, check_k_range.
+  simpl.
+  unfold check_octave_witness, dec_to_bool.
+  simpl.
+  reflexivity.
+Defined.
+
+(** 16 = 4 + 12*1, so 16 also represents E *)
+Example check_16_equals_4_plus_12 : 
+  check_octave_witness 4%binint 16%binint 1%binint = true.
+Proof.
+  unfold check_octave_witness, dec_to_bool.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Trace showing how bounded search finds the witness *)
+Example trace_check_16_represents_E : 
+  orb (check_octave_witness 4%binint 16%binint (pos Core.xH))
+      (orb (check_octave_witness 4%binint 16%binint (neg Core.xH))
+           (check_octave_witness 4%binint 16%binint 0%binint)) = true.
+Proof.
+  assert (H: check_octave_witness 4%binint 16%binint (pos Core.xH) = true).
+  { apply check_16_equals_4_plus_12. }
+  rewrite H.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Smaller bounded search for efficiency *)
+Definition check_represents_pc_small (n : BinInt) (pc_value : BinInt) : Bool :=
+  check_k_range pc_value n 10.
+
+Example test_check_represents_pc_small : 
+  check_represents_pc_small 4%binint 4%binint = true.
+Proof.
+  unfold check_represents_pc_small, check_k_range.
   simpl.
   reflexivity.
 Defined.
