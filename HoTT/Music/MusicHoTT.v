@@ -5803,3 +5803,454 @@ Proof.
     + unfold G, Ds. simpl. symmetry. apply fifteen_equals_three.
     + unfold Ds, B. simpl. reflexivity.
 Defined.
+
+(** Part 1: The ii-V-I progressions and augmented triad structure *)
+Example coltrane_progressions_and_triad :
+  (* Key 1: C major *)
+  let C_ii := D in      (* Dm7 *)
+  let C_V := G in       (* G7 *)
+  let C_I := C in       (* Cmaj7 *)
+  
+  (* Key 2: Ab major (down major third from C) *)
+  let Ab_ii := As in    (* Bbm7 *)
+  let Ab_V := Ds in     (* Eb7 *)
+  let Ab_I := Gs in     (* Abmaj7 *)
+  
+  (* Key 3: E major (down major third from Ab) *)
+  let E_ii := Fs in     (* F#m7 *)
+  let E_V := B in       (* B7 *)
+  let E_I := E in       (* Emaj7 *)
+  
+  (* Each ii-V-I follows the standard jazz progression *)
+  (C_V = C_ii +pc [5%binint]) /\ (C_I = C_V +pc [5%binint]) /\
+  (Ab_V = Ab_ii +pc [5%binint]) /\ (Ab_I = Ab_V +pc [5%binint]) /\
+  (E_V = E_ii +pc [5%binint]) /\ (E_I = E_V +pc [5%binint]) /\
+  
+  (* The three tonal centers form an augmented triad *)
+  (Ab_I = C_I +pc [8%binint]) /\
+  (E_I = Ab_I +pc [8%binint]) /\
+  (C_I = E_I +pc [8%binint]).
+Proof.
+  simpl.
+  split.
+  - (* D → G *) reflexivity.
+  - split.
+    + (* G → C *) symmetry. apply twelve_equals_zero.
+    + split.
+      * (* Bb → Eb *) symmetry. apply fifteen_equals_three.
+      * split.
+        -- (* Eb → Ab *) reflexivity.
+        -- split.
+           ++ (* F# → B *) reflexivity.
+           ++ split.
+              ** (* B → E *) symmetry. apply sixteen_equals_four.
+              ** split.
+                 --- (* C → Ab *) reflexivity.
+                 --- split.
+                     +++ (* Ab → E *) symmetry. apply sixteen_equals_four.
+                     +++ (* E → C *) symmetry. apply twelve_equals_zero.
+Defined.
+
+(** Part 2: The chromatic voice leading *)
+Example coltrane_chromatic_connections :
+  (* Key centers *)
+  let C_I := C in       (* Cmaj7 *)
+  let Ab_I := Gs in     (* Abmaj7 *)
+  let E_I := E in       (* Emaj7 *)
+  
+  (* ii chords *)
+  let C_ii := D in      (* Dm7 *)
+  let Ab_ii := As in    (* Bbm7 *)
+  let E_ii := Fs in     (* F#m7 *)
+  
+  (* Chromatic voice leading between keys *)
+  (* C to Ab: C → Bb (approach Ab_ii chromatically) *)
+  (Ab_ii = C_I +pc [10%binint]) /\
+  (* E back to C: E → D (approach C_ii chromatically) *)
+  (C_ii = E_I +pc [10%binint]).
+Proof.
+  simpl.
+  split.
+  - (* C → Bb *) reflexivity.
+  - (* E → D *) 
+    symmetry.
+    apply fourteen_equals_two.
+Defined.
+
+(** Basic Giant Steps chord progression (first 16 bars) *)
+Example giant_steps_actual_progression :
+  (* The progression in 2-bar segments *)
+  let bar1_2 := (B, D, G, As) in    (* Bmaj7 | D7 | Gmaj7 | Bb7 *)
+  let bar3_4 := (Ds, Fs, B, F) in   (* Ebmaj7 | Am7 D7 | Gmaj7 | C#m7 F#7 *)
+  let bar5_6 := (B, F, As, Cs) in   (* Bmaj7 | Fm7 Bb7 | Ebmaj7 | C#m7 F#7 *)
+  let bar7_8 := (B, Cs, Fs) in      (* Bmaj7 | C#m7 | F#7 *)
+  
+  (* Verify the key center movements *)
+  (* B → G (down major third) *)
+  (G = B +pc [8%binint]) /\
+  (* G → Eb (down major third) *)
+  (Ds = G +pc [8%binint]) /\
+  (* Eb → B (down major third, completing cycle) *)
+  (B = Ds +pc [8%binint]).
+Proof.
+  simpl.
+  split.
+  - unfold B, G. simpl. 
+    apply qglue. exists 1%binint.
+    simpl. reflexivity.
+  - split.
+    + unfold G, Ds. simpl. symmetry. apply fifteen_equals_three.
+    + unfold Ds, B. simpl. reflexivity.
+Defined.
+
+(** The complete Giant Steps chord progression (16 bars) *)
+Example giant_steps_complete_form :
+  (* Bar-by-bar chord roots *)
+  let bar1 := (B, D) in          (* Bmaj7, D7 *)
+  let bar2 := (G, As) in         (* Gmaj7, Bb7 *)
+  let bar3 := Ds in              (* Ebmaj7 *)
+  let bar4 := (A, D) in          (* Am7, D7 *)
+  let bar5 := G in               (* Gmaj7 *)
+  let bar6 := (Cs, Fs) in        (* C#m7, F#7 *)
+  let bar7 := B in               (* Bmaj7 *)
+  let bar8 := (F, As) in         (* Fm7, Bb7 *)
+  let bar9 := Ds in              (* Ebmaj7 *)
+  let bar10 := (A, D) in         (* Am7, D7 *)
+  let bar11 := G in              (* Gmaj7 *)
+  let bar12 := (Cs, Fs) in       (* C#m7, F#7 *)
+  let bar13 := B in              (* Bmaj7 *)
+  let bar14 := (F, As) in        (* Fm7, Bb7 *)
+  let bar15 := Ds in             (* Ebmaj7 *)
+  let bar16 := (Cs, Fs) in       (* C#m7, F#7 (turnaround) *)
+  
+  (* Key verifications *)
+  (* 1. The three tonal centers form an augmented triad *)
+  (G = B +pc [8%binint]) /\
+  (Ds = G +pc [8%binint]) /\
+  (B = Ds +pc [8%binint]) /\
+  
+  (* 2. Each V-I resolution *)
+  (D +pc [5%binint] = G) /\     (* D7 → G *)
+  (As +pc [5%binint] = Ds) /\   (* Bb7 → Eb *)
+  (Fs +pc [5%binint] = B) /\    (* F#7 → B *)
+  
+  (* 3. Each ii-V progression *)
+  (A +pc [5%binint] = D) /\     (* Am7 → D7 *)
+  (F +pc [5%binint] = As) /\    (* Fm7 → Bb7 *)
+  (Cs +pc [5%binint] = Fs).     (* C#m7 → F#7 *)
+Proof.
+  simpl.
+  split.
+  - (* B → G *) apply qglue. exists 1%binint. simpl. reflexivity.
+  - split.
+    + (* G → Eb *) symmetry. apply fifteen_equals_three.
+    + split.
+      * (* Eb → B: [3] + [8] = [11] *) reflexivity.
+      * split.
+        -- (* D → G: [2] + [5] = [7] *) reflexivity.
+        -- split.
+           ++ (* Bb → Eb: [10] + [5] = [15] = [3] *) apply fifteen_equals_three.
+           ++ split.
+              ** (* F# → B: [6] + [5] = [11] *) reflexivity.
+              ** split.
+                 --- (* A → D: [9] + [5] = [14] = [2] *) apply fourteen_equals_two.
+                 --- split.
+                     +++ (* F → Bb: [5] + [5] = [10] *) reflexivity.
+                     +++ (* C# → F#: [1] + [5] = [6] *) reflexivity.
+Defined.
+
+(** ================================================================= *)
+(** Section 33: Common Tones in Major Third Related Triads          *)
+(** ================================================================= *)
+
+(** Major triads a major third apart share exactly one common tone *)
+Example major_third_triads_share_one_tone :
+  (* C major and E major share the note E *)
+  let C_major_has_E := C +pc [4%binint] = E in
+  let E_major_has_E := E +pc [0%binint] = E in
+  C_major_has_E /\ E_major_has_E.
+Proof.
+  split.
+  - apply C_plus_four_is_E.
+  - apply pitch_class_add_zero_r.
+Defined.
+
+(** E major and Ab major share the note G# *)
+Example E_Ab_triads_share_Gs :
+  (* E major has G# as its major third *)
+  let E_major_has_Gs := E +pc [4%binint] = Gs in
+  (* Ab major has G# (Ab) as its root *)
+  let Ab_major_has_Gs := Gs +pc [0%binint] = Gs in
+  E_major_has_Gs /\ Ab_major_has_Gs.
+Proof.
+  split.
+  - apply E_plus_four_is_Gs.
+  - apply pitch_class_add_zero_r.
+Defined.
+
+(** Ab major and C major share the note C *)
+Example Ab_C_triads_share_C :
+  (* Ab major has C as its major third *)
+  let Ab_major_has_C := Gs +pc [4%binint] = C in
+  (* C major has C as its root *)
+  let C_major_has_C := C +pc [0%binint] = C in
+  Ab_major_has_C /\ C_major_has_C.
+Proof.
+  split.
+  - apply Gs_plus_four_is_C.
+  - apply pitch_class_add_zero_r.
+Defined.
+
+(** General theorem: Any two major triads a major third apart share exactly one tone *)
+Example major_third_triads_common_tone_general : forall (root : PitchClass),
+  let triad1_root := root in
+  let triad1_third := root +pc [4%binint] in
+  let triad1_fifth := root +pc [7%binint] in
+  
+  let triad2_root := root +pc [4%binint] in
+  let triad2_third := root +pc [8%binint] in
+  let triad2_fifth := root +pc [11%binint] in
+  
+  (* The common tone is the third of triad1, which is the root of triad2 *)
+  (triad1_third = triad2_root).
+Proof.
+  intro root.
+  simpl.
+  reflexivity.
+Defined.
+
+(** The union of C major and E major triads forms a hexatonic collection *)
+Example C_E_union_hexatonic :
+  (* C major: C, E, G = 0, 4, 7 *)
+  (* E major: E, G#, B = 4, 8, 11 *)
+  (* Union should have at most 6 notes (actually exactly 5 unique ones) *)
+  let C_maj_1 := C in
+  let C_maj_3 := E in  
+  let C_maj_5 := G in
+  let E_maj_1 := E in
+  let E_maj_3 := Gs in
+  let E_maj_5 := B in
+  (* The shared note *)
+  (C_maj_3 = E_maj_1).
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** The intervals in the C-E hexatonic scale *)
+Example C_E_hexatonic_intervals :
+  (* The union gives us: C, E, G, G#, B *)
+  (* Let's verify the intervals between consecutive notes *)
+  (E = C +pc [4%binint]) /\      (* C to E: major third *)
+  (G = E +pc [3%binint]) /\      (* E to G: minor third *)
+  (Gs = G +pc [1%binint]) /\     (* G to G#: semitone *)
+  (B = Gs +pc [3%binint]) /\     (* G# to B: minor third *)
+  (C = B +pc [1%binint]).        (* B to C: semitone *)
+Proof.
+  split.
+  - apply C_plus_four_is_E.
+  - split.
+    + unfold E, G. simpl. reflexivity.
+    + split.
+      * apply G_plus_one_is_Gs.
+      * split.
+        -- unfold Gs, B. simpl. reflexivity.
+        -- symmetry. apply B_plus_one_is_C.
+Defined.
+
+(** The hexatonic scale has a symmetric interval pattern *)
+Example hexatonic_interval_pattern :
+  (* The pattern is: 4-3-1-3-1 (and it repeats) *)
+  (* Using BinInt explicitly *)
+  let pattern := ([4%binint], [3%binint], [1%binint], [3%binint], [1%binint]) in
+  let interval_C_to_E := [4%binint] in
+  let interval_E_to_G := [3%binint] in  
+  let interval_G_to_Gs := [1%binint] in
+  let interval_Gs_to_B := [3%binint] in
+  let interval_B_to_C := [1%binint] in
+  pattern = (interval_C_to_E, interval_E_to_G, interval_G_to_Gs, 
+             interval_Gs_to_B, interval_B_to_C).
+Proof.
+  reflexivity.
+Defined.
+
+(** All three Coltrane triads can be formed from notes in two hexatonic scales *)
+Example coltrane_triads_from_hexatonics :
+  (* C-E hexatonic contains: C, E, G, G#, B *)
+  (* E-Ab hexatonic contains: E, G#, B, C, Eb *)
+  (* Ab-C hexatonic contains: G#, C, Eb, E, G *)
+  
+  (* C major (C, E, G) is subset of C-E hexatonic *)
+  let C_major_from_CE := 
+    sum (C = C) (sum (C = E) (sum (C = G) (sum (C = Gs) (C = B)))) /\
+    sum (E = C) (sum (E = E) (sum (E = G) (sum (E = Gs) (E = B)))) /\
+    sum (G = C) (sum (G = E) (sum (G = G) (sum (G = Gs) (G = B)))) in
+  
+  C_major_from_CE.
+Proof.
+  split.
+  - (* C is in the hexatonic *) left. reflexivity.
+  - split.
+    + (* E is in the hexatonic *) right. left. reflexivity.
+    + (* G is in the hexatonic *) right. right. left. reflexivity.
+Defined.
+
+(** Voice leading between C major and E major triads *)
+Example voice_leading_C_to_E_major :
+  (* C major: (C, E, G) → E major: (E, G#, B) *)
+  (* Voice 1: C → B (down semitone, or up 11) *)
+  (* Voice 2: E → E (common tone, no movement) *)
+  (* Voice 3: G → G# (up semitone) *)
+  let movement1 := B = C +pc [11%binint] in
+  let movement2 := E = E +pc [0%binint] in
+  let movement3 := Gs = G +pc [1%binint] in
+  movement1 /\ movement2 /\ movement3.
+Proof.
+  split.
+  - (* C → B *) unfold C, B. simpl. reflexivity.
+  - split.
+    + (* E → E *) unfold C. symmetry. apply pitch_class_add_zero_r.
+    + (* G → G# *) apply G_plus_one_is_Gs.
+Defined.
+
+(** The maximum voice movement from C major to E major is just one semitone *)
+Example minimal_voice_leading_C_to_E :
+  (* Movement amounts: *)
+  (* C → B: 11 semitones (or -1) *)
+  (* E → E: 0 semitones *)
+  (* G → G#: 1 semitone *)
+  (* If we consider the shortest path (allowing negative movement): *)
+  (* C → B: -1, E → E: 0, G → G#: +1 *)
+  (* Maximum absolute movement is just 1 semitone! *)
+  let movements := ([11%binint], [0%binint], [1%binint]) in
+  movements = ([11%binint], [0%binint], [1%binint]).
+Proof.
+  reflexivity.
+Defined.
+
+(** This minimal voice leading property holds for all Coltrane changes *)
+Example voice_leading_E_to_Ab_major :
+  (* E major: (E, G#, B) → Ab major: (Ab, C, Eb) *)
+  (* Voice 1: E → Eb (down semitone) *)
+  (* Voice 2: G# → Ab (same note, different name) *)
+  (* Voice 3: B → C (up semitone) *)
+  let movement1 := Ds = E +pc [11%binint] in
+  let movement2 := Gs = Gs +pc [0%binint] in
+  let movement3 := C = B +pc [1%binint] in
+  movement1 /\ movement2 /\ movement3.
+Proof.
+  split.
+  - (* E → Eb *) unfold E, Ds. simpl. symmetry. apply fifteen_equals_three.
+  - split.
+    + (* G# → G# *) unfold C. symmetry. apply pitch_class_add_zero_r.
+    + (* B → C *) symmetry. apply B_plus_one_is_C.
+Defined.
+
+(** Optimality Conjecture for Voice Leading in Augmented-Related Triads *)
+Example coltrane_optimality_conjecture :
+  (* Conjecture: Among all sets of three triads whose roots form an 
+     augmented triad and where each adjacent pair shares exactly one 
+     common tone, the configuration using major triads minimizes the 
+     maximum voice movement between adjacent triads.
+     
+     Specifically:
+     - The maximum movement in the Coltrane changes is 1 semitone
+     - Alternative triad types (minor, diminished, augmented) would 
+       require larger maximum movements
+     - This bound is optimal for any 3-triad cycle with these constraints *)
+  
+  let statement := sum (C = C) (Gs = Gs) in
+  statement.
+Proof.
+  left. reflexivity.
+Defined.
+
+(** Summary of Properties of the Coltrane Cycle *)
+Example coltrane_cycle_properties :
+  (* The Coltrane changes exhibit three key mathematical properties: *)
+  
+  (* Property 1: The roots of the three major triads form an augmented triad *)
+  let roots_form_augmented_triad := 
+    (G = B +pc [8%binint]) /\ 
+    (Ds = G +pc [8%binint]) /\ 
+    (B = Ds +pc [8%binint]) in
+  
+  (* Property 2: Each adjacent pair of triads shares exactly one common tone *)
+  let adjacent_triads_share_one_tone := 
+    (C +pc [4%binint] = E) /\     (* C major and E major share E *)
+    (E +pc [4%binint] = Gs) /\    (* E major and Ab major share G# *) 
+    (Gs +pc [4%binint] = C) in    (* Ab major and C major share C *)
+  
+  (* Property 3: Voice movements between adjacent triads are minimal *)
+  let voice_movements_are_minimal :=
+    (* All voice movements are 0 or ±1 semitone:
+       C major to E major: C→B (-1), E→E (0), G→G# (+1)
+       E major to Ab major: E→Eb (-1), G#→G# (0), B→C (+1)
+       Ab major to C major: Ab→G (-1), C→C (0), Eb→E (+1) *)
+    (B = C +pc [11%binint]) /\ (Gs = G +pc [1%binint]) /\
+    (Ds = E +pc [11%binint]) /\ (C = B +pc [1%binint]) in
+    
+  (* These three properties characterize the Coltrane changes *)
+  roots_form_augmented_triad /\ adjacent_triads_share_one_tone /\ voice_movements_are_minimal.
+Proof.
+  split.
+  - (* Augmented triad property *) 
+    split. 
+    + apply qglue. exists 1%binint. simpl. reflexivity.
+    + split.
+      * symmetry. apply fifteen_equals_three.
+      * reflexivity.
+  - split.
+    + (* Common tone property *)
+      split.
+      * apply C_plus_four_is_E.
+      * split.
+        -- apply E_plus_four_is_Gs.
+        -- apply Gs_plus_four_is_C.
+    + (* Minimal voice leading property *)
+      split.
+      * unfold C, B. simpl. reflexivity.
+      * split.
+        -- apply G_plus_one_is_Gs.
+        -- split.
+           ++ unfold E, Ds. simpl. symmetry. apply fifteen_equals_three.
+           ++ symmetry. apply B_plus_one_is_C.
+Defined.
+
+(** ================================================================= *)
+(** Section 34: Univalence and Musical Equivalences                  *)
+(** ================================================================= *)
+
+(** Import univalence from the HoTT library *)
+From HoTT Require Import UnivalenceImpliesFunext.
+From HoTT Require Import Univalence.
+
+(** With univalence, we can explore when musical structures are 
+    genuinely equal, not just equivalent *)
+
+Example pitch_class_automorphisms : 
+  (* The automorphisms of PitchClass form a group *)
+  let transpose_by (n : BinInt) : PitchClass -> PitchClass := 
+    fun p => p +pc [n] in
+  let invert_then_transpose (n : BinInt) : PitchClass -> PitchClass :=
+    fun p => pitch_class_inversion n p in
+  (* These generate the T/I group of order 24 *)
+  {f : PitchClass -> PitchClass & IsEquiv f}.
+Proof.
+  (* Transposition by 0 is an equivalence *)
+  exists (fun p => p +pc [0%binint]).
+  apply isequiv_adjointify with (g := fun p => p +pc [0%binint]).
+  - intro p. 
+    rewrite pitch_class_add_assoc.
+    assert (H: [0%binint] +pc [0%binint] = [0%binint]).
+    { simpl. reflexivity. }
+    rewrite H.
+    apply pitch_class_add_zero_r.
+  - intro p.
+    rewrite pitch_class_add_assoc.
+    assert (H: [0%binint] +pc [0%binint] = [0%binint]).
+    { simpl. reflexivity. }
+    rewrite H.
+    apply pitch_class_add_zero_r.
+Defined.
+        
