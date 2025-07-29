@@ -27,7 +27,7 @@
     - Constructive proofs yield computational content
 
     Author: Charles Norton
-    Date: July 2nd 2025 (Updated: July 28th 2025)
+    Date: July 2nd 2025 (Updated: July 29th 2025)
     ================================================================= *)
 
 (** ================================================================= *)
@@ -4731,4 +4731,128 @@ Proof.
     rewrite pitch_class_add_neg_r.
     apply pitch_class_add_zero_l.
 Defined.
-    
+
+(** The converse: if the interval from root is 0, 4, or 7, then p is in the major triad *)
+Example interval_implies_in_major_triad : forall (root p : PitchClass),
+  sum (p +pc (-pc root) = [0%binint]) 
+      (sum (p +pc (-pc root) = [4%binint]) 
+           (p +pc (-pc root) = [7%binint])) ->
+  sum (p = root) 
+      (sum (p = root +pc [4%binint]) 
+           (p = root +pc [7%binint])).
+Proof.
+  intros root p H.
+  destruct H as [H1 | [H2 | H3]].
+  - left. 
+    apply difference_equals_C_implies_equal.
+    unfold C.
+    exact H1.
+  - right. left.
+    assert (H0: p +pc (-pc root) +pc root = [4%binint] +pc root).
+    { rewrite H2. reflexivity. }
+    rewrite pitch_class_add_assoc in H0.
+    rewrite (pitch_class_add_comm (-pc root) root) in H0.
+    rewrite pitch_class_add_neg_r in H0.
+    rewrite pitch_class_add_zero_r in H0.
+    rewrite pitch_class_add_comm in H0.
+    exact H0.
+  - right. right.
+    assert (H0: p +pc (-pc root) +pc root = [7%binint] +pc root).
+    { rewrite H3. reflexivity. }
+    rewrite pitch_class_add_assoc in H0.
+    rewrite (pitch_class_add_comm (-pc root) root) in H0.
+    rewrite pitch_class_add_neg_r in H0.
+    rewrite pitch_class_add_zero_r in H0.
+    rewrite pitch_class_add_comm in H0.
+    exact H0.
+Defined.
+
+(** Similar property for minor triads *)
+Example is_in_minor_triad_from : forall (root p : PitchClass),
+  sum (p = root) 
+      (sum (p = root +pc [3%binint]) 
+           (p = root +pc [7%binint])) ->
+  sum (p +pc (-pc root) = [0%binint]) 
+      (sum (p +pc (-pc root) = [3%binint]) 
+           (p +pc (-pc root) = [7%binint])).
+Proof.
+  intros root p H.
+  destruct H as [H1 | [H2 | H3]].
+  - left. rewrite H1. apply pitch_class_add_neg_r.
+  - right. left. 
+    rewrite H2.
+    rewrite pitch_class_add_comm.
+    rewrite <- pitch_class_add_assoc.
+    rewrite (pitch_class_add_comm (-pc root) root).
+    rewrite pitch_class_add_neg_r.
+    apply pitch_class_add_zero_l.
+  - right. right.
+    rewrite H3.
+    rewrite pitch_class_add_comm.
+    rewrite <- pitch_class_add_assoc.
+    rewrite (pitch_class_add_comm (-pc root) root).
+    rewrite pitch_class_add_neg_r.
+    apply pitch_class_add_zero_l.
+Defined.
+
+(** Chord inversions: The first inversion of a major triad has intervals 3, 5 from the bass *)
+Example major_triad_first_inversion : forall (root : PitchClass),
+  let bass := root +pc [4%binint] in  (* E in C major *)
+  (bass +pc [0%binint] = root +pc [4%binint]) /\
+  (bass +pc [3%binint] = root +pc [7%binint]) /\
+  (bass +pc [8%binint] = root +pc [12%binint]).
+Proof.
+  intro root.
+  split.
+  - apply pitch_class_add_zero_r.
+  - split.
+    + rewrite pitch_class_add_assoc.
+      simpl.
+      reflexivity.
+    + rewrite pitch_class_add_assoc.
+      assert (H: [4%binint] +pc [8%binint] = [12%binint]).
+      { simpl. reflexivity. }
+      rewrite H.
+      reflexivity.
+Defined.
+
+(** Chord equivalence under octave: adding 12 doesn't change the chord *)
+Example chord_octave_equivalence : forall (root : PitchClass) (n : BinInt),
+  root +pc [n] = root +pc [(n + 12)%binint].
+Proof.
+  intros root n.
+  assert (H: [n] = [(n + 12)%binint]).
+  { apply qglue.
+    exists 1%binint.
+    simpl.
+    reflexivity. }
+  rewrite H.
+  reflexivity.
+Defined.
+
+(** Transposition preserves chord type *)
+Example transpose_preserves_major_quality : 
+  forall (root p t : PitchClass),
+  sum (p = root) 
+      (sum (p = root +pc [4%binint]) 
+           (p = root +pc [7%binint])) ->
+  sum (p +pc t = root +pc t) 
+      (sum (p +pc t = (root +pc t) +pc [4%binint]) 
+           (p +pc t = (root +pc t) +pc [7%binint])).
+Proof.
+  intros root p t H.
+  destruct H as [H1 | [H2 | H3]].
+  - left. rewrite H1. reflexivity.
+  - right. left. 
+    rewrite H2.
+    rewrite pitch_class_add_assoc.
+    rewrite pitch_class_add_assoc.
+    rewrite (pitch_class_add_comm [4%binint] t).
+    reflexivity.
+  - right. right.
+    rewrite H3.
+    rewrite pitch_class_add_assoc.
+    rewrite pitch_class_add_assoc.
+    rewrite (pitch_class_add_comm [7%binint] t).
+    reflexivity.
+Defined.
