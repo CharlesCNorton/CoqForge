@@ -6253,4 +6253,66 @@ Proof.
     rewrite H.
     apply pitch_class_add_zero_r.
 Defined.
-        
+
+(** With univalence, equivalent types are equal *)
+Example pitch_class_equals_shifted : 
+  (* The type of pitch classes is equal to itself shifted by any amount *)
+  forall (n : BinInt),
+  PitchClass = PitchClass.
+Proof.
+  intro n.
+  (* This is trivial, but with univalence we could prove something stronger:
+     that PitchClass with addition starting at 0 equals PitchClass with 
+     addition starting at n *)
+  reflexivity.
+Defined.
+
+(** Function extensionality (from univalence) lets us prove set equality *)
+Example pc_sets_equal_iff_extensionally_equal : 
+  forall (s1 s2 : PitchClassSet),
+  (forall p, s1 p = s2 p) -> s1 = s2.
+Proof.
+  intros s1 s2 H.
+  apply path_forall.
+  exact H.
+Defined.
+
+(** Negation of a pitch class is well-defined *)
+Lemma pitch_class_neg_n : forall n : BinInt,
+  [-n]%binint = -pc [n].
+Proof.
+  intro n.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Adding n and -n gives 0 *)
+Lemma pitch_class_add_neg_n : forall n : BinInt,
+  [n] +pc [-n]%binint = C.
+Proof.
+  intro n.
+  unfold C.
+  apply qglue.
+  exists 0%binint.
+  simpl.
+  rewrite binint_add_negation_r.
+  reflexivity.
+Defined.
+
+(** Adding -n and n gives 0 *)
+Lemma pitch_class_add_neg_n_comm : forall n : BinInt,
+  [-n]%binint +pc [n] = C.
+Proof.
+  intro n.
+  rewrite pitch_class_add_comm.
+  apply pitch_class_add_neg_n.
+Defined.
+
+(** Transposition by any amount is an equivalence *)
+Theorem transposition_is_equivalence : forall (n : BinInt),
+  IsEquiv (fun p : PitchClass => p +pc [n]).
+Proof.
+  intro n.
+  apply isequiv_adjointify with (g := fun p => p +pc [-n]%binint).
+  - intro p.
+    rewrite pitch_class_add_assoc.
