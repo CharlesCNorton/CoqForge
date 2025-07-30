@@ -6587,43 +6587,204 @@ rewrite <- pitch_class_add_assoc.
       reflexivity.
 Defined.
 
-(** All major triads belong to the same set class *)
+(** Helper lemma 1: If p is in a major triad, it must be one of the three notes *)
+Lemma in_major_triad_characterization : forall (root p : PitchClass) (s : PitchClassSet),
+  is_major_triad_at root s ->
+  s p = true ->
+  sum (p = root) (sum (p = root +pc [4%binint]) (p = root +pc [7%binint])).
+Proof.
+  intros root p s H Hp.
+  apply H.
+  exact Hp.
+Defined.
+
+(** Helper lemma 2: If p is one of the three notes, it must be in the major triad *)
+Lemma major_triad_contains_notes : forall (root p : PitchClass) (s : PitchClassSet),
+  is_major_triad_at root s ->
+  sum (p = root) (sum (p = root +pc [4%binint]) (p = root +pc [7%binint])) ->
+  s p = true.
+Proof.
+  intros root p s H Hp.
+  apply H.
+  exact Hp.
+Defined.
+
+(** Helper lemma 3: If p is not one of the three notes, it's not in the major triad *)
+Lemma not_in_major_triad : forall (root p : PitchClass) (s : PitchClassSet),
+  is_major_triad_at root s ->
+  s p = false ->
+  ~ (sum (p = root) (sum (p = root +pc [4%binint]) (p = root +pc [7%binint]))).
+Proof.
+  intros root p s H Hp Hcontra.
+  assert (Htrue : s p = true).
+  { apply H. exact Hcontra. }
+  rewrite Htrue in Hp.
+  discriminate.
+Defined.
+
+(** Helper: If s1 p = true and both are major triads with same root, then s2 p = true *)
+Lemma major_triads_agree_true : forall (root p : PitchClass) (s1 s2 : PitchClassSet),
+  is_major_triad_at root s1 ->
+  is_major_triad_at root s2 ->
+  s1 p = true ->
+  s2 p = true.
+Proof.
+  intros root p s1 s2 H1 H2 Hs1.
+  (* p is one of the three notes *)
+  assert (Hp : sum (p = root) (sum (p = root +pc [4%binint]) (p = root +pc [7%binint]))).
+  { apply (in_major_triad_characterization root p s1 H1 Hs1). }
+  (* So s2 p must also be true *)
+  apply (major_triad_contains_notes root p s2 H2 Hp).
+Defined.
+
+(** Helper: If s1 p = false and both are major triads with same root, then s2 p = false *)
+Lemma major_triads_agree_false : forall (root p : PitchClass) (s1 s2 : PitchClassSet),
+  is_major_triad_at root s1 ->
+  is_major_triad_at root s2 ->
+  s1 p = false ->
+  s2 p = false.
+Proof.
+  intros root p s1 s2 H1 H2 Hs1.
+  (* Let's use pattern matching directly *)
+  assert (Hdec : (s2 p = true) + (s2 p = false)).
+  { destruct (s2 p); [left | right]; reflexivity. }
+  destruct Hdec as [Hs2_true | Hs2_false].
+  - (* Case: s2 p = true *)
+    (* Then p is one of the three notes *)
+    assert (Hp : sum (p = root) (sum (p = root +pc [4%binint]) (p = root +pc [7%binint]))).
+    { apply (in_major_triad_characterization root p s2 H2 Hs2_true). }
+    (* But s1 says p is not in the triad *)
+    exfalso.
+    apply (not_in_major_triad root p s1 H1 Hs1 Hp).
+  - (* Case: s2 p = false *)
+    exact Hs2_false.
+Defined.
+
+(** Now we can prove that two major triads with the same root agree on all pitch classes *)
+Lemma major_triads_agree : forall (root p : PitchClass) (s1 s2 : PitchClassSet),
+  is_major_triad_at root s1 ->
+  is_major_triad_at root s2 ->
+  s1 p = s2 p.
+Proof.
+  intros root p s1 s2 H1 H2.
+  (* Case on whether s1 p is true or false *)
+  assert (Hdec : (s1 p = true) + (s1 p = false)).
+  { destruct (s1 p); [left | right]; reflexivity. }
+  destruct Hdec as [Hs1_true | Hs1_false].
+  - (* s1 p = true *)
+    rewrite Hs1_true.
+    symmetry.
+    apply (major_triads_agree_true root p s1 s2 H1 H2 Hs1_true).
+  - (* s1 p = false *)
+    rewrite Hs1_false.
+    symmetry.
+    apply (major_triads_agree_false root p s1 s2 H1 H2 Hs1_false).
+Defined.
+
+(** Helper: The transposition amount between two pitch classes *)
+Lemma transpose_amount : forall (p1 p2 : PitchClass),
+  p1 +pc (p2 +pc (-pc p1)) = p2.
+Proof.
+  intros p1 p2.
+  rewrite (pitch_class_add_comm p2 (-pc p1)).
+  rewrite <- pitch_class_add_assoc.
+  rewrite pitch_class_add_neg_r.
+  apply pitch_class_add_zero_l.
+Defined.
+
+(** Helper: The difference between two pitch classes as a transposition amount *)
+Lemma pitch_class_difference : forall (p1 p2 : PitchClass),
+  p1 +pc (p2 +pc (-pc p1)) = p2.
+Proof.
+  intros p1 p2.
+  apply transpose_amount.
+Defined.
+
+(** Helper: Transposing root1 by the difference gives root2 *)
+Lemma transpose_root_to_root : forall (root1 root2 : PitchClass),
+  root1 +pc (root2 +pc (-pc root1)) = root2.
+Proof.
+  intros root1 root2.
+  apply transpose_amount.
+Defined.
+
+(** Main uniqueness lemma: A major triad at a given root is unique *)
+Lemma major_triad_unique : forall (root : PitchClass) (s1 s2 : PitchClassSet),
+  is_major_triad_at root s1 -> is_major_triad_at root s2 ->
+  s1 = s2.
+Proof.
+  intros root s1 s2 H1 H2.
+  apply pc_sets_equal_iff_extensionally_equal.
+  intro p.
+  apply (major_triads_agree root p s1 s2 H1 H2).
+Defined.
+
+(** Helper: Two major triads are equal after appropriate transposition *)
+Lemma major_triads_transpose_equal : forall (n1 n2 : BinInt) (s1 s2 : PitchClassSet),
+  is_major_triad_at [n1] s1 ->
+  is_major_triad_at [n2] s2 ->
+  pc_set_transpose (n2 - n1)%binint s1 = s2.
+Proof.
+  intros n1 n2 s1 s2 H1 H2.
+  (* First show that transpose gives a major triad at [n2] *)
+  assert (H_trans : is_major_triad_at [n2] (pc_set_transpose (n2 - n1)%binint s1)).
+  { assert (root_eq : [n1] +pc [(n2 - n1)%binint] = [n2]).
+    { simpl. apply ap. unfold binint_sub. 
+      rewrite binint_add_comm.
+      rewrite <- binint_add_assoc.
+      rewrite binint_add_negation_l.
+      apply binint_add_0_r. }
+    rewrite <- root_eq.
+    apply transpose_major_triad.
+    exact H1. }
+  (* By uniqueness *)
+  apply (major_triad_unique [n2] _ _ H_trans H2).
+Defined.
+
+(** Helper: Two major triads are TI-equivalent *)
+Lemma major_triads_TI_equiv : forall (n1 n2 : BinInt) (s1 s2 : PitchClassSet),
+  is_major_triad_at [n1] s1 ->
+  is_major_triad_at [n2] s2 ->
+  TI_equivalent s1 s2.
+Proof.
+  intros n1 n2 s1 s2 H1 H2.
+  (* We know pc_set_transpose (n2 - n1) s1 = s2 *)
+  assert (Htrans : pc_set_transpose (n2 - n1)%binint s1 = s2).
+  { apply (major_triads_transpose_equal n1 n2 s1 s2 H1 H2). }
+  (* So we can rewrite in the goal *)
+  rewrite <- Htrans.
+  (* Now apply transposed_sets_equivalent *)
+  apply (transposed_sets_equivalent s1 (n2 - n1)%binint).
+Defined.
+
+(** Main theorem: All major triads belong to the same set class *)
 Theorem all_major_triads_same_class : forall root1 root2 : PitchClass,
   forall s1 s2 : PitchClassSet,
   is_major_triad_at root1 s1 -> is_major_triad_at root2 s2 ->
   to_set_class s1 = to_set_class s2.
 Proof.
-  intros root1 root2 s1 s2 H1 H2.
-  apply TI_equivalent_sets_equal.
-revert s1 H1.
-  revert root1.
-  srapply Quotient_ind.
-  - intro n1.
-  intros s1 H1.
-    revert s2 H2.
-    revert root2.
+  assert (H : forall root1 : PitchClass, 
+    forall s1 : PitchClassSet,
+    is_major_triad_at root1 s1 ->
+    forall root2 : PitchClass,
+    forall s2 : PitchClassSet, 
+    is_major_triad_at root2 s2 ->
+    to_set_class s1 = to_set_class s2).
+  { intro root1.
+    revert root1.
     srapply Quotient_ind.
-    + intro n2.
-    intros s2 H2.
-      exists (Tn (n2 - n1)%binint).
-      intro p.
-      simpl.
-assert (H_transpose : is_major_triad_at ([n1] +pc [(n2 - n1)%binint]) (pc_set_transpose (n2 - n1)%binint s1)).
-        { apply transpose_major_triad. exact H1. }
-        assert (root_eq : [n1] +pc [(n2 - n1)%binint] = [n2]).
-        { simpl. apply ap. unfold binint_sub. 
-          rewrite binint_add_comm.
-          rewrite <- binint_add_assoc.
-          rewrite binint_add_negation_l.
-assert (root_eq : [n1] +pc [(n2 - n1)%binint] = [n2]).
-        { simpl. apply ap. unfold binint_sub. 
-          rewrite binint_add_comm.
-          rewrite <- binint_add_assoc.
-          rewrite binint_add_negation_l.
-          apply binint_add_0_r. }
-          rewrite root_eq in H_transpose.
-        (* Now both s2 and the transposed s1 are major triads rooted at [n2] *)
-        (* We need to show they agree on all pitch classes *)
-        (* For now, let's admit the uniqueness of major triads *)
-        admit. TBC!
-          
+    - intro n1.
+      intros s1 H1 root2.
+      revert root2.
+      srapply Quotient_ind.
+      + intro n2.
+        intros s2 H2.
+        apply TI_equivalent_sets_equal.
+        apply (major_triads_TI_equiv n1 n2 s1 s2 H1 H2).
+      + intros.
+        apply path_ishprop.
+    - intros.
+      apply path_ishprop. }
+  intros root1 root2 s1 s2 H1 H2.
+  apply (H root1 s1 H1 root2 s2 H2).
+Defined.
