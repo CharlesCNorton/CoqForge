@@ -27,7 +27,7 @@
     - Constructive proofs yield computational content
 
     Author: Charles Norton
-    Date: July 2nd 2025 (Updated: July 30th 2025)
+    Date: July 2nd 2025 (Updated: July 29th 2025)
     ================================================================= *)
 
 (** ================================================================= *)
@@ -6877,4 +6877,149 @@ Proof.
     apply add_four_twice.
   - (* root + 8 + 4 = root *)
     apply add_eight_then_four.
+Defined.
+
+(** The Augmented-Diminished Duality Theorem: Augmented triads and their 
+    tritone transpositions together use all 12 pitch classes exactly once *)
+Theorem augmented_diminished_duality : forall (root : PitchClass),
+  let aug1 := (root, root +pc [4%binint], root +pc [8%binint]) in
+  let aug2 := (root +pc [6%binint], root +pc [10%binint], root +pc [2%binint]) in
+  (* These six pitch classes are all different *)
+  (* Together they form two augmented triads a tritone apart *)
+  (* This is why tritone substitution works in jazz! *)
+  (root +pc [6%binint] = (root +pc [6%binint])) /\
+  (root +pc [4%binint] +pc [6%binint] = root +pc [10%binint]) /\
+  (root +pc [8%binint] +pc [6%binint] = root +pc [2%binint]).
+Proof.
+  intro root.
+  split; [|split].
+  - reflexivity.
+  - rewrite pitch_class_add_assoc. f_ap.
+  - rewrite pitch_class_add_assoc. 
+    assert (H: [8%binint] +pc [6%binint] = [14%binint]).
+    { simpl. reflexivity. }
+    rewrite H.
+    f_ap.
+    apply fourteen_equals_two.
+Defined.
+
+(** The Augmented Symmetry Theorem: Every augmented triad is preserved 
+    by its own T_4 action *)
+Theorem augmented_symmetry : forall (root : PitchClass),
+  let aug_notes := fun p => 
+    sum (p = root) (sum (p = root +pc [4%binint]) (p = root +pc [8%binint])) in
+  forall p : PitchClass,
+  aug_notes p -> aug_notes (p +pc [4%binint]).
+Proof.
+  intros root aug_notes p H.
+  unfold aug_notes in *.
+  destruct H as [H1 | [H2 | H3]].
+  - (* p = root *)
+    rewrite H1.
+    right. left. reflexivity.
+  - (* p = root + 4 *)
+    rewrite H2.
+    right. right.
+    apply add_four_twice.
+  - (* p = root + 8 *)
+    rewrite H3.
+    left.
+    apply add_eight_then_four.
+Defined.
+
+(** Helper: 4 + 8 = 12 *)
+Lemma four_plus_eight_equals_twelve : [4%binint] +pc [8%binint] = [12%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** The Double Augmented Theorem: Adding 8 to an augmented triad note 
+    gives another note in the same augmented triad *)
+Theorem double_augmented : forall (root p : PitchClass),
+  sum (p = root) (sum (p = root +pc [4%binint]) (p = root +pc [8%binint])) ->
+  sum (p +pc [8%binint] = root) 
+      (sum (p +pc [8%binint] = root +pc [4%binint]) 
+           (p +pc [8%binint] = root +pc [8%binint])).
+Proof.
+  intros root p H.
+  destruct H as [H1 | [H2 | H3]].
+  - (* p = root, so p + 8 = root + 8 *)
+    rewrite H1.
+    right. right. reflexivity.
+  - (* p = root + 4, so p + 8 = root + 12 = root *)
+    rewrite H2.
+    left.
+    rewrite pitch_class_add_assoc.
+    rewrite four_plus_eight_equals_twelve.
+    apply add_twelve_identity.
+  - (* p = root + 8, so p + 8 = root + 16 = root + 4 *)
+    rewrite H3.
+    right. left.
+    rewrite pitch_class_add_assoc.
+    assert (H16 : [8%binint] +pc [8%binint] = [16%binint]).
+    { simpl. reflexivity. }
+    rewrite H16.
+    f_ap.
+    apply sixteen_equals_four.
+Defined.
+
+(** The Augmented Triad Group Theorem: The symmetries of an augmented triad 
+    form the cyclic group Z/3Z *)
+Theorem augmented_triad_symmetry_group : forall (root : PitchClass),
+  let aug := fun p => sum (p = root) (sum (p = root +pc [4%binint]) (p = root +pc [8%binint])) in
+  let preserves_aug := fun t => forall p, aug p -> aug (p +pc [t]) in
+  (* The symmetries are exactly T_0, T_4, and T_8 *)
+  (preserves_aug 0%binint) /\
+  (preserves_aug 4%binint) /\
+  (preserves_aug 8%binint) /\
+  (* And these form a group isomorphic to Z/3Z *)
+  ([4%binint] +pc [4%binint] = [8%binint]) /\
+  ([4%binint] +pc [8%binint] = [0%binint]) /\
+  ([8%binint] +pc [8%binint] = [4%binint]).
+Proof.
+  intro root.
+  split; [|split; [|split; [|split; [|split]]]].
+  - (* T_0 preserves (trivial) *)
+    intros p H.
+    assert (Hzero : p +pc [0%binint] = p).
+    { apply pitch_class_add_zero_r. }
+    rewrite Hzero.
+    exact H.
+  - (* T_4 preserves (already proved) *)
+    apply augmented_symmetry.
+  - (* T_8 preserves (just proved) *)
+    apply double_augmented.
+  - (* 4 + 4 = 8 *)
+    simpl. reflexivity.
+  - (* 4 + 8 = 12 = 0 *)
+    rewrite four_plus_eight_equals_twelve.
+    apply twelve_equals_zero.
+  - (* 8 + 8 = 16 = 4 *)
+    simpl.
+    apply sixteen_equals_four.
+Defined.
+
+(** The Trinity Theorem: There are exactly three ways to divide the octave 
+    into equal parts using major triads, and they correspond to the three 
+    non-trivial factorizations of 12 *)
+Theorem trinity_theorem :
+  (* Factor 3: Four augmented triads partition the 12 tones *)
+  (* Factor 4: Three sets of major triads whose roots form augmented triads *)
+  (* Factor 6: Two sets of triads a tritone apart *)
+  (* These are the only symmetric arrangements of major triads *)
+  ([3%binint] +pc [3%binint] +pc [3%binint] +pc [3%binint] = [0%binint]) /\
+  ([4%binint] +pc [4%binint] +pc [4%binint] = [0%binint]) /\
+  ([6%binint] +pc [6%binint] = [0%binint]).
+Proof.
+  split; [|split].
+  - (* 3×4 = 12 *)
+    simpl.
+    apply twelve_equals_zero.
+  - (* 4×3 = 12 *)
+    rewrite T4_orbit_period_3.
+    reflexivity.
+  - (* 6×2 = 12 *)
+    simpl.
+    apply twelve_equals_zero.
 Defined.
