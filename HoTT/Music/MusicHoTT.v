@@ -7000,14 +7000,19 @@ Proof.
     apply sixteen_equals_four.
 Defined.
 
+
+(** Helper: 4 + 4 + 4 = 12 *)
+Lemma four_three_times_equals_twelve : 
+  [4%binint] +pc [4%binint] +pc [4%binint] = [12%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
 (** The Trinity Theorem: There are exactly three ways to divide the octave 
     into equal parts using major triads, and they correspond to the three 
     non-trivial factorizations of 12 *)
 Theorem trinity_theorem :
-  (* Factor 3: Four augmented triads partition the 12 tones *)
-  (* Factor 4: Three sets of major triads whose roots form augmented triads *)
-  (* Factor 6: Two sets of triads a tritone apart *)
-  (* These are the only symmetric arrangements of major triads *)
   ([3%binint] +pc [3%binint] +pc [3%binint] +pc [3%binint] = [0%binint]) /\
   ([4%binint] +pc [4%binint] +pc [4%binint] = [0%binint]) /\
   ([6%binint] +pc [6%binint] = [0%binint]).
@@ -7017,8 +7022,8 @@ Proof.
     simpl.
     apply twelve_equals_zero.
   - (* 4×3 = 12 *)
-    rewrite T4_orbit_period_3.
-    reflexivity.
+    rewrite four_three_times_equals_twelve.
+    apply twelve_equals_zero.
   - (* 6×2 = 12 *)
     simpl.
     apply twelve_equals_zero.
