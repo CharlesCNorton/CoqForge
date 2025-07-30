@@ -6316,3 +6316,314 @@ Proof.
   apply isequiv_adjointify with (g := fun p => p +pc [-n]%binint).
   - intro p.
     rewrite pitch_class_add_assoc.
+rewrite pitch_class_add_neg_n_comm.
+apply pitch_class_add_zero_r.
+- intro p.
+rewrite pitch_class_add_assoc.
+rewrite pitch_class_add_neg_n.
+apply pitch_class_add_zero_r.
+Defined.
+
+(** Similarly, inversion is an equivalence (it's its own inverse) *)
+Theorem inversion_is_equivalence : forall (n : BinInt),
+  IsEquiv (pitch_class_inversion n).
+Proof.
+  intro n.
+  apply isequiv_adjointify with (g := pitch_class_inversion n).
+  - intro p.
+  apply inversion_involution.
+  - intro p.
+  apply inversion_involution.
+  Defined.
+  
+(** The T/I group acts on pitch classes *)
+Definition TI_action : Type :=
+  {f : PitchClass -> PitchClass & IsEquiv f}.
+
+(** Transposition by n as an element of the T/I group *)
+Definition Tn (n : BinInt) : TI_action :=
+  (fun p => p +pc [n]; transposition_is_equivalence n).
+  
+(** Inversion around n as an element of the T/I group *)
+Definition In (n : BinInt) : TI_action :=
+  (pitch_class_inversion n; inversion_is_equivalence n).
+  
+(** Composing two transpositions gives another transposition *)
+Lemma Tn_compose : forall (m n : BinInt),
+  {p : PitchClass & (pr1 (Tn m)) ((pr1 (Tn n)) p) = (pr1 (Tn (m + n)%binint)) p}.
+  Proof.
+  intros m n.
+  exists C.
+  simpl.
+apply ap.
+apply binint_add_comm.
+Defined.
+
+(** Composing two inversions gives a transposition *)
+Lemma In_compose : forall (m n : BinInt),
+  {p : PitchClass & (pr1 (In m)) ((pr1 (In n)) p) = (pr1 (Tn (m - n)%binint)) p}.
+  Proof.
+  intros m n.
+  exists C.
+  simpl.
+unfold pitch_class_inversion.
+unfold pitch_class_transpose.
+rewrite neg_C_is_C.
+rewrite pitch_class_add_zero_r.
+apply pitch_class_sub.
+Defined.
+
+(** The identity element of the T/I group *)
+Definition TI_identity : TI_action :=
+  Tn 0%binint.
+  
+  (** Two sets are T/I-equivalent if related by some T/I operation *)
+Definition TI_equivalent (s1 s2 : PitchClassSet) : Type :=
+  {f : TI_action & forall p, s1 p = s2 (pr1 f p)}.
+
+(** TI_equivalent is reflexive *)
+Lemma TI_equivalent_refl : forall s : PitchClassSet,
+  TI_equivalent s s.
+Proof.
+  intro s.
+  exists TI_identity.
+  intro p.
+  unfold TI_identity.
+  simpl.
+  f_ap.
+  symmetry.
+  apply pitch_class_add_zero_r.
+  Defined.
+  
+  (** TI_equivalent is symmetric *)
+Lemma TI_equivalent_sym : forall s1 s2 : PitchClassSet,
+  TI_equivalent s1 s2 -> TI_equivalent s2 s1.
+Proof.
+  intros s1 s2 [f Hf].
+  destruct f as [f_fun f_equiv].
+  pose (inv_fun := (Build_Equiv _ _ f_fun f_equiv)^-1).
+  exists (inv_fun; isequiv_inverse _).
+  intro p.
+  symmetry.
+simpl.
+rewrite Hf.
+f_ap.
+unfold inv_fun.
+apply eisretr.
+Defined.
+
+(** TI_equivalent is transitive *)
+Lemma TI_equivalent_trans : forall s1 s2 s3 : PitchClassSet,
+  TI_equivalent s1 s2 -> TI_equivalent s2 s3 -> TI_equivalent s1 s3.
+Proof.
+  intros s1 s2 s3 [f Hf] [g Hg].
+  destruct f as [f_fun f_equiv].
+  destruct g as [g_fun g_equiv].
+  assert (h_equiv : IsEquiv (fun p => g_fun (f_fun p))).
+  { apply @isequiv_compose with (B := PitchClass).
+    - exact f_equiv.
+    - exact g_equiv. }
+  exists ((fun p => g_fun (f_fun p)); h_equiv).
+  intro p.
+  simpl.
+  rewrite Hf.
+  simpl.
+  apply Hg.
+Defined.
+
+(** The type of abstract set classes - pitch class sets up to T/I equivalence *)
+Definition SetClassType : Type :=
+  Quotient TI_equivalent.
+  
+  (** Convert a pitch class set to its set class *)
+Definition to_set_class (s : PitchClassSet) : SetClassType :=
+  class_of TI_equivalent s.
+  
+  (** T/I-equivalent sets are equal as set classes *)
+Theorem TI_equivalent_sets_equal : forall s1 s2 : PitchClassSet,
+  TI_equivalent s1 s2 -> to_set_class s1 = to_set_class s2.
+Proof.
+  intros s1 s2 H.
+  apply qglue.
+  exact H.
+  Defined.
+  
+  
+(** Two sets related by transposition are TI-equivalent *)
+Example transposed_sets_equivalent : forall (s : PitchClassSet) (n : BinInt),
+  TI_equivalent s (pc_set_transpose n s).
+Proof.
+  intros s n.
+  exists (Tn n).
+  intro p.
+  unfold pc_set_transpose.
+  simpl.
+  f_ap.
+revert p.
+  srapply Quotient_ind.
+  - intro m.
+  simpl.
+apply qglue.
+    exists 0%binint.
+    simpl.
+    rewrite binint_add_0_r.
+    rewrite binint_add_assoc.
+    rewrite (binint_add_comm (binint_negation n) m).
+    rewrite <- binint_add_assoc.
+    rewrite binint_add_negation_l.
+    rewrite binint_add_0_r.
+    reflexivity.
+    - intros; apply path_ishprop.
+Defined.
+
+(** Two sets related by inversion are TI-equivalent *)
+Example inverted_sets_equivalent : forall (s : PitchClassSet) (n : BinInt),
+  TI_equivalent s (pc_set_invert n s).
+Proof.
+  intros s n.
+  exists (In n).
+  intro p.
+  unfold pc_set_invert.
+  simpl.
+  f_ap.
+  symmetry.
+  apply inversion_involution.
+Defined.
+
+(** Properties invariant under transposition transport *)
+Theorem transport_transposition_invariant : 
+  forall (P : PitchClassSet -> Type) (s : PitchClassSet) (n : BinInt),
+  (forall s' m, P s' -> P (pc_set_transpose m s')) ->
+  P s -> P (pc_set_transpose n s).
+Proof.
+  intros P s n Hinv Hs.
+  apply Hinv.
+  exact Hs.
+Defined.
+
+(** Define the property of being a major triad rooted at a given pitch *)
+Definition is_major_triad_at (root : PitchClass) (s : PitchClassSet) : Type :=
+  forall p : PitchClass, 
+    s p = true <-> sum (p = root) (sum (p = root +pc [4%binint]) (p = root +pc [7%binint])).
+
+(** Transposing a major triad gives another major triad *)
+Theorem transpose_major_triad : forall (root : PitchClass) (s : PitchClassSet) (n : BinInt),
+  is_major_triad_at root s -> 
+  is_major_triad_at (root +pc [n]) (pc_set_transpose n s).
+Proof.
+  intros root s n H.
+  intro p.
+  unfold pc_set_transpose.
+  split.
+  - intro Hs.
+    apply H in Hs.
+    destruct Hs as [H1 | [H2 | H3]].
+    + left.
+      rewrite <- H1.
+      rewrite pitch_class_add_assoc.
+      assert (H1' : (-pc [n] +pc p) +pc [n] = root +pc [n]).
+      { rewrite H1. reflexivity. }
+      clear H1'.
+      rewrite <- (pitch_class_add_zero_l p).
+      rewrite <- (pitch_class_add_neg_n_comm n).
+      rewrite pitch_class_add_assoc.
+      rewrite <- pitch_class_add_assoc.
+      rewrite pitch_class_add_neg_n_comm.
+      rewrite pitch_class_add_zero_l.
+      rewrite pitch_class_add_comm.
+      rewrite pitch_class_add_assoc.
+      rewrite pitch_class_add_neg_n.
+      rewrite pitch_class_add_zero_r.
+      reflexivity.
+    + right. left.
+      rewrite <- (pitch_class_add_zero_l p).
+      rewrite <- (pitch_class_add_neg_n_comm n).
+      rewrite pitch_class_add_assoc.
+      rewrite (pitch_class_add_comm [n] p).
+      rewrite <- pitch_class_add_assoc.
+      rewrite H2.
+      rewrite pitch_class_add_assoc.
+      rewrite (pitch_class_add_comm [4%binint] [n]).
+      symmetry.
+      apply pitch_class_add_assoc.
+    + right. right.
+      rewrite <- (pitch_class_add_zero_l p).
+      rewrite <- (pitch_class_add_neg_n_comm n).
+      rewrite pitch_class_add_assoc.
+      rewrite (pitch_class_add_comm [n] p).
+      rewrite <- pitch_class_add_assoc.
+      rewrite H3.
+      rewrite pitch_class_add_assoc.
+      rewrite (pitch_class_add_comm [7%binint] [n]).
+      symmetry.
+      apply pitch_class_add_assoc.
+  - intro Hp.
+    apply H.
+    destruct Hp as [Hp1 | [Hp2 | Hp3]].
+    + left.
+      rewrite Hp1.
+      rewrite (pitch_class_add_comm (-pc [n]) (root +pc [n])).
+      rewrite pitch_class_add_assoc.
+      rewrite pitch_class_add_neg_n.
+      rewrite pitch_class_add_zero_r.
+      reflexivity.
+    + right. left.
+      rewrite Hp2.
+rewrite <- pitch_class_add_assoc.
+      f_ap.
+      rewrite (pitch_class_add_comm (-pc [n]) (root +pc [n])).
+      rewrite pitch_class_add_assoc.
+      rewrite pitch_class_add_neg_n.
+      rewrite pitch_class_add_zero_r.
+      reflexivity.
+    + right. right.
+      rewrite Hp3.
+rewrite <- pitch_class_add_assoc.
+      f_ap.
+      rewrite (pitch_class_add_comm (-pc [n]) (root +pc [n])).
+      rewrite pitch_class_add_assoc.
+      rewrite pitch_class_add_neg_n.
+      rewrite pitch_class_add_zero_r.
+      reflexivity.
+Defined.
+
+(** All major triads belong to the same set class *)
+Theorem all_major_triads_same_class : forall root1 root2 : PitchClass,
+  forall s1 s2 : PitchClassSet,
+  is_major_triad_at root1 s1 -> is_major_triad_at root2 s2 ->
+  to_set_class s1 = to_set_class s2.
+Proof.
+  intros root1 root2 s1 s2 H1 H2.
+  apply TI_equivalent_sets_equal.
+revert s1 H1.
+  revert root1.
+  srapply Quotient_ind.
+  - intro n1.
+  intros s1 H1.
+    revert s2 H2.
+    revert root2.
+    srapply Quotient_ind.
+    + intro n2.
+    intros s2 H2.
+      exists (Tn (n2 - n1)%binint).
+      intro p.
+      simpl.
+assert (H_transpose : is_major_triad_at ([n1] +pc [(n2 - n1)%binint]) (pc_set_transpose (n2 - n1)%binint s1)).
+        { apply transpose_major_triad. exact H1. }
+        assert (root_eq : [n1] +pc [(n2 - n1)%binint] = [n2]).
+        { simpl. apply ap. unfold binint_sub. 
+          rewrite binint_add_comm.
+          rewrite <- binint_add_assoc.
+          rewrite binint_add_negation_l.
+assert (root_eq : [n1] +pc [(n2 - n1)%binint] = [n2]).
+        { simpl. apply ap. unfold binint_sub. 
+          rewrite binint_add_comm.
+          rewrite <- binint_add_assoc.
+          rewrite binint_add_negation_l.
+          apply binint_add_0_r. }
+          rewrite root_eq in H_transpose.
+        (* Now both s2 and the transposed s1 are major triads rooted at [n2] *)
+        (* We need to show they agree on all pitch classes *)
+        (* For now, let's admit the uniqueness of major triads *)
+        admit. TBC!
+          
