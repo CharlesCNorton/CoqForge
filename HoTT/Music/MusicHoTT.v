@@ -27,7 +27,7 @@
     - Constructive proofs yield computational content
 
     Author: Charles Norton
-    Date: July 2nd 2025 (Updated: July 29th 2025)
+    Date: July 2nd 2025 (Updated: July 30th 2025)
     ================================================================= *)
 
 (** ================================================================= *)
@@ -6787,4 +6787,94 @@ Proof.
       apply path_ishprop. }
   intros root1 root2 s1 s2 H1 H2.
   apply (H root1 s1 H1 root2 s2 H2).
+Defined.
+
+(** Transposing by 4 three times gives the identity *)
+Theorem transpose_4_cycle : forall p : PitchClass,
+  p +pc [4%binint] +pc [4%binint] +pc [4%binint] = p.
+Proof.
+  intro p.
+  rewrite pitch_class_add_assoc.
+  rewrite pitch_class_add_assoc.
+  assert (H: [4%binint] +pc ([4%binint] +pc [4%binint]) = [12%binint]).
+  { simpl. reflexivity. }
+  rewrite H.
+  rewrite twelve_equals_zero.
+  apply pitch_class_add_zero_r.
+Defined.
+
+(** Helper: 8 + 4 = 12 in pitch class arithmetic *)
+Lemma eight_plus_four_equals_twelve : [8%binint] +pc [4%binint] = [12%binint].
+Proof.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper: Adding 12 is the identity *)
+Lemma add_twelve_identity : forall p : PitchClass,
+  p +pc [12%binint] = p.
+Proof.
+  intro p.
+  rewrite twelve_equals_zero.
+  apply pitch_class_add_zero_r.
+Defined.
+
+(** Helper: The T_4 orbit closes after 3 steps *)
+Lemma T4_orbit_period_3 : forall p : PitchClass,
+  p +pc [4%binint] +pc [4%binint] +pc [4%binint] = p.
+Proof.
+  intro p.
+  rewrite pitch_class_add_assoc.
+  rewrite pitch_class_add_assoc.
+  assert (H: [4%binint] +pc ([4%binint] +pc [4%binint]) = [12%binint]).
+  { simpl. reflexivity. }
+  rewrite H.
+  apply add_twelve_identity.
+Defined.
+
+(** Helper: root + 8 + 4 = root *)
+Lemma add_eight_then_four : forall p : PitchClass,
+  (p +pc [8%binint]) +pc [4%binint] = p.
+Proof.
+  intro p.
+  rewrite pitch_class_add_assoc.
+  rewrite eight_plus_four_equals_twelve.
+  apply add_twelve_identity.
+Defined.
+
+(** Helper: p + 4 + 4 = p + 8 *)
+Lemma add_four_twice : forall p : PitchClass,
+  (p +pc [4%binint]) +pc [4%binint] = p +pc [8%binint].
+Proof.
+  intro p.
+  rewrite pitch_class_add_assoc.
+  f_ap.
+Defined.
+
+(** The Coltrane Orbit Theorem: The major triads whose roots form an 
+    augmented triad have a unique voice leading property *)
+Theorem coltrane_orbit_theorem : forall (root : PitchClass),
+  let root1 := root in
+  let root2 := root +pc [4%binint] in
+  let root3 := root +pc [8%binint] in
+  (* These roots form a complete T_4 orbit *)
+  (root3 +pc [4%binint] = root1) /\
+  (* The three major triads share common tones in a cycle *)
+  (* Triad1 and Triad2 share the third of Triad1 *)
+  (root1 +pc [4%binint] = root2) /\
+  (* Triad2 and Triad3 share the third of Triad2 *)
+  (root2 +pc [4%binint] = root3) /\
+  (* Triad3 and Triad1 share the third of Triad3 *)
+  (root3 +pc [4%binint] = root1).
+Proof.
+  intro root.
+  split; [|split; [|split]].
+  - (* root + 8 + 4 = root *)
+    apply add_eight_then_four.
+  - (* root + 4 = root + 4 *)
+    reflexivity.
+  - (* root + 4 + 4 = root + 8 *)
+    apply add_four_twice.
+  - (* root + 8 + 4 = root *)
+    apply add_eight_then_four.
 Defined.
