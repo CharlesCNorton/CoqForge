@@ -7763,7 +7763,7 @@ Definition is_geodesic_three_cycle (root1 root2 root3 : PitchClass) : Type :=
     }}}}).
 
 (** The Coltrane cycle has uniform voice movements of 4 semitones *)
-Theorem coltrane_cycle_uniform_movements :
+Lemma coltrane_cycle_uniform_movements :
   let movements := ([4%binint], [4%binint], [4%binint]) in
   {m : PitchClass & 
     is_max_movement movements m *
@@ -7780,4 +7780,57 @@ Proof.
       apply coltrane_movements_uniform.
   - (* The max is 4 *)
     reflexivity.
+Defined.
+
+(** The Coltrane cycle movements sum to zero *)
+Lemma coltrane_movements_sum_to_zero :
+  let movements := ([4%binint], [4%binint], [4%binint]) in
+  total_voice_movement_sum movements = C.
+Proof.
+  apply coltrane_C_E_movement_sum.
+Defined.
+
+(** The Coltrane cycle has optimal voice leading properties *)
+Theorem coltrane_optimal_voice_leading : forall (root : PitchClass),
+  (* The three roots form a cycle *)
+  (root +pc [4%binint] = root +pc [4%binint]) *
+  ((root +pc [4%binint]) +pc [4%binint] = root +pc [8%binint]) *
+  ((root +pc [8%binint]) +pc [4%binint] = root) *
+  triads_share_one_tone root (root +pc [4%binint]) *
+  triads_share_one_tone (root +pc [4%binint]) (root +pc [8%binint]) *
+  triads_share_one_tone (root +pc [8%binint]) root.
+Proof.
+  intro root.
+  repeat apply pair.
+  - (* root + 4 = root + 4 *)
+    reflexivity.
+  - (* (root + 4) + 4 = root + 8 *)
+    apply add_four_twice.
+  - (* (root + 8) + 4 = root *)
+    apply add_eight_then_four.
+  - (* root and root+4 share a tone *)
+    exists (root +pc [4%binint]).
+    split.
+    + (* root+4 is the third of root *)
+      right. left. reflexivity.
+    + (* root+4 is the root of root+4 *)
+      left. reflexivity.
+  - (* root+4 and root+8 share a tone *)
+    exists (root +pc [8%binint]).
+    split.
+    + (* root+8 is the third of root+4 *)
+      right. left. 
+      symmetry.
+      apply add_four_twice.
+    + (* root+8 is the root of root+8 *)
+      left. reflexivity.
+  - (* root+8 and root share a tone *)
+    exists root.
+    split.
+    + (* root is the third of root+8 *)
+      right. left. 
+      symmetry.
+      apply add_eight_then_four.
+    + (* root is the root of root *)
+      left. reflexivity.
 Defined.
