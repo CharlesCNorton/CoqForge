@@ -7761,3 +7761,23 @@ Definition is_geodesic_three_cycle (root1 root2 root3 : PitchClass) : Type :=
                               (sum ((our_max = [4%binint]) * sum (their_max = [5%binint]) (their_max = [6%binint]))
                                    ((our_max = [5%binint]) * (their_max = [6%binint])))))))
     }}}}).
+
+(** The Coltrane cycle has uniform voice movements of 4 semitones *)
+Theorem coltrane_cycle_uniform_movements :
+  let movements := ([4%binint], [4%binint], [4%binint]) in
+  {m : PitchClass & 
+    is_max_movement movements m *
+    uniform_movement movements *
+    (m = [4%binint])}.
+Proof.
+  exists [4%binint].
+  split.
+  - (* First prove is_max_movement and uniform_movement *)
+    split.
+    + (* 4 is the max of (4,4,4) *)
+      apply coltrane_C_E_max_is_4.
+    + (* The movements are uniform *)
+      apply coltrane_movements_uniform.
+  - (* The max is 4 *)
+    reflexivity.
+Defined.
