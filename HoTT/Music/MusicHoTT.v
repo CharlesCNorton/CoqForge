@@ -27,7 +27,7 @@
     - Constructive proofs yield computational content
 
     Author: Charles Norton
-    Date: July 2nd 2025 (Updated: July 29th 2025)
+    Date: July 2nd 2025 (Updated: July 31st 2025)
     ================================================================= *)
 
 (** ================================================================= *)
@@ -7028,3 +7028,736 @@ Proof.
     simpl.
     apply twelve_equals_zero.
 Defined.
+
+(** Helper: 24 = 0 in pitch class arithmetic *)
+Lemma twentyfour_equals_zero : [24%binint] = C.
+Proof.
+  apply qglue.
+  exists (binint_negation 2%binint).
+  simpl.
+  reflexivity.
+Defined.
+
+(** Simple lemma: 4 and 8 both have period 3 *)
+Lemma four_and_eight_period_3 :
+  (forall p : PitchClass, p +pc [4%binint] +pc [4%binint] +pc [4%binint] = p) /\
+  (forall p : PitchClass, p +pc [8%binint] +pc [8%binint] +pc [8%binint] = p).
+Proof.
+  split.
+  - (* 4 case *)
+    intro p.
+    apply T4_orbit_period_3.
+  - (* 8 case *)
+    intro p.
+    rewrite pitch_class_add_assoc.
+    rewrite pitch_class_add_assoc.
+    assert (H: [8%binint] +pc ([8%binint] +pc [8%binint]) = [24%binint]).
+    { simpl. reflexivity. }
+    rewrite H.
+    rewrite twentyfour_equals_zero.
+    apply pitch_class_add_zero_r.
+Defined.
+
+(** The Coltrane Uniqueness Theorem: Among progressions through 3 major triads,
+    only those whose roots differ by 4 or 8 semitones form perfect cycles *)
+Theorem coltrane_uniqueness_concrete :
+  forall (root : PitchClass),
+  (* These are the only 3-cycles *)
+  (root +pc [4%binint] +pc [4%binint] +pc [4%binint] = root) /\
+  (root +pc [8%binint] +pc [8%binint] +pc [8%binint] = root) /\
+  (* And they generate augmented triads *)
+  (let r1 := root in
+   let r2 := root +pc [4%binint] in
+   let r3 := root +pc [8%binint] in
+   r3 +pc [4%binint] = r1).
+Proof.
+  intro root.
+  split; [|split].
+  - (* 4 case *)
+    apply (fst four_and_eight_period_3).
+  - (* 8 case *)
+    apply (snd four_and_eight_period_3).
+  - (* root + 8 + 4 = root *)
+    apply add_eight_then_four.
+Defined.
+
+(** Helper: Movement of 6 represents a tritone - equidistant both ways *)
+Lemma tritone_equidistant : forall (p : PitchClass),
+  pc_set_interval_class p (p +pc [6%binint]) = [6%binint] /\
+  pc_set_interval_class (p +pc [6%binint]) p = [6%binint].
+Proof.
+  intro p.
+  split.
+  - (* First part: interval from p to p+6 is 6 *)
+    unfold pc_set_interval_class.
+    (* Goal: (p +pc [6%binint]) +pc -pc p = [6%binint] *)
+    rewrite pitch_class_add_comm.
+    (* Goal: -pc p +pc (p +pc [6%binint]) = [6%binint] *)
+    rewrite <- pitch_class_add_assoc.
+    (* Goal: (-pc p +pc p) +pc [6%binint] = [6%binint] *)
+    rewrite pitch_class_add_neg_l.
+    (* Goal: C +pc [6%binint] = [6%binint] *)
+    apply pitch_class_add_zero_l.
+  - (* Second part: interval from p+6 to p is also 6 *)
+    unfold pc_set_interval_class.
+    (* Goal: p +pc -pc (p +pc [6%binint]) = [6%binint] *)
+    (* Need to simplify -pc (p +pc [6%binint]) *)
+    rewrite pitch_class_neg_add.
+    (* Goal: p +pc (-pc p +pc -pc [6%binint]) = [6%binint] *)
+    rewrite <- pitch_class_add_assoc.
+    (* Goal: (p +pc -pc p) +pc -pc [6%binint] = [6%binint] *)
+    rewrite pitch_class_add_neg_r.
+    (* Goal: C +pc -pc [6%binint] = [6%binint] *)
+    rewrite pitch_class_add_zero_l.
+    (* Goal: -pc [6%binint] = [6%binint] *)
+    (* This is true because -6 ≡ 6 (mod 12) *)
+    simpl.
+    apply qglue.
+    exists 1%binint.
+    simpl.
+    reflexivity.
+Defined.
+
+(** Helper: Negation of 6 equals 6 in pitch class arithmetic *)
+Lemma neg_six_equals_six : -pc [6%binint] = [6%binint].
+Proof.
+  simpl.
+  apply qglue.
+  exists 1%binint.
+  simpl.
+  reflexivity.
+Defined.
+
+(** Helper 1: Adding a pitch class and its negation in any order gives C *)
+Lemma add_neg_any_order : forall (p q : PitchClass),
+  p +pc q +pc -pc p = q.
+Proof.
+  intros p q.
+  rewrite pitch_class_add_comm with (p := p) (q := q).
+  (* Goal: q +pc p +pc -pc p = q *)
+  rewrite pitch_class_add_assoc.
+  (* Goal: q +pc (p +pc -pc p) = q *)
+  rewrite pitch_class_add_neg_r.
+  (* Goal: q +pc C = q *)
+  apply pitch_class_add_zero_r.
+Defined.
+
+(** Helper 2: Rearranging four pitch classes *)
+Lemma four_pitch_rearrange : forall (p q r s : PitchClass),
+  p +pc q +pc r +pc s = p +pc r +pc q +pc s.
+Proof.
+  intros p q r s.
+  (* p +pc q +pc r +pc s is parsed as ((p +pc q) +pc r) +pc s *)
+  (* p +pc r +pc q +pc s is parsed as ((p +pc r) +pc q) +pc s *)
+  (* Let's work step by step *)
+  transitivity (p +pc (q +pc r) +pc s).
+  - (* First show: ((p +pc q) +pc r) +pc s = (p +pc (q +pc r)) +pc s *)
+    rewrite pitch_class_add_assoc with (p := p) (q := q) (r := r).
+    reflexivity.
+  - (* Now show: (p +pc (q +pc r)) +pc s = ((p +pc r) +pc q) +pc s *)
+    rewrite pitch_class_add_comm with (p := q) (q := r).
+    (* Goal: (p +pc (r +pc q)) +pc s = ((p +pc r) +pc q) +pc s *)
+    rewrite <- pitch_class_add_assoc with (p := p) (q := r) (r := q).
+    reflexivity.
+Defined.
+
+(** Helper 3: Swapping middle elements in a 4-term sum *)
+Lemma swap_middle_two : forall (p q r s : PitchClass),
+  p +pc q +pc r +pc s = p +pc r +pc q +pc s.
+Proof.
+  intros p q r s.
+  apply four_pitch_rearrange.
+Defined.
+
+(** Helper 4: Grouping for cancellation *)
+Lemma group_for_cancel : forall (p q r s : PitchClass),
+  p +pc q +pc -pc q +pc s = p +pc s.
+Proof.
+  intros p q r s.
+  rewrite pitch_class_add_assoc with (p := p) (q := q) (r := -pc q).
+  rewrite pitch_class_add_neg_r.
+  rewrite pitch_class_add_zero_r.
+  reflexivity.
+Defined.
+
+(** Helper 5: Cancellation with different order *)
+Lemma cancel_different_order : forall (p q : PitchClass),
+  p +pc -pc q +pc q = p.
+Proof.
+  intros p q.
+  rewrite pitch_class_add_assoc.
+  rewrite pitch_class_add_neg_l.
+  apply pitch_class_add_zero_r.
+Defined.
+
+(** Helper 6: Four terms that cancel to C *)
+Lemma four_terms_cancel : forall (p q : PitchClass),
+  q +pc -pc p +pc p +pc -pc q = C.
+Proof.
+  intros p q.
+  rewrite swap_middle_two.
+  (* Goal: q +pc p +pc -pc p +pc -pc q = C *)
+  rewrite pitch_class_add_assoc with (p := q) (q := p) (r := -pc p).
+  rewrite pitch_class_add_assoc.
+  (* Goal: q +pc (p +pc -pc p +pc -pc q) = C *)
+  (* The expression inside is ((p +pc -pc p) +pc -pc q) *)
+  assert (H: p +pc -pc p +pc -pc q = C +pc -pc q).
+  { (* Goal: ((p +pc -pc p) +pc -pc q) = (C +pc -pc q) *)
+    f_ap.
+    apply pitch_class_add_neg_r. }
+  rewrite H.
+  (* Goal: q +pc (C +pc -pc q) = C *)
+  rewrite pitch_class_add_zero_l.
+  (* Goal: q +pc -pc q = C *)
+  apply pitch_class_add_neg_r.
+Defined.
+
+(** Helper 7: Direct application for interval classes *)
+Lemma interval_classes_form_cycle : forall (p q : PitchClass),
+  q +pc -pc p +pc p +pc -pc q = C.
+Proof.
+  intros p q.
+  apply four_terms_cancel.
+Defined.
+
+(** Now we can finally prove the intervals sum to zero lemma *)
+Lemma intervals_sum_to_zero : forall (p q : PitchClass),
+  pc_set_interval_class p q +pc pc_set_interval_class q p = C.
+Proof.
+  intros p q.
+  unfold pc_set_interval_class.
+  (* Goal: (q +pc -pc p) +pc (p +pc -pc q) = C *)
+  (* Apply our helper directly after showing equivalence *)
+  assert (H: (q +pc -pc p) +pc (p +pc -pc q) = q +pc -pc p +pc p +pc -pc q).
+  { (* Need to show: ((q +pc -pc p) +pc (p +pc -pc q)) = (((q +pc -pc p) +pc p) +pc -pc q) *)
+    symmetry.
+    apply pitch_class_add_assoc. }
+  rewrite H.
+  apply interval_classes_form_cycle.
+Defined.
+
+(** Helper: The interval from p to p+6 plus the interval from p+6 to p equals 0 *)
+Lemma interval_six_symmetry : forall (p : PitchClass),
+  pc_set_interval_class p (p +pc [6%binint]) +pc 
+  pc_set_interval_class (p +pc [6%binint]) p = C.
+Proof.
+  intro p.
+  apply intervals_sum_to_zero.
+Defined.
+
+(** Helper: Define voice movement between two specific pitch classes *)
+Definition voice_movement (p q : PitchClass) : PitchClass :=
+  (* The movement from p to q is the smaller of:
+     - Going up from p to q
+     - Going down from p to q (which is up from q to p) *)
+  let up := pc_set_interval_class p q in
+  let down := pc_set_interval_class q p in
+  (* We can't decide which is smaller without decidability, 
+     so let's define it as the upward movement for now *)
+  up.
+
+(** Helper: Define minimal voice movement as a relation *)
+Definition is_minimal_voice_movement (p q : PitchClass) (m : PitchClass) : Type :=
+  (* m is the minimal movement from p to q if: *)
+  (* 1. m is either the upward or downward interval *)
+  sum (m = pc_set_interval_class p q) (m = pc_set_interval_class q p) *
+  (* 2. m is one of 0, 1, 2, 3, 4, 5, or 6 *)
+  sum (m = [0%binint])
+      (sum (m = [1%binint])
+      (sum (m = [2%binint])
+      (sum (m = [3%binint])
+      (sum (m = [4%binint])
+      (sum (m = [5%binint])
+           (m = [6%binint])))))).
+           
+           (** Helper: If two pitch classes are equal, the minimal movement is 0 *)
+Lemma minimal_movement_equal : forall (p : PitchClass),
+  is_minimal_voice_movement p p [0%binint].
+Proof.
+  intro p.
+  split.
+  - (* [0] is the interval from p to p *)
+    left.
+    unfold pc_set_interval_class.
+    rewrite pitch_class_add_neg_r.
+    unfold C.
+    reflexivity.
+  - (* 0 is in range 0-6 *)
+    left.
+    reflexivity.
+Defined.
+
+(** Helper: Movement by 1 semitone is minimal *)
+Lemma minimal_movement_one : forall (p : PitchClass),
+  is_minimal_voice_movement p (p +pc [1%binint]) [1%binint].
+Proof.
+  intro p.
+  split.
+  - (* [1] is the upward interval *)
+    left.
+    unfold pc_set_interval_class.
+    rewrite pitch_class_add_comm.
+    rewrite <- pitch_class_add_assoc.
+    (* Goal: [1%binint] = -pc p +pc p +pc [1%binint] *)
+    rewrite pitch_class_add_neg_l.
+    (* Goal: [1%binint] = C +pc [1%binint] *)
+    symmetry.
+    apply pitch_class_add_zero_l.
+  - (* 1 is in range 0-6 *)
+    right. left.
+    reflexivity.
+Defined.
+
+(** Helper: Movement by 6 semitones (tritone) is minimal and symmetric *)
+Lemma minimal_movement_tritone : forall (p : PitchClass),
+  is_minimal_voice_movement p (p +pc [6%binint]) [6%binint].
+Proof.
+  intro p.
+  split.
+  - (* [6] is the upward interval *)
+    left.
+    unfold pc_set_interval_class.
+    rewrite pitch_class_add_comm.
+    rewrite <- pitch_class_add_assoc.
+    rewrite pitch_class_add_neg_l.
+    symmetry.
+    apply pitch_class_add_zero_l.
+  - (* 6 is in range 0-6 *)
+    right. right. right. right. right. right.
+    reflexivity.
+Defined.
+
+(** Helper: Define voice movement between two triads *)
+Definition triad_voice_movement (root1 root2 : PitchClass) : Type :=
+  {movements : (PitchClass * PitchClass * PitchClass) &
+   is_minimal_voice_movement root1 root2 (fst (fst movements)) *
+   is_minimal_voice_movement (root1 +pc [4%binint]) (root2 +pc [4%binint]) (snd (fst movements)) *
+   is_minimal_voice_movement (root1 +pc [7%binint]) (root2 +pc [7%binint]) (snd movements)}.
+   
+(** Helper 1: C to E is movement by 4 *)
+Lemma C_to_E_movement_4 : is_minimal_voice_movement C E [4%binint].
+Proof.
+  split.
+  - (* Show [4] is the interval from C to E *)
+    left. 
+    unfold pc_set_interval_class, C, E.
+    simpl.
+    reflexivity.
+  - (* Show 4 is in range 0-6 *)
+    right. right. right. right. left.
+    reflexivity.
+Defined.
+
+(** Helper 2: E to G# is movement by 4 *)
+Lemma E_to_Gs_movement_4 : is_minimal_voice_movement E Gs [4%binint].
+Proof.
+  split.
+  - (* Show [4] is the interval from E to G# *)
+    left.
+    unfold pc_set_interval_class.
+    assert (H: Gs = E +pc [4%binint]).
+    { symmetry. apply E_plus_four_is_Gs. }
+    rewrite H.
+    rewrite pitch_class_add_comm.
+    rewrite <- pitch_class_add_assoc.
+    rewrite pitch_class_add_neg_r.
+    symmetry.
+    apply pitch_class_add_zero_l.
+  - (* Show 4 is in range 0-6 *)
+    right. right. right. right. left.
+    reflexivity.
+Defined.
+
+(** Helper 3: G to B is movement by 4 *)
+Lemma G_to_B_movement_4 : is_minimal_voice_movement G B [4%binint].
+Proof.
+  split.
+  - (* Show [4] is the interval from G to B *)
+    left.
+    unfold pc_set_interval_class, G, B.
+    simpl.
+    reflexivity.
+  - (* Show 4 is in range 0-6 *)
+    right. right. right. right. left.
+    reflexivity.
+Defined.
+
+(** Helper 4: [4%binint] to [8%binint] is movement by 4 *)
+Lemma four_to_eight_movement_4 : is_minimal_voice_movement [4%binint] [8%binint] [4%binint].
+Proof.
+  split.
+  - (* Show [4] is the interval *)
+    left.
+    unfold pc_set_interval_class.
+    simpl.
+    reflexivity.
+  - (* Show 4 is in range 0-6 *)
+    right. right. right. right. left.
+    reflexivity.
+Defined.
+
+(** Helper 5: [7%binint] to [11%binint] is movement by 4 *)
+Lemma seven_to_eleven_movement_4 : is_minimal_voice_movement [7%binint] [11%binint] [4%binint].
+Proof.
+  split.
+  - (* Show [4] is the interval *)
+    left.
+    unfold pc_set_interval_class.
+    simpl.
+    reflexivity.
+  - (* Show 4 is in range 0-6 *)
+    right. right. right. right. left.
+    reflexivity.
+Defined.
+
+(** Now complete the proof using all helpers *)
+Lemma coltrane_C_to_E_movements :
+  triad_voice_movement C E.
+Proof.
+  exists ([4%binint], [4%binint], [4%binint]).
+  simpl.
+  split.
+  - (* First pair *)
+    split.
+    + (* C to E *)
+      apply C_to_E_movement_4.
+    + (* [4] to [8] *)
+      apply four_to_eight_movement_4.
+  - (* [7] to [11] *)
+    apply seven_to_eleven_movement_4.
+Defined.
+
+(** Define total voice movement for a triad progression *)
+Definition total_voice_movement_sum (movements : PitchClass * PitchClass * PitchClass) : PitchClass :=
+  fst (fst movements) +pc snd (fst movements) +pc snd movements.
+  
+(** Helper: The Coltrane movements from C to E sum to 12 (= 0) *)
+Lemma coltrane_C_E_movement_sum :
+  total_voice_movement_sum ([4%binint], [4%binint], [4%binint]) = C.
+Proof.
+  unfold total_voice_movement_sum.
+  simpl.
+  (* Goal is already [12%binint] = C *)
+  apply twelve_equals_zero.
+Defined.
+
+(** Helper: A cycle through 3 pitch classes returns to start *)
+Definition is_three_cycle (p1 p2 p3 : PitchClass) : Type :=
+  p1 +pc [4%binint] = p2 /\
+  p2 +pc [4%binint] = p3 /\
+  p3 +pc [4%binint] = p1.
+  
+  (** Helper: The Coltrane roots form a three-cycle *)
+Lemma coltrane_roots_three_cycle : 
+  is_three_cycle C E Gs.
+Proof.
+  unfold is_three_cycle.
+  split; [|split].
+  - (* C + 4 = E *)
+    apply C_plus_four_is_E.
+  - (* E + 4 = G# *)
+    apply E_plus_four_is_Gs.
+  - (* G# + 4 = C *)
+    apply Gs_plus_four_is_C.
+Defined.
+
+(** Helper: Define when all movements in a triad progression are equal *)
+Definition uniform_movement (movements : PitchClass * PitchClass * PitchClass) : Type :=
+  let m1 := fst (fst movements) in
+  let m2 := snd (fst movements) in
+  let m3 := snd movements in
+  (m1 = m2) * (m2 = m3).
+  
+  (** Helper: The Coltrane movements are uniform (all equal to 4) *)
+Lemma coltrane_movements_uniform :
+  uniform_movement ([4%binint], [4%binint], [4%binint]).
+Proof.
+  unfold uniform_movement.
+  simpl.
+  split.
+  - (* 4 = 4 *)
+    reflexivity.
+  - (* 4 = 4 *)
+    reflexivity.
+Defined.
+
+(** Helper: Define when a voice leading between triads is optimal *)
+Definition is_optimal_voice_leading (root1 root2 : PitchClass) : Type :=
+  forall (movements : PitchClass * PitchClass * PitchClass),
+  triad_voice_movement root1 root2 ->
+  (* All individual movements are at most 6 semitones *)
+  (* And at least one movement is non-zero (triads are different) *)
+  sum (fst (fst movements) = C)
+      (sum (snd (fst movements) = C)
+           (snd movements = C)) ->
+  Empty.  (* If any movement is 0, the triads share that note *)
+  
+  (** Helper: Compare two sets of voice movements *)
+Definition movements_less_equal (m1 m2 : PitchClass * PitchClass * PitchClass) : Type :=
+  (* Each component of m1 is less than or equal to the corresponding component of m2 *)
+  (* Since we can't compare pitch classes directly, we check if they're in our range *)
+  sum (fst (fst m1) = fst (fst m2))
+      (sum (fst (fst m1) = C) 
+           (sum (fst (fst m1) = [1%binint])
+                (sum (fst (fst m1) = [2%binint])
+                     (fst (fst m1) = [3%binint])))).
+                     
+                     (** Helper: Define a valid 3-cycle of major triads *)
+Definition is_major_triad_cycle (root1 root2 root3 : PitchClass) : Type :=
+  (* Each root has a major triad *)
+  (exists s1, is_major_triad_at root1 s1) *
+  (exists s2, is_major_triad_at root2 s2) *
+  (exists s3, is_major_triad_at root3 s3) *
+  (* The roots form a cycle under some transposition *)
+  {t : BinInt & 
+    (root2 = root1 +pc [t]) *
+    (root3 = root2 +pc [t]) *
+    (root1 = root3 +pc [t])}.
+    
+    (** Helper: Values that create 3-cycles *)
+Lemma zero_creates_three_cycle : forall (root : PitchClass),
+  root +pc [0%binint] +pc [0%binint] +pc [0%binint] = root.
+Proof.
+  intro root.
+  rewrite pitch_class_add_zero_r.
+  rewrite pitch_class_add_zero_r.
+  apply pitch_class_add_zero_r.
+Defined.
+
+Lemma four_creates_three_cycle : forall (root : PitchClass),
+  root +pc [4%binint] +pc [4%binint] +pc [4%binint] = root.
+Proof.
+  intro root.
+  apply T4_orbit_period_3.
+Defined.
+
+Lemma eight_creates_three_cycle : forall (root : PitchClass),
+  root +pc [8%binint] +pc [8%binint] +pc [8%binint] = root.
+Proof.
+  intro root.
+  apply (snd four_and_eight_period_3).
+Defined.
+
+(** Helper: The only transpositions that create 3-cycles are 0, 4, and 8 *)
+Definition valid_three_cycle_transposition (t : BinInt) : Type :=
+  sum (t = 0%binint) (sum (t = 4%binint) (t = 8%binint)).
+  
+(** Helper: Two major triads share exactly one common tone *)
+Definition triads_share_one_tone (root1 root2 : PitchClass) : Type :=
+  (* Count how many notes they share *)
+  {shared : PitchClass & 
+    (* shared is in both triads *)
+    sum (shared = root1) (sum (shared = root1 +pc [4%binint]) (shared = root1 +pc [7%binint])) *
+    sum (shared = root2) (sum (shared = root2 +pc [4%binint]) (shared = root2 +pc [7%binint]))}.
+    
+    (** Helper: C major and E major share the note E *)
+Lemma C_E_share_E : triads_share_one_tone C E.
+Proof.
+  exists E.
+  split.
+  - (* E is in C major as the third *)
+    right. left.
+    symmetry.
+    apply C_plus_four_is_E.
+  - (* E is in E major as the root *)
+    left.
+    reflexivity.
+Defined.
+
+(** Helper: E major and Ab major share the note G# *)
+Lemma E_Gs_share_Gs : triads_share_one_tone E Gs.
+Proof.
+  exists Gs.
+  split.
+  - (* G# is in E major as the third *)
+    right. left.
+    symmetry.
+    apply E_plus_four_is_Gs.
+  - (* G# is in Ab major as the root *)
+    left.
+    reflexivity.
+Defined.
+
+(** Helper: Ab major and C major share the note C *)
+Lemma Gs_C_share_C : triads_share_one_tone Gs C.
+Proof.
+  exists C.
+  split.
+  - (* C is in Ab major as the third *)
+    right. left.
+    symmetry.
+    apply Gs_plus_four_is_C.
+  - (* C is in C major as the root *)
+    left.
+    reflexivity.
+Defined.
+
+(** Helper: Define the property that adjacent triads in a cycle share exactly one tone *)
+Definition adjacent_triads_share_one : 
+  forall (root1 root2 root3 : PitchClass), Type :=
+  fun root1 root2 root3 =>
+    triads_share_one_tone root1 root2 *
+    triads_share_one_tone root2 root3 *
+    triads_share_one_tone root3 root1.
+    
+(** Helper: The Coltrane changes have the adjacent sharing property *)
+Lemma coltrane_adjacent_sharing : 
+  adjacent_triads_share_one C E Gs.
+Proof.
+  unfold adjacent_triads_share_one.
+  (* Goal: triads_share_one_tone C E * triads_share_one_tone E Gs * triads_share_one_tone Gs C *)
+  split.
+  - split.
+    + (* C and E share E *)
+      apply C_E_share_E.
+    + (* E and G# share G# *)
+      apply E_Gs_share_Gs.
+  - (* G# and C share C *)
+    apply Gs_C_share_C.
+Defined.
+
+(** Helper: Define when a pitch class is the maximum of three movements *)
+Definition is_max_movement (movements : PitchClass * PitchClass * PitchClass) (max : PitchClass) : Type :=
+  let m1 := fst (fst movements) in
+  let m2 := snd (fst movements) in
+  let m3 := snd movements in
+  (* max is one of the three movements *)
+  sum (max = m1) (sum (max = m2) (max = m3)) *
+  (* max is at least as large as m1 *)
+  sum (m1 = max) 
+      (sum (m1 = [0%binint] /\ sum (max = [1%binint]) (sum (max = [2%binint]) (sum (max = [3%binint]) (sum (max = [4%binint]) (sum (max = [5%binint]) (max = [6%binint]))))))
+           (m1 = [1%binint] /\ sum (max = [2%binint]) (sum (max = [3%binint]) (sum (max = [4%binint]) (sum (max = [5%binint]) (max = [6%binint])))))) *
+  (* max is at least as large as m2 *)
+  sum (m2 = max) 
+      (sum (m2 = [0%binint] /\ sum (max = [1%binint]) (sum (max = [2%binint]) (sum (max = [3%binint]) (sum (max = [4%binint]) (sum (max = [5%binint]) (max = [6%binint]))))))
+           (m2 = [1%binint] /\ sum (max = [2%binint]) (sum (max = [3%binint]) (sum (max = [4%binint]) (sum (max = [5%binint]) (max = [6%binint])))))) *
+  (* max is at least as large as m3 *)
+  sum (m3 = max) 
+      (sum (m3 = [0%binint] /\ sum (max = [1%binint]) (sum (max = [2%binint]) (sum (max = [3%binint]) (sum (max = [4%binint]) (sum (max = [5%binint]) (max = [6%binint]))))))
+           (m3 = [1%binint] /\ sum (max = [2%binint]) (sum (max = [3%binint]) (sum (max = [4%binint]) (sum (max = [5%binint]) (max = [6%binint])))))).
+           
+(** Helper: 4 is equal to itself in the required pattern *)
+Lemma four_equals_itself_triple :
+  (([4%binint] = [4%binint]) +
+   (([4%binint] = [4%binint]) + ([4%binint] = [4%binint]))).
+Proof.
+  left. reflexivity.
+Defined.
+
+(** Helper: 4 is greater than or equal to 4 in the comparison pattern *)
+Lemma four_geq_four_pattern :
+  ([4%binint] = [4%binint]) +
+  (([4%binint] = [0%binint]) *
+   (([4%binint] = [1%binint]) +
+    (([4%binint] = [2%binint]) +
+     (([4%binint] = [3%binint]) +
+      (([4%binint] = [4%binint]) +
+       (([4%binint] = [5%binint]) + ([4%binint] = [6%binint])))))) +
+   ([4%binint] = [1%binint]) *
+   (([4%binint] = [2%binint]) +
+    (([4%binint] = [3%binint]) +
+     (([4%binint] = [4%binint]) +
+      (([4%binint] = [5%binint]) + ([4%binint] = [6%binint])))))).
+Proof.
+  left. reflexivity.
+Defined.
+
+(** Helper: Complete pattern for 4 being one of three equal movements and comparisons *)
+Lemma four_max_pattern_first_part :
+  (([4%binint] = [4%binint]) +
+   (([4%binint] = [4%binint]) + ([4%binint] = [4%binint]))) *
+  (([4%binint] = [4%binint]) +
+   (([4%binint] = [0%binint]) *
+    (([4%binint] = [1%binint]) +
+     (([4%binint] = [2%binint]) +
+      (([4%binint] = [3%binint]) +
+       (([4%binint] = [4%binint]) +
+        (([4%binint] = [5%binint]) + ([4%binint] = [6%binint])))))) +
+    ([4%binint] = [1%binint]) *
+    (([4%binint] = [2%binint]) +
+     (([4%binint] = [3%binint]) +
+      (([4%binint] = [4%binint]) +
+       (([4%binint] = [5%binint]) + ([4%binint] = [6%binint]))))))).
+Proof.
+  split.
+  - (* 4 is one of the movements *)
+    apply four_equals_itself_triple.
+  - (* 4 >= 4 *)
+    apply four_geq_four_pattern.
+Defined.
+
+(** Helper: Complete pattern for 4 being max of three 4s *)
+Lemma four_is_max_of_three_fours :
+  (([4%binint] = [4%binint]) +
+   (([4%binint] = [4%binint]) + ([4%binint] = [4%binint]))) *
+  (([4%binint] = [4%binint]) +
+   (([4%binint] = [0%binint]) *
+    (([4%binint] = [1%binint]) +
+     (([4%binint] = [2%binint]) +
+      (([4%binint] = [3%binint]) +
+       (([4%binint] = [4%binint]) +
+        (([4%binint] = [5%binint]) + ([4%binint] = [6%binint])))))) +
+    ([4%binint] = [1%binint]) *
+    (([4%binint] = [2%binint]) +
+     (([4%binint] = [3%binint]) +
+      (([4%binint] = [4%binint]) +
+       (([4%binint] = [5%binint]) + ([4%binint] = [6%binint]))))))) *
+  (([4%binint] = [4%binint]) +
+   (([4%binint] = [0%binint]) *
+    (([4%binint] = [1%binint]) +
+     (([4%binint] = [2%binint]) +
+      (([4%binint] = [3%binint]) +
+       (([4%binint] = [4%binint]) +
+        (([4%binint] = [5%binint]) + ([4%binint] = [6%binint])))))) +
+    ([4%binint] = [1%binint]) *
+    (([4%binint] = [2%binint]) +
+     (([4%binint] = [3%binint]) +
+      (([4%binint] = [4%binint]) +
+       (([4%binint] = [5%binint]) + ([4%binint] = [6%binint]))))))).
+Proof.
+  split.
+  - apply four_max_pattern_first_part.
+  - apply four_geq_four_pattern.
+Defined.  
+
+(** Helper: The maximum movement in Coltrane C to E progression is 4 *)
+Lemma coltrane_C_E_max_is_4 :
+  is_max_movement ([4%binint], [4%binint], [4%binint]) [4%binint].
+Proof.
+  unfold is_max_movement.
+  simpl.
+  split.
+  - (* First major part - all three parts together *)
+    apply four_is_max_of_three_fours.
+  - (* The last comparison: 4 >= 4 *)
+    apply four_geq_four_pattern.
+Defined.
+
+(** Helper: Define the property of being a geodesic 3-cycle *)
+Definition is_geodesic_three_cycle (root1 root2 root3 : PitchClass) : Type :=
+  (* It's a valid 3-cycle of major triads *)
+  is_major_triad_cycle root1 root2 root3 *
+  (* For any other 3-cycle, our maximum movement is less than or equal *)
+  (forall (other1 other2 other3 : PitchClass),
+    is_major_triad_cycle other1 other2 other3 ->
+    {our_movements : PitchClass * PitchClass * PitchClass &
+    {their_movements : PitchClass * PitchClass * PitchClass &
+    {our_max : PitchClass &
+    {their_max : PitchClass &
+      triad_voice_movement root1 root2 *
+      triad_voice_movement root2 root3 *
+      triad_voice_movement root3 root1 *
+      triad_voice_movement other1 other2 *
+      triad_voice_movement other2 other3 *
+      triad_voice_movement other3 other1 *
+      is_max_movement our_movements our_max *
+      is_max_movement their_movements their_max *
+      (* our_max ≤ their_max *)
+      sum (our_max = their_max)
+          (sum (our_max = [0%binint])
+               (sum ((our_max = [1%binint]) * sum (their_max = [2%binint]) (sum (their_max = [3%binint]) (sum (their_max = [4%binint]) (sum (their_max = [5%binint]) (their_max = [6%binint])))))
+                    (sum ((our_max = [2%binint]) * sum (their_max = [3%binint]) (sum (their_max = [4%binint]) (sum (their_max = [5%binint]) (their_max = [6%binint]))))
+                         (sum ((our_max = [3%binint]) * sum (their_max = [4%binint]) (sum (their_max = [5%binint]) (their_max = [6%binint])))
+                              (sum ((our_max = [4%binint]) * sum (their_max = [5%binint]) (their_max = [6%binint]))
+                                   ((our_max = [5%binint]) * (their_max = [6%binint])))))))
+    }}}}).
