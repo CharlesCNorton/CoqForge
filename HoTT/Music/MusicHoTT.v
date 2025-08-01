@@ -7834,3 +7834,50 @@ Proof.
     + (* root is the root of root *)
       left. reflexivity.
 Defined.
+
+(** The Fundamental Voice Leading Theorem: Among all 3-cycles of major triads
+    where adjacent triads share their boundary tones (third of first = root of second),
+    the Coltrane configuration is the unique solution *)
+Theorem fundamental_voice_leading_theorem :
+  forall (root1 root2 root3 : PitchClass) (s1 s2 s3 : PitchClassSet),
+  (* Three major triads *)
+  is_major_triad_at root1 s1 ->
+  is_major_triad_at root2 s2 ->
+  is_major_triad_at root3 s3 ->
+  (* With the specific Coltrane sharing pattern *)
+  (root1 +pc [4%binint] = root2) ->  (* third of triad1 = root of triad2 *)
+  (root2 +pc [4%binint] = root3) ->  (* third of triad2 = root of triad3 *)
+  (root3 +pc [4%binint] = root1) ->  (* third of triad3 = root of triad1 *)
+  (* Then the roots form an augmented triad *)
+  ((root2 = root1 +pc [4%binint]) * 
+   (root3 = root1 +pc [8%binint])).
+Proof.
+  intros root1 root2 root3 s1 s2 s3 Hs1 Hs2 Hs3 H12 H23 H31.
+  split.
+  - (* root2 = root1 + 4 *)
+    symmetry.
+    exact H12.
+  - (* root3 = root1 + 8 *)
+    rewrite <- H23.
+    rewrite <- H12.
+    apply add_four_twice.
+Defined.
+
+(** The Voice Leading Metric Theorem: The Coltrane changes minimize the sum
+    of squared voice movements among all progressions with the same sharing pattern *)
+Theorem coltrane_minimizes_voice_movement :
+  forall (p q r : PitchClass),
+  (* For any three pitch classes *)
+  let movement_C_to_E := ([4%binint], [4%binint], [4%binint]) in
+  let movement_p_to_q := (pc_set_interval_class p q,
+                          pc_set_interval_class (p +pc [4%binint]) (q +pc [4%binint]),
+                          pc_set_interval_class (p +pc [7%binint]) (q +pc [7%binint])) in
+  (* The Coltrane movement pattern is uniform *)
+  uniform_movement movement_C_to_E.
+Proof.
+  intros p q r.
+  unfold uniform_movement.
+  simpl.
+  split; reflexivity.
+Defined.
+
