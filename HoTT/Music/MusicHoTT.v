@@ -1,5 +1,5 @@
 (** ================================================================= *)
-(** A Full Formalization of Musical Set Theory in Homotopy Type Theory
+(** Foundations of Musical Set Theory in Homotopy Type Theory
     
     This library provides a foundation for formalizing mathematical
     music theory using Homotopy Type Theory (HoTT). By leveraging
