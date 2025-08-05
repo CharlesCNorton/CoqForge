@@ -4185,3 +4185,1694 @@ Proof.
   apply process_pixel_labels_unchanged.
   assumption.
 Qed.
+
+(** ** Labels Are Bounded By Next Label *)
+Theorem process_pixel_label_bound : forall img adj check_neighbors s c,
+  (forall c', labels s c' < next_label s) ->
+  get_pixel img c = true ->
+  let s' := process_pixel img adj check_neighbors s c in
+  labels s' c < next_label s'.
+Proof.
+  intros img adj check_neighbors s c Hbound Hpix.
+  simpl.
+  unfold process_pixel.
+  rewrite Hpix.
+  destruct (check_neighbors img c) eqn:Hcheck.
+  - simpl. rewrite coord_eqb_refl. lia.
+  - destruct (filter _ _) eqn:Hfilter.
+    + simpl. rewrite coord_eqb_refl. lia.
+    + simpl. rewrite coord_eqb_refl.
+      apply Nat.lt_le_trans with (m := next_label s).
+      * (* Show that fold_left Nat.min l0 n < next_label s *)
+        assert (Hn: n < next_label s).
+        { assert (In n (n :: l0)) by (left; reflexivity).
+          rewrite <- Hfilter in H.
+          apply filter_In in H.
+          destruct H as [Hin _].
+          apply in_map_iff in Hin.
+          destruct Hin as [c' [Heq Hin']].
+          subst n.
+          apply Hbound. }
+        assert (Hall: forall x, In x l0 -> x < next_label s).
+        { intros x Hx.
+          assert (In x (n :: l0)) by (right; assumption).
+          rewrite <- Hfilter in H.
+          apply filter_In in H.
+          destruct H as [Hin _].
+          apply in_map_iff in Hin.
+          destruct Hin as [c'' [Heq Hin']].
+          subst x.
+          apply Hbound. }
+        clear - Hn Hall.
+        generalize dependent n.
+        induction l0; intros n Hn.
+        -- simpl. assumption.
+        -- simpl. apply IHl0.
+           ++ intros x Hx. apply Hall. right. assumption.
+           ++ (* min n a < next_label s when both are *)
+              destruct (Nat.min_dec n a) as [Hmin | Hmin]; rewrite Hmin.
+              ** assumption.
+              ** apply Hall. left. reflexivity.
+      * reflexivity.
+Qed.
+
+(** ** All Pixels Get Labeled After Processing *)
+Theorem ccl_pass_complete_labeling : forall img adj check_neighbors c,
+  in_bounds img c = true ->
+  let s := ccl_pass img adj check_neighbors in
+  (get_pixel img c = false /\ labels s c = 0) \/
+  (get_pixel img c = true /\ labels s c > 0).
+Proof.
+  intros img adj check_neighbors c Hbound.
+  simpl.
+  destruct (get_pixel img c) eqn:Hpix.
+  - right. split.
+    + reflexivity.
+    + apply ccl_pass_labels_foreground; assumption.
+  - left. split.
+    + reflexivity.
+    + apply ccl_pass_labels_background_zero. assumption.
+Qed.
+
+(** ** Resolution Preserves Label Positivity *)
+Theorem resolve_labels_preserves_positivity : forall img adj check_neighbors c,
+  get_pixel img c = true ->
+  in_bounds img c = true ->
+  let s := ccl_pass img adj check_neighbors in
+  labels s c > 0 ->
+  resolve_labels (equiv s) (labels s) c > 0.
+Proof.
+  intros img adj check_neighbors c Hfg Hbound.
+  simpl.
+  intro Hpos.
+  apply resolve_labels_positive.
+  - assumption.
+  - intros n Hn.
+    assert (n <> 0) by lia.
+    assert (uf_find (equiv (ccl_pass img adj check_neighbors)) n <> 0).
+    { apply ccl_pass_preserves_full_nonzero. assumption. }
+    lia.
+Qed.
+
+(** ** Initial State Has Expected Properties *)
+Theorem initial_state_properties : 
+  equiv initial_state = uf_init /\
+  next_label initial_state = 1 /\
+  (forall c, labels initial_state c = 0).
+Proof.
+  split; [|split].
+  - reflexivity.
+  - reflexivity.
+  - intro c. reflexivity.
+Qed.
+
+(** ** Labels Stay Bounded Throughout Processing *)
+Theorem fold_process_label_bounds : forall img adj check_neighbors coords s,
+  (forall c, labels s c < next_label s) ->
+  let s' := fold_left (process_pixel img adj check_neighbors) coords s in
+  forall c, labels s' c < next_label s'.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|c cs IH]; intros s Hbound.
+  - simpl. assumption.
+  - simpl. intros c'.
+    apply IH.
+    intros c''.
+    destruct (coord_eqb c c'') eqn:Heq.
+    + (* c'' = c *)
+      apply coord_eqb_true_iff in Heq. subst c''.
+      destruct (get_pixel img c) eqn:Hpix.
+      * apply process_pixel_label_bound; assumption.
+      * rewrite process_pixel_background_unchanged; [|assumption].
+        apply Hbound.
+    + (* c'' ≠ c *)
+      rewrite process_pixel_labels_unchanged.
+      * apply Nat.lt_le_trans with (m := next_label s).
+        -- apply Hbound.
+        -- apply process_pixel_next_label_monotonic.
+      * intro H. subst c''. rewrite coord_eqb_refl in Heq. discriminate.
+Qed.
+
+(** ** CCL Pass Produces Valid Label Range *)
+Theorem ccl_pass_label_range : forall img adj check_neighbors c,
+  let s := ccl_pass img adj check_neighbors in
+  labels s c = 0 \/ (0 < labels s c < next_label s).
+Proof.
+  intros img adj check_neighbors c.
+  simpl.
+  assert (Hbound: forall c, labels (ccl_pass img adj check_neighbors) c < 
+                            next_label (ccl_pass img adj check_neighbors)).
+  { apply fold_process_label_bounds.
+    intros c'. unfold initial_state, empty_labeling. simpl. lia. }
+  specialize (Hbound c).
+  destruct (labels (ccl_pass img adj check_neighbors) c) eqn:Hl.
+  - left. reflexivity.
+  - right. split; lia.
+Qed.
+
+(** ** Background and Foreground Partition *)
+Theorem ccl_pass_partition : forall img adj check_neighbors,
+  let s := ccl_pass img adj check_neighbors in
+  forall c1 c2,
+    (labels s c1 = 0 /\ labels s c2 = 0) \/
+    (labels s c1 > 0 /\ labels s c2 = 0) \/
+    (labels s c1 = 0 /\ labels s c2 > 0) \/
+    (labels s c1 > 0 /\ labels s c2 > 0).
+Proof.
+  intros img adj check_neighbors.
+  simpl.
+  intros c1 c2.
+  destruct (ccl_pass_label_range img adj check_neighbors c1) as [H1 | H1];
+  destruct (ccl_pass_label_range img adj check_neighbors c2) as [H2 | H2].
+  - left. split; assumption.
+  - right. right. left. split.
+    + assumption.
+    + destruct H2. lia.
+  - right. left. split.
+    + destruct H1. lia.
+    + assumption.
+  - right. right. right. 
+    destruct H1, H2. split; lia.
+Qed.
+
+(** ** Equivalence Is Monotonic Through Processing *)
+Theorem ccl_pass_equiv_monotonic : forall img adj check_neighbors coords_prefix coords_suffix,
+  let s1 := fold_left (process_pixel img adj check_neighbors) coords_prefix initial_state in
+  let s2 := fold_left (process_pixel img adj check_neighbors) (coords_prefix ++ coords_suffix) initial_state in
+  forall l1 l2,
+    uf_same_set (equiv s1) l1 l2 = true ->
+    uf_same_set (equiv s2) l1 l2 = true.
+Proof.
+  intros img adj check_neighbors coords_prefix coords_suffix.
+  simpl.
+  intros l1 l2 H.
+  rewrite fold_left_app.
+  apply fold_process_preserves_equiv.
+  assumption.
+Qed.
+
+(** ** Processing Respects Coordinate Bounds *)
+Theorem process_pixel_respects_bounds : forall img adj check_neighbors s c,
+  (forall c', in_bounds img c' = false -> labels s c' = 0) ->
+  forall c', in_bounds img c' = false -> 
+    labels (process_pixel img adj check_neighbors s c) c' = 0.
+Proof.
+  intros img adj check_neighbors s c Hinv c' Hout.
+  destruct (coord_eqb c c') eqn:Heq.
+  - (* c = c' *)
+    apply coord_eqb_true_iff in Heq. subst c'.
+    unfold process_pixel.
+    assert (get_pixel img c = false).
+    { unfold get_pixel. rewrite Hout. reflexivity. }
+    rewrite H. apply Hinv. assumption.
+  - (* c ≠ c' *)
+    rewrite process_pixel_labels_unchanged.
+    + apply Hinv. assumption.
+    + intro H. subst c'. rewrite coord_eqb_refl in Heq. discriminate.
+Qed.
+
+(** ** Fold Preserves Bounds Invariant *)
+Theorem fold_process_respects_bounds : forall img adj check_neighbors coords s,
+  (forall c', in_bounds img c' = false -> labels s c' = 0) ->
+  forall c', in_bounds img c' = false -> 
+    labels (fold_left (process_pixel img adj check_neighbors) coords s) c' = 0.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|c cs IH]; intros s Hinv c' Hout.
+  - simpl. apply Hinv. assumption.
+  - simpl. apply IH.
+    + intros c'' Hout'.
+      apply process_pixel_respects_bounds.
+      * assumption.
+      * assumption.
+    + assumption.
+Qed.
+
+(** ** Bridge Theorem: Equivalence Classes Are Connected Components *)
+
+(** Simpler approach: show that adjacent pixels in same component *)
+Lemma process_pixel_adjacent_in_component : forall img adj check_neighbors s c,
+  (forall c', In c' (check_neighbors img c) -> 
+    get_pixel img c' = true /\ adj c' c = true /\ raster_lt c' c = true) ->
+  get_pixel img c = true ->
+  next_label s > 0 ->
+  forall c', In c' (check_neighbors img c) ->
+    labels s c' > 0 ->
+    let s' := process_pixel img adj check_neighbors s c in
+    uf_same_set (equiv s') (labels s' c) (labels s c') = true.
+Proof.
+  intros img adj check_neighbors s c Hcheck Hpix Hnext c' Hin Hpos.
+  simpl.
+  apply process_pixel_creates_adjacency_equiv; assumption.
+Qed.
+
+(** ** CCL Pass Only Labels In-Bounds Pixels *)
+Theorem ccl_pass_respects_bounds : forall img adj check_neighbors c,
+  in_bounds img c = false ->
+  labels (ccl_pass img adj check_neighbors) c = 0.
+Proof.
+  intros img adj check_neighbors c Hout.
+  unfold ccl_pass.
+  apply fold_process_respects_bounds.
+  - intros c' Hout'.
+    unfold initial_state, empty_labeling.
+    reflexivity.
+  - assumption.
+Qed.
+
+(** ** Resolution and Compaction Preserve Equivalences *)
+Theorem compact_preserves_equiv : forall u l max_label c1 c2,
+  uf_same_set u (l c1) (l c2) = true ->
+  l c1 > 0 ->
+  l c2 > 0 ->
+  let resolved := resolve_labels u l in
+  compact_labels u resolved max_label c1 = compact_labels u resolved max_label c2.
+Proof.
+  intros u l max_label c1 c2 Hequiv Hpos1 Hpos2.
+  simpl.
+  unfold compact_labels.
+  unfold resolve_labels in *.
+  unfold uf_same_set in Hequiv.
+  apply Nat.eqb_eq in Hequiv.
+  rewrite Hequiv.
+  reflexivity.
+Qed.
+
+(** ** Final Algorithm Preserves Basic Partition *)
+Theorem ccl_algorithm_basic_partition : forall img adj check_neighbors,
+  let final := ccl_algorithm img adj check_neighbors in
+  forall c,
+    in_bounds img c = false -> final c = 0.
+Proof.
+  intros img adj check_neighbors.
+  simpl.
+  intros c Hout.
+  unfold ccl_algorithm.
+  apply compact_labels_preserves_background.
+  apply resolve_labels_zero.
+  - apply ccl_pass_respects_bounds. assumption.
+  - apply ccl_pass_preserves_zero.
+Qed.
+
+(** ** CCL Algorithms Preserve Foreground/Background Partition *)
+Theorem ccl_4_preserves_partition : forall img c,
+  get_pixel img c = false -> ccl_4 img c = 0.
+Proof.
+  intros img c Hbg.
+  apply ccl_4_background.
+  assumption.
+Qed.
+
+Theorem ccl_8_preserves_partition : forall img c,
+  get_pixel img c = false -> ccl_8 img c = 0.
+Proof.
+  intros img c Hbg.
+  apply ccl_8_background.
+  assumption.
+Qed.
+
+(** ** Both Algorithms Agree on Background *)
+Theorem ccl_4_8_agree_on_background : forall img c,
+  get_pixel img c = false ->
+  ccl_4 img c = ccl_8 img c.
+Proof.
+  intros img c Hbg.
+  rewrite ccl_4_background; [|assumption].
+  rewrite ccl_8_background; [|assumption].
+  reflexivity.
+Qed.
+
+(** ** Empty Image Gets All Zeros *)
+Theorem ccl_4_empty_image : forall w h c,
+  let img := mkImage w h (fun _ => false) in
+  ccl_4 img c = 0.
+Proof.
+  intros w h c.
+  simpl.
+  apply ccl_4_background.
+  unfold get_pixel.
+  destruct (in_bounds _ _); reflexivity.
+Qed.
+
+Theorem ccl_8_empty_image : forall w h c,
+  let img := mkImage w h (fun _ => false) in
+  ccl_8 img c = 0.
+Proof.
+  intros w h c.
+  simpl.
+  apply ccl_8_background.
+  unfold get_pixel.
+  destruct (in_bounds _ _); reflexivity.
+Qed.
+
+(** ** Adjacent Pixels Same Component for Symmetric Adjacency *)
+Theorem adjacent_same_component_eventually : forall img adj check_neighbors c1 c2,
+  (forall a b, adj a b = adj b a) ->
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  adj c1 c2 = true ->
+  in_bounds img c1 = true ->
+  in_bounds img c2 = true ->
+  let s := ccl_pass img adj check_neighbors in
+  (* Eventually they should be in same component, but we can't prove it yet without the bridge theorem *)
+  labels s c1 > 0 /\ labels s c2 > 0.
+Proof.
+  intros img adj check_neighbors c1 c2 Hsym Hfg1 Hfg2 Hadj Hbound1 Hbound2.
+  simpl.
+  split.
+  - apply ccl_pass_labels_foreground; assumption.
+  - apply ccl_pass_labels_foreground; assumption.
+Qed.
+
+(** ** All Foreground Pixels Get Some Label *)
+Theorem ccl_pass_complete_coverage : forall img adj check_neighbors,
+  let s := ccl_pass img adj check_neighbors in
+  forall c, in_bounds img c = true ->
+    (get_pixel img c = true -> labels s c > 0) /\
+    (get_pixel img c = false -> labels s c = 0).
+Proof.
+  intros img adj check_neighbors.
+  simpl.
+  intros c Hbound.
+  split.
+  - intro Hfg. apply ccl_pass_labels_foreground; assumption.
+  - intro Hbg. apply ccl_pass_labels_background_zero; assumption.
+Qed.
+
+(** ** Labels Form a Contiguous Range Starting at 1 *)
+Theorem ccl_pass_labels_range_contiguous : forall img adj check_neighbors,
+  let s := ccl_pass img adj check_neighbors in
+  forall c, labels s c <= next_label s - 1.
+Proof.
+  intros img adj check_neighbors.
+  simpl.
+  intro c.
+  assert (Hbound: labels (ccl_pass img adj check_neighbors) c < 
+                  next_label (ccl_pass img adj check_neighbors)).
+  { apply fold_process_label_bounds.
+    intros c'. unfold initial_state, empty_labeling. simpl. lia. }
+  lia.
+Qed.
+
+(** ** Processing Order Doesn't Affect Background *)
+Theorem process_pixel_order_independent_background : forall img adj check_neighbors c1 c2 s c,
+  get_pixel img c1 = false ->
+  get_pixel img c2 = false ->
+  c1 <> c2 ->
+  labels (process_pixel img adj check_neighbors 
+           (process_pixel img adj check_neighbors s c1) c2) c =
+  labels (process_pixel img adj check_neighbors 
+           (process_pixel img adj check_neighbors s c2) c1) c.
+Proof.
+  intros img adj check_neighbors c1 c2 s c Hbg1 Hbg2 Hneq.
+  repeat rewrite process_pixel_background_unchanged; auto.
+Qed.
+
+(** ** Equivalence Only Grows During Processing *)
+Theorem process_pixel_equiv_monotonic : forall img adj check_neighbors s c l1 l2,
+  uf_same_set (equiv s) l1 l2 = true ->
+  uf_same_set (equiv (process_pixel img adj check_neighbors s c)) l1 l2 = true.
+Proof.
+  intros img adj check_neighbors s c l1 l2 H.
+  apply process_pixel_preserves_equiv.
+  assumption.
+Qed.
+
+(** ** Isolated Pixels Get Fresh Labels *)
+Theorem isolated_pixel_fresh_label : forall img adj check_neighbors s c,
+  get_pixel img c = true ->
+  check_neighbors img c = [] ->
+  next_label s > 0 ->
+  let s' := process_pixel img adj check_neighbors s c in
+  labels s' c = next_label s /\
+  next_label s' = S (next_label s).
+Proof.
+  intros img adj check_neighbors s c Hfg Hno_neighbors Hnext.
+  simpl.
+  unfold process_pixel.
+  rewrite Hfg, Hno_neighbors.
+  simpl.
+  split.
+  - rewrite coord_eqb_refl. reflexivity.
+  - reflexivity.
+Qed.
+
+(** ** Labels Only Increase By One At Most *)
+Theorem process_pixel_next_label_increment : forall img adj check_neighbors s c,
+  next_label (process_pixel img adj check_neighbors s c) <= S (next_label s).
+Proof.
+  intros img adj check_neighbors s c.
+  unfold process_pixel.
+  destruct (get_pixel img c).
+  - destruct (check_neighbors img c).
+    + simpl. reflexivity.
+    + destruct (filter _ _).
+      * simpl. reflexivity.
+      * simpl. lia.
+  - lia.
+Qed.
+
+(** ** Total Label Count Is Bounded *)
+Theorem ccl_pass_label_count_bound : forall img adj check_neighbors,
+  let s := ccl_pass img adj check_neighbors in
+  next_label s <= S (length (all_coords img)).
+Proof.
+  intros img adj check_neighbors.
+  simpl.
+  unfold ccl_pass.
+  assert (Hmon: forall coords s,
+    next_label (fold_left (process_pixel img adj check_neighbors) coords s) <=
+    next_label s + length coords).
+  { intros coords.
+    induction coords as [|c cs IH]; intro s0.
+    - simpl. lia.
+    - simpl. 
+      apply Nat.le_trans with (m := next_label (process_pixel img adj check_neighbors s0 c) + length cs).
+      + apply IH.
+      + assert (next_label (process_pixel img adj check_neighbors s0 c) <= S (next_label s0)).
+        { apply process_pixel_next_label_increment. }
+        lia. }
+  specialize (Hmon (all_coords img) initial_state).
+  unfold initial_state.
+  simpl in *.
+  assumption.
+Qed.
+
+(** ** Same Label After Resolution Means Same Equivalence Class *)
+Theorem same_resolved_label_same_equiv : forall img adj check_neighbors c1 c2,
+  let s := ccl_pass img adj check_neighbors in
+  let resolved := resolve_labels (equiv s) (labels s) in
+  resolved c1 > 0 ->
+  resolved c1 = resolved c2 ->
+  uf_same_set (equiv s) (labels s c1) (labels s c2) = true.
+Proof.
+  intros img adj check_neighbors c1 c2.
+  simpl.
+  intros Hpos Heq.
+  unfold resolve_labels in *.
+  unfold uf_same_set.
+  apply Nat.eqb_eq.
+  congruence.
+Qed.
+
+(** ** Adjacent Pixels Have Raster Order *)
+Lemma adjacent_pixels_ordered : forall c1 c2,
+  adjacent_4 c1 c2 = true ->
+  c1 <> c2 ->
+  raster_lt c1 c2 = true \/ raster_lt c2 c1 = true.
+Proof.
+  intros c1 c2 Hadj Hneq.
+  apply raster_lt_total.
+  assumption.
+Qed.
+
+(** ** Adjacent Pixels Are Never Equal *)
+Lemma adjacent_4_neq : forall c1 c2,
+  adjacent_4 c1 c2 = true ->
+  c1 <> c2.
+Proof.
+  intros c1 c2 Hadj Heq.
+  subst c2.
+  rewrite adjacent_4_irrefl in Hadj.
+  discriminate.
+Qed.
+
+(** ** Earlier Adjacent Pixel Is in Check Prior Neighbors *)
+Lemma adjacent_in_check_prior : forall img c1 c2,
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  adjacent_4 c1 c2 = true ->
+  raster_lt c1 c2 = true ->
+  In c1 (check_prior_neighbors_4 img c2).
+Proof.
+  intros img c1 c2 Hfg1 Hfg2 Hadj Horder.
+  unfold check_prior_neighbors_4.
+  apply filter_In.
+  split.
+  - apply prior_neighbors_4_complete; assumption.
+  - apply andb_true_intro. split; assumption.
+Qed.
+
+(** ** Processing Creates Equivalence With Prior Neighbors *)
+Theorem process_pixel_equiv_with_prior : forall img adj check_neighbors s c c',
+  next_label s > 0 ->
+  get_pixel img c = true ->
+  In c' (check_neighbors img c) ->
+  labels s c' > 0 ->
+  labels s c = 0 ->  (* c hasn't been labeled yet *)
+  let s' := process_pixel img adj check_neighbors s c in
+  uf_same_set (equiv s') (labels s' c) (labels s c') = true.
+Proof.
+  intros img adj check_neighbors s c c' Hnext Hpix Hin Hpos Hunlabeled.
+  simpl.
+  unfold process_pixel.
+  rewrite Hpix.
+  destruct (check_neighbors img c) as [|n ns] eqn:Hcheck.
+  - (* No neighbors - contradiction *)
+    simpl in Hin. contradiction.
+  - (* Has neighbors *)
+    destruct (filter (fun l => negb (l =? 0)) (map (labels s) (n :: ns))) as [|l ls] eqn:Hfilter.
+    + (* No positive labels - contradiction *)
+      assert (In (labels s c') (map (labels s) (n :: ns))).
+      { apply in_map. assumption. }
+      assert (In (labels s c') (filter (fun l => negb (l =? 0)) (map (labels s) (n :: ns)))).
+      { apply filter_In. split.
+        - assumption.
+        - apply negb_true_iff. apply Nat.eqb_neq. lia. }
+      rewrite Hfilter in H0. simpl in H0. contradiction.
+    + (* Has positive labels *)
+      simpl.
+      rewrite coord_eqb_refl.
+      
+      (* c gets min_label, and c' is one of the neighbors *)
+      remember (fold_left Nat.min ls l) as min_label.
+      
+      (* labels s c' is in the positive labels list *)
+      assert (In (labels s c') (l :: ls)).
+      { rewrite <- Hfilter.
+        apply filter_In. split.
+        - apply in_map. assumption.
+        - apply negb_true_iff. apply Nat.eqb_neq. lia. }
+      
+      (* After fold_left, min_label is equivalent to labels s c' *)
+      assert (uf_same_set 
+               (fold_left (fun u' l' => record_adjacency u' min_label l') (l :: ls) (equiv s))
+               min_label (labels s c') = true).
+      { apply fold_record_adjacency_creates.
+        - (* min_label > 0 *)
+          subst min_label.
+          apply fold_min_positive.
+          + (* l > 0 *)
+            assert (In l (l :: ls)) by (left; reflexivity).
+            rewrite <- Hfilter in H0.
+            apply filter_positive_labels in H0. assumption.
+          + (* all elements positive *)
+            intros x Hx.
+            assert (In x (l :: ls)) by (right; assumption).
+            rewrite <- Hfilter in H0.
+            apply filter_positive_labels in H0. assumption.
+        - (* all labels positive *)
+          intros l' Hl'.
+          assert (In l' (l :: ls)) by assumption.
+          rewrite <- Hfilter in H0.
+          apply filter_positive_labels in H0. assumption.
+        - assumption. }
+      assumption.
+Qed.
+
+(** ** Processing Creates Equivalence Between All Prior Neighbors *)
+Theorem process_pixel_all_neighbors_equiv : forall img adj check_neighbors s c c1 c2,
+  next_label s > 0 ->
+  get_pixel img c = true ->
+  In c1 (check_neighbors img c) ->
+  In c2 (check_neighbors img c) ->
+  labels s c1 > 0 ->
+  labels s c2 > 0 ->
+  labels s c = 0 ->
+  let s' := process_pixel img adj check_neighbors s c in
+  uf_same_set (equiv s') (labels s c1) (labels s c2) = true.
+Proof.
+  intros img adj check_neighbors s c c1 c2 Hnext Hpix Hin1 Hin2 Hpos1 Hpos2 Hunlabeled.
+  simpl.
+  apply process_pixel_equiv_neighbors; assumption.
+Qed.
+
+(** ** Chain of Equivalences Through Processing *)
+Theorem equiv_chain_through_processing : forall img adj check_neighbors s c c1 c2,
+  next_label s > 0 ->
+  get_pixel img c = true ->
+  In c1 (check_neighbors img c) ->
+  In c2 (check_neighbors img c) ->
+  labels s c1 > 0 ->
+  labels s c2 > 0 ->
+  labels s c = 0 ->
+  let s' := process_pixel img adj check_neighbors s c in
+  uf_same_set (equiv s') (labels s' c) (labels s c1) = true /\
+  uf_same_set (equiv s') (labels s' c) (labels s c2) = true /\
+  uf_same_set (equiv s') (labels s c1) (labels s c2) = true.
+Proof.
+  intros img adj check_neighbors s c c1 c2 Hnext Hpix Hin1 Hin2 Hpos1 Hpos2 Hunlabeled.
+  simpl.
+  split; [|split].
+  - apply process_pixel_equiv_with_prior; assumption.
+  - apply process_pixel_equiv_with_prior; assumption.
+  - apply process_pixel_all_neighbors_equiv with (c := c); assumption.
+Qed.
+
+(** ** Splitting at First Occurrence *)
+Lemma split_at_first_occurrence : forall {A : Type} (l : list A) (x : A),
+  NoDup l ->
+  In x l ->
+  exists prefix suffix,
+    l = prefix ++ x :: suffix /\ 
+    ~ In x prefix /\
+    ~ In x suffix.
+Proof.
+  intros A l x Hnodup Hin.
+  induction l as [|a l' IH].
+  - simpl in Hin. contradiction.
+  - simpl in Hin. destruct Hin as [Heq | Hin'].
+    + (* a = x *)
+      subst a.
+      exists [], l'.
+      inversion Hnodup. subst.
+      split; [reflexivity|].
+      split.
+      * intro H. simpl in H. contradiction.
+      * assumption.
+    + (* x in l' *)
+      inversion Hnodup. subst.
+      destruct (IH H2 Hin') as [prefix' [suffix' [Heq' [Hnotin_pre Hnotin_suf]]]].
+      exists (a :: prefix'), suffix'.
+      split.
+      * simpl. f_equal. assumption.
+      * split.
+        -- intro Hcontra. simpl in Hcontra.
+           destruct Hcontra as [Hax | Hcontra'].
+           ++ subst a. contradiction.
+           ++ contradiction.
+        -- assumption.
+Qed.
+
+(** ** Pixel Not In Prefix Gets Label Zero *)
+Lemma pixel_not_in_prefix_unlabeled : forall img adj check_neighbors prefix c,
+  ~ In c prefix ->
+  labels initial_state c = 0 ->
+  labels (fold_left (process_pixel img adj check_neighbors) prefix initial_state) c = 0.
+Proof.
+  intros img adj check_neighbors prefix c Hnotin Hinit.
+  apply fold_process_unprocessed_zero; assumption.
+Qed.
+
+(** ** Processing a Pixel Assigns It a Label *)
+Theorem process_pixel_assigns_label : forall img adj check_neighbors s c,
+  get_pixel img c = true ->
+  next_label s > 0 ->
+  labels s c = 0 ->
+  let s' := process_pixel img adj check_neighbors s c in
+  labels s' c > 0.
+Proof.
+  intros img adj check_neighbors s c Hpix Hnext Hunlabeled.
+  simpl.
+  apply process_pixel_labels_current; assumption.
+Qed.
+
+(** ** Every Foreground Pixel Gets Exactly One Label *)
+Theorem foreground_gets_unique_label : forall img adj check_neighbors c,
+  get_pixel img c = true ->
+  in_bounds img c = true ->
+  let s := ccl_pass img adj check_neighbors in
+  labels s c > 0 /\
+  forall s', s' = ccl_pass img adj check_neighbors -> 
+    labels s' c = labels s c.
+Proof.
+  intros img adj check_neighbors c Hfg Hbound.
+  simpl.
+  split.
+  - apply ccl_pass_labels_foreground; assumption.
+  - intros s' Heq. rewrite Heq. reflexivity.
+Qed.
+
+(** ** Background Never Gets Positive Labels *)
+Theorem background_never_positive : forall img adj check_neighbors coords s c,
+  get_pixel img c = false ->
+  labels s c = 0 ->
+  labels (fold_left (process_pixel img adj check_neighbors) coords s) c = 0.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|x xs IH]; intros s c Hbg Hinit.
+  - simpl. assumption.
+  - simpl. apply IH.
+    + assumption.
+    + destruct (coord_eqb x c) eqn:Heq.
+      * (* x = c *)
+        apply coord_eqb_true_iff in Heq. subst x.
+        rewrite process_pixel_background_unchanged; assumption.
+      * (* x ≠ c *)
+        rewrite process_pixel_preserves_other.
+        -- assumption.
+        -- intro H. subst x. rewrite coord_eqb_refl in Heq. discriminate.
+Qed.
+
+(** ** Prior Neighbors Get Merged Into Same Component *)
+Theorem prior_neighbors_same_component : forall img adj check_neighbors s c c1 c2,
+  next_label s > 0 ->
+  get_pixel img c = true ->
+  In c1 (check_neighbors img c) ->
+  In c2 (check_neighbors img c) ->
+  labels s c1 > 0 ->
+  labels s c2 > 0 ->
+  labels s c = 0 ->
+  let s' := process_pixel img adj check_neighbors s c in
+  uf_same_set (equiv s') (labels s' c) (labels s c1) = true /\
+  uf_same_set (equiv s') (labels s' c) (labels s c2) = true /\
+  uf_same_set (equiv s') (labels s c1) (labels s c2) = true.
+Proof.
+  intros img adj check_neighbors s c c1 c2 Hnext Hpix Hin1 Hin2 Hpos1 Hpos2 Hunlabeled.
+  apply equiv_chain_through_processing; assumption.
+Qed.
+
+(** ** Equivalence Classes Are Transitive *)
+Theorem equiv_classes_transitive : forall img adj check_neighbors c1 c2 c3,
+  let s := ccl_pass img adj check_neighbors in
+  labels s c1 > 0 ->
+  labels s c2 > 0 ->
+  labels s c3 > 0 ->
+  uf_same_set (equiv s) (labels s c1) (labels s c2) = true ->
+  uf_same_set (equiv s) (labels s c2) (labels s c3) = true ->
+  uf_same_set (equiv s) (labels s c1) (labels s c3) = true.
+Proof.
+  intros img adj check_neighbors c1 c2 c3.
+  simpl.
+  intros Hpos1 Hpos2 Hpos3 H12 H23.
+  apply uf_same_set_trans with (y := labels (ccl_pass img adj check_neighbors) c2); assumption.
+Qed.
+
+(** ** Section 6: Bridge Theorem - Connected Pixels Get Same Label *)
+
+(** First, let's prove that check_prior_neighbors_4 is complete *)
+Lemma check_prior_neighbors_4_complete : forall img c1 c2,
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  adjacent_4 c1 c2 = true ->
+  raster_lt c1 c2 = true ->
+  In c1 (check_prior_neighbors_4 img c2).
+Proof.
+  intros img c1 c2 Hfg1 Hfg2 Hadj Horder.
+  unfold check_prior_neighbors_4.
+  apply filter_In.
+  split.
+  - apply prior_neighbors_4_complete; assumption.
+  - apply andb_true_intro. split; assumption.
+Qed.
+
+(** When processing a pixel, it becomes equivalent to its labeled prior neighbors *)
+Lemma process_pixel_merges_with_prior : forall img c1 c2 s,
+  get_pixel img c2 = true ->
+  In c1 (check_prior_neighbors_4 img c2) ->
+  labels s c1 > 0 ->
+  next_label s > 0 ->
+  let s' := process_pixel img adjacent_4 check_prior_neighbors_4 s c2 in
+  uf_same_set (equiv s') (labels s' c2) (labels s c1) = true.
+Proof.
+  intros img c1 c2 s Hfg2 Hin Hpos Hnext.
+  simpl.
+  assert (H := process_pixel_labels_current_pixel img adjacent_4 check_prior_neighbors_4 s c2 Hfg2 Hnext).
+  destruct H as [_ Hequiv].
+  apply Hequiv; assumption.
+Qed.
+
+(** nth_error in first part of append *)
+Lemma nth_error_app_left : forall {A : Type} (l1 l2 : list A) i x,
+  i < length l1 ->
+  nth_error (l1 ++ l2) i = Some x ->
+  nth_error l1 i = Some x.
+Proof.
+  intros A l1 l2 i x Hlen Hi.
+  rewrite nth_error_app1 in Hi; assumption.
+Qed.
+
+(** Elements in seq_coords_row are ordered by x coordinate *)
+Lemma seq_coords_row_x_ordered : forall x_start width y i j xi xj,
+  i < j ->
+  nth_error (seq_coords_row x_start width y) i = Some (xi, y) ->
+  nth_error (seq_coords_row x_start width y) j = Some (xj, y) ->
+  xi < xj.
+Proof.
+  intros x_start width y i j xi xj Hij Hi Hj.
+  assert (xi = x_start + i).
+  { apply (seq_coords_row_position_x x_start width y i xi Hi). }
+  assert (xj = x_start + j).
+  { apply (seq_coords_row_position_x x_start width y j xj Hj). }
+  lia.
+Qed.
+
+(** Elements from earlier rows come before elements from later rows *)
+Lemma seq_coords_different_rows : forall w h i j c1 c2,
+  nth_error (seq_coords w h) i = Some c1 ->
+  nth_error (seq_coords w (S h)) (length (seq_coords w h) + j) = Some c2 ->
+  j < w ->
+  raster_lt c1 c2 = true.
+Proof.
+  intros w h i j [x1 y1] [x2 y2] Hi Hj Hjw.
+  simpl in Hj.
+  rewrite nth_error_app2 in Hj.
+  2: { lia. }
+  assert (length (seq_coords w h) + j - length (seq_coords w h) = j) by lia.
+  rewrite H in Hj.
+  assert (y2 = h).
+  { apply nth_error_In in Hj. 
+    apply (seq_coords_row_y x2 y2 0 w h Hj). }
+  assert (y1 < h).
+  { apply nth_error_In in Hi. 
+    apply seq_coords_in in Hi. 
+    destruct Hi as [_ Hy1]. exact Hy1. }
+  unfold raster_lt, coord_y.
+  simpl.
+  assert (y1 <? y2 = true).
+  { apply Nat.ltb_lt. lia. }
+  rewrite H2. reflexivity.
+Qed.
+
+(** After processing both pixels, adjacent pixels have equivalent labels *)
+Lemma adjacent_pixels_equiv_after_both : forall img c1 c2 processed,
+  In c1 processed ->
+  In c2 processed ->
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  adjacent_4 c1 c2 = true ->
+  raster_lt c1 c2 = true ->
+  strong_partial_correct img adjacent_4 
+    (fold_left (process_pixel img adjacent_4 check_prior_neighbors_4) 
+               processed initial_state) processed ->
+  let s := fold_left (process_pixel img adjacent_4 check_prior_neighbors_4) 
+                     processed initial_state in
+  uf_same_set (equiv s) (labels s c1) (labels s c2) = true.
+Proof.
+  intros img c1 c2 processed Hin1 Hin2 Hfg1 Hfg2 Hadj Horder Hinv.
+  simpl.
+  unfold strong_partial_correct in Hinv.
+  destruct Hinv as [_ [_ [_ Hprior]]].
+  apply Hprior; assumption.
+Qed.
+
+(** Helper: check_prior_neighbors_4 satisfies the requirements *)
+Lemma check_prior_neighbors_4_sound : forall img c c',
+  In c' (check_prior_neighbors_4 img c) ->
+  get_pixel img c' = true /\ adjacent_4 c' c = true /\ raster_lt c' c = true.
+Proof.
+  intros img c c' H.
+  apply check_prior_neighbors_4_characterization.
+  assumption.
+Qed.
+
+(** Helper: check_prior_neighbors_4 is complete *)
+Lemma check_prior_neighbors_4_complete_for_prior : forall img c1 c2,
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  adjacent_4 c1 c2 = true ->
+  raster_lt c1 c2 = true ->
+  In c1 (check_prior_neighbors_4 img c2).
+Proof.
+  intros img c1 c2 Hfg1 Hfg2 Hadj Horder.
+  apply check_prior_neighbors_4_characterization.
+  split; [|split]; assumption.
+Qed.
+
+(** NoDup of append implies NoDup of prefix *)
+Lemma NoDup_app_l : forall {A : Type} (l1 l2 : list A),
+  NoDup (l1 ++ l2) -> NoDup l1.
+Proof.
+  intros A l1 l2 H.
+  induction l1.
+  - apply NoDup_nil.
+  - simpl in H. inversion H. subst.
+    apply NoDup_cons.
+    + intro Hcontra. apply H2. apply in_app_iff. left. assumption.
+    + apply IHl1. assumption.
+Qed.
+
+(** Prefix of all_coords has NoDup *)
+Lemma all_coords_prefix_nodup : forall img prefix c suffix,
+  all_coords img = prefix ++ c :: suffix ->
+  NoDup prefix.
+Proof.
+  intros img prefix c suffix Heq.
+  assert (NoDup (all_coords img)) by apply all_coords_NoDup.
+  rewrite Heq in H.
+  apply NoDup_app_l in H.
+  assumption.
+Qed.
+
+(** Direct proof that adjacent pixels get merged during processing *)
+Lemma adjacent_pixels_merged_when_second_processed : forall img c1 c2,
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  adjacent_4 c1 c2 = true ->
+  raster_lt c1 c2 = true ->
+  in_bounds img c1 = true ->
+  in_bounds img c2 = true ->
+  forall prefix suffix,
+    all_coords img = prefix ++ c2 :: suffix ->
+    In c1 prefix ->
+    let s := fold_left (process_pixel img adjacent_4 check_prior_neighbors_4) 
+                      (prefix ++ [c2]) initial_state in
+    uf_same_set (equiv s) (labels s c1) (labels s c2) = true.
+Proof.
+  intros img c1 c2 Hfg1 Hfg2 Hadj Horder Hbound1 Hbound2 prefix suffix Hsplit Hin1.
+  simpl.
+  rewrite fold_left_app.
+  simpl.
+  
+  set (s_before := fold_left (process_pixel img adjacent_4 check_prior_neighbors_4) 
+                             prefix initial_state).
+  
+  (* next_label is always positive *)
+  assert (Hnext: next_label s_before > 0).
+  { apply fold_process_preserves_next_label_positive.
+    apply initial_state_next_label_positive. }
+  
+  (* After processing prefix, c1 has a label *)
+  assert (Hlabel1: labels s_before c1 > 0).
+  { apply fold_process_labels_foreground.
+    - apply (all_coords_prefix_nodup img prefix c2 suffix Hsplit).
+    - apply initial_state_next_label_positive.  
+    - assumption.
+    - assumption. }
+    
+  (* c1 is in check_prior_neighbors_4 of c2 *)
+  assert (Hin_check: In c1 (check_prior_neighbors_4 img c2)).
+  { apply check_prior_neighbors_4_complete_for_prior; assumption. }
+  
+  (* c1's label doesn't change when we process c2 *)
+  assert (Hunchanged: labels (process_pixel img adjacent_4 check_prior_neighbors_4 s_before c2) c1 = 
+                      labels s_before c1).
+  { apply process_pixel_labels_unchanged.
+    intro Heq. subst c2.
+    rewrite adjacent_4_irrefl in Hadj. discriminate. }
+  
+  (* After processing c2, they're equivalent *)
+  rewrite Hunchanged.
+  rewrite uf_same_set_sym.
+  apply process_pixel_merges_with_prior; assumption.
+Qed.
+
+(** Decidable equality for coordinates *)
+Lemma coord_eq_dec : forall (c1 c2 : coord), {c1 = c2} + {c1 <> c2}.
+Proof.
+  intros [x1 y1] [x2 y2].
+  destruct (Nat.eq_dec x1 x2); destruct (Nat.eq_dec y1 y2).
+  - left. subst. reflexivity.
+  - right. intro H. inversion H. contradiction.
+  - right. intro H. inversion H. contradiction.
+  - right. intro H. inversion H. contradiction.
+Qed.
+
+(** Elements in the same row are ordered by x *)
+Lemma seq_coords_row_ordered_x : forall x_start width y i j,
+  i < j ->
+  j < width ->
+  forall xi xj,
+  nth_error (seq_coords_row x_start width y) i = Some (xi, y) ->
+  nth_error (seq_coords_row x_start width y) j = Some (xj, y) ->
+  xi < xj.
+Proof.
+  intros x_start width y i j Hij Hjw xi xj Hi Hj.
+  assert (xi = x_start + i).
+  { apply (seq_coords_row_position_x x_start width y i xi Hi). }
+  assert (xj = x_start + j).
+  { apply (seq_coords_row_position_x x_start width y j xj Hj). }
+  lia.
+Qed.
+
+(** Length of seq_coords *)
+Lemma seq_coords_length : forall w h,
+  length (seq_coords w h) = w * h.
+Proof.
+  intros w h.
+  induction h.
+  - simpl. rewrite Nat.mul_0_r. reflexivity.
+  - simpl. rewrite length_app, IHh, seq_coords_row_length. 
+    rewrite Nat.mul_succ_r. lia.
+Qed.
+
+(** ** Finding position of element in list *)
+
+(** Find the index of the first occurrence of an element *)
+Fixpoint find_position_aux {A : Type} (eqb : A -> A -> bool) (x : A) (l : list A) (acc : nat) : option nat :=
+  match l with
+  | [] => None
+  | h :: t => if eqb h x then Some acc else find_position_aux eqb x t (S acc)
+  end.
+
+Definition find_position {A : Type} (eqb : A -> A -> bool) (x : A) (l : list A) : option nat :=
+  find_position_aux eqb x l 0.
+
+(** If we find a position, the element is at that position *)
+Lemma find_position_aux_correct : forall {A : Type} (eqb : A -> A -> bool) x l acc n,
+  (forall a b, eqb a b = true <-> a = b) ->
+  find_position_aux eqb x l acc = Some n ->
+  exists prefix suffix, 
+    l = prefix ++ x :: suffix /\
+    n = acc + length prefix /\
+    ~ In x prefix.
+Proof.
+  intros A eqb x l.
+  induction l as [|h t IH]; intros acc n Heqb_spec Hfind.
+  - (* l = [] *)
+    simpl in Hfind. discriminate.
+  - (* l = h :: t *)
+    simpl in Hfind.
+    destruct (eqb h x) eqn:Heq.
+    + (* h = x *)
+      apply Heqb_spec in Heq. subst h.
+      inversion Hfind. subst n.
+      exists [], t.
+      split; [|split].
+      * reflexivity.
+      * simpl. lia.
+      * intro H. simpl in H. contradiction.
+    + (* h <> x *)
+      assert (h <> x).
+      { intro Hcontra. subst h.
+        assert (eqb x x = true) by (apply Heqb_spec; reflexivity).
+        rewrite H in Heq. discriminate. }
+      destruct (IH (S acc) n Heqb_spec Hfind) as [prefix' [suffix' [Hl [Hn Hnotin]]]].
+      exists (h :: prefix'), suffix'.
+      split; [|split].
+      * simpl. f_equal. assumption.
+      * simpl. lia.
+      * intro Hin. simpl in Hin.
+        destruct Hin as [Heq' | Hin'].
+        -- contradiction.
+        -- contradiction.
+Qed.
+
+(** Main correctness theorem for find_position *)
+Lemma find_position_correct : forall {A : Type} (eqb : A -> A -> bool) x l n,
+  (forall a b, eqb a b = true <-> a = b) ->
+  find_position eqb x l = Some n ->
+  nth_error l n = Some x /\
+  forall m, m < n -> nth_error l m <> Some x.
+Proof.
+  intros A eqb x l n Heqb_spec Hfind.
+  unfold find_position in Hfind.
+  destruct (find_position_aux_correct eqb x l 0 n Heqb_spec Hfind) 
+    as [prefix [suffix [Hl [Hn Hnotin]]]].
+  simpl in Hn. subst n.
+  split.
+  - (* nth_error at position gives x *)
+    rewrite Hl.
+    rewrite nth_error_app2.
+    + rewrite Nat.sub_diag. simpl. reflexivity.
+    + lia.
+  - (* No x before this position *)
+    intros m Hm Hcontra.
+    rewrite Hl in Hcontra.
+    destruct (Nat.lt_decidable m (length prefix)) as [Hm_prefix | Hm_suffix].
+    + (* m is in prefix *)
+      rewrite nth_error_app1 in Hcontra; [|assumption].
+      apply nth_error_In in Hcontra.
+      contradiction.
+    + (* m >= length prefix but m < length prefix - contradiction *)
+      lia.
+Qed.
+
+(** Helper: find_position_aux with different accumulators *)
+Lemma find_position_aux_acc_shift : forall {A : Type} (eqb : A -> A -> bool) x l acc d,
+  (exists n, find_position_aux eqb x l acc = Some n) ->
+  exists m, find_position_aux eqb x l (acc + d) = Some m.
+Proof.
+  intros A eqb x l.
+  induction l as [|h t IH]; intros acc d [n Hfind].
+  - simpl in Hfind. discriminate.
+  - simpl in Hfind. simpl.
+    destruct (eqb h x) eqn:Heq.
+    + exists (acc + d). reflexivity.
+    + destruct (IH (S acc) d) as [m Hm].
+      * exists n. assumption.
+      * exists m.
+        replace (S (acc + d)) with (S acc + d) by lia.
+        assumption.
+Qed.
+
+(** If element is in list, we can find its position *)
+Lemma find_position_complete : forall {A : Type} (eqb : A -> A -> bool) x l,
+  (forall a b, eqb a b = true <-> a = b) ->
+  In x l ->
+  exists n, find_position eqb x l = Some n.
+Proof.
+  intros A eqb x l Heqb_spec.
+  induction l as [|h t IH]; intro Hin.
+  - simpl in Hin. contradiction.
+  - simpl in Hin. unfold find_position. simpl.
+    destruct (eqb h x) eqn:Heq.
+    + exists 0. reflexivity.
+    + destruct Hin as [Heq_elem | Hin_tail].
+      * subst h.
+        assert (eqb x x = true) by (apply Heqb_spec; reflexivity).
+        rewrite H in Heq. discriminate.
+      * unfold find_position in IH.
+        assert (exists n, find_position_aux eqb x t 0 = Some n).
+        { apply IH. assumption. }
+        destruct (find_position_aux_acc_shift eqb x t 0 1 H) as [m Hm].
+        exists m.
+        replace (0 + 1) with 1 in Hm by lia.
+        assumption.
+Qed.
+
+(** Resolution preserves the partition *)  
+Lemma resolve_labels_preserves_partition : forall u l c1 c2,
+  l c1 > 0 -> l c2 > 0 ->
+  (resolve_labels u l c1 = resolve_labels u l c2 <->
+   uf_same_set u (l c1) (l c2) = true).
+Proof.
+  intros u l c1 c2 Hpos1 Hpos2.
+  split.
+  - intro Heq.
+    unfold resolve_labels, uf_same_set in *.
+    apply Nat.eqb_eq. assumption.
+  - intro Hsame.
+    unfold resolve_labels, uf_same_set in *.
+    apply Nat.eqb_eq in Hsame. assumption.
+Qed.
+
+(** Every in-bounds coordinate appears in all_coords at a unique position *)
+Lemma all_coords_find_position : forall img c,
+  in_bounds img c = true ->
+  exists n, find_position coord_eqb c (all_coords img) = Some n.
+Proof.
+  intros img c Hbound.
+  apply find_position_complete.
+  - intros c1 c2. apply coord_eqb_true_iff.
+  - apply all_coords_complete. assumption.
+Qed.
+
+(** When we find a position, we can split the list at that position *)
+Lemma find_position_split : forall {A : Type} (eqb : A -> A -> bool) x l n,
+  (forall a b, eqb a b = true <-> a = b) ->
+  find_position eqb x l = Some n ->
+  exists prefix suffix,
+    l = prefix ++ x :: suffix /\
+    length prefix = n /\
+    ~ In x prefix.
+Proof.
+  intros A eqb x l n Heqb_spec Hfind.
+  unfold find_position in Hfind.
+  destruct (find_position_aux_correct eqb x l 0 n Heqb_spec Hfind) 
+    as [prefix [suffix [Hl [Hn Hnotin]]]].
+  exists prefix, suffix.
+  split; [|split].
+  - assumption.
+  - simpl in Hn. lia.
+  - assumption.
+Qed.
+
+(** Split all_coords at a specific coordinate *)
+Lemma all_coords_split_at : forall img c,
+  in_bounds img c = true ->
+  exists prefix suffix,
+    all_coords img = prefix ++ c :: suffix /\
+    ~ In c prefix /\
+    ~ In c suffix.
+Proof.
+  intros img c Hbound.
+  destruct (all_coords_find_position img c Hbound) as [n Hfind].
+  destruct (find_position_split coord_eqb c (all_coords img) n) as [prefix [suffix [Hsplit [Hlen Hnotin_pre]]]].
+  - intros c1 c2. apply coord_eqb_true_iff.
+  - assumption.
+  - exists prefix, suffix.
+    split; [|split].
+    + assumption.
+    + assumption.
+    + intro Hin_suf.
+      assert (NoDup (all_coords img)) by apply all_coords_NoDup.
+      rewrite Hsplit in H.
+      apply NoDup_remove_2 in H.
+      apply H.
+      apply in_app_iff.
+      right. assumption.
+Qed.
+
+(** Elements in same row are ordered by their indices *)
+Lemma seq_coords_same_row_ordered : forall w y i j x1 x2,
+  i < j ->
+  j < w ->
+  nth_error (seq_coords_row 0 w y) i = Some (x1, y) ->
+  nth_error (seq_coords_row 0 w y) j = Some (x2, y) ->
+  raster_lt (x1, y) (x2, y) = true.
+Proof.
+  intros w y i j x1 x2 Hij Hjw Hi Hj.
+  assert (x1 < x2).
+  { apply (seq_coords_row_x_ordered 0 w y i j x1 x2 Hij Hi Hj). }
+  unfold raster_lt, coord_x, coord_y.
+  simpl.
+  rewrite Nat.ltb_irrefl, Nat.eqb_refl.
+  simpl.
+  apply Nat.ltb_lt. assumption.
+Qed.
+
+(** Elements at specific indices in all_coords are raster ordered *)
+Lemma all_coords_indices_ordered : forall img i j ci cj,
+  i < j ->
+  nth_error (all_coords img) i = Some ci ->
+  nth_error (all_coords img) j = Some cj ->
+  raster_lt ci cj = true.
+Proof.
+  intros img.
+  unfold all_coords.
+  intros i j ci cj Hij Hi Hj.
+  (* General lemma for seq_coords *)
+  assert (forall w h i j ci cj,
+    i < j ->
+    nth_error (seq_coords w h) i = Some ci ->
+    nth_error (seq_coords w h) j = Some cj ->
+    raster_lt ci cj = true).
+  { intros w h.
+    induction h as [|h' IHh']; intros i0 j0 [x1 y1] [x2 y2] Hlt Hnth1 Hnth2.
+    - simpl in Hnth1. apply nth_error_In in Hnth1. simpl in Hnth1. contradiction.
+    - simpl in Hnth1, Hnth2.
+      destruct (Nat.lt_decidable i0 (length (seq_coords w h'))) as [Hi_old | Hi_new].
+      + (* i0 is in the old part *)
+        rewrite nth_error_app1 in Hnth1; [|assumption].
+        destruct (Nat.lt_decidable j0 (length (seq_coords w h'))) as [Hj_old | Hj_new].
+        * (* Both in old part *)
+          rewrite nth_error_app1 in Hnth2; [|assumption].
+          apply IHh' with (i := i0) (j := j0); assumption.
+        * (* i0 in old, j0 in new row *)
+          rewrite nth_error_app2 in Hnth2; [|lia].
+          apply nth_error_In in Hnth1.
+          apply (nth_error_In _ (j0 - length (seq_coords w h'))) in Hnth2.
+          (* y1 < h' because it's in seq_coords w h' *)
+          assert (y1 < h').
+          { apply seq_coords_in in Hnth1. destruct Hnth1 as [_ Hy1]. assumption. }
+          (* y2 = h' because it's in seq_coords_row 0 w h' *)
+          assert (y2 = h').
+          { apply (seq_coords_row_y x2 y2 0 w h' Hnth2). }
+          unfold raster_lt, coord_x, coord_y. simpl.
+          assert (y1 <? y2 = true).
+          { apply Nat.ltb_lt. lia. }
+          rewrite H1. reflexivity.
+      + (* Both in the new row *)
+        rewrite nth_error_app2 in Hnth1; [|lia].
+        rewrite nth_error_app2 in Hnth2; [|lia].
+        assert (y1 = h' /\ y2 = h').
+        { split.
+          - apply (nth_error_In _ (i0 - length (seq_coords w h'))) in Hnth1.
+            apply (seq_coords_row_y x1 y1 0 w h' Hnth1).
+          - apply (nth_error_In _ (j0 - length (seq_coords w h'))) in Hnth2.
+            apply (seq_coords_row_y x2 y2 0 w h' Hnth2). }
+        destruct H as [Hy1 Hy2].
+        subst y1 y2.
+        assert (j0 - length (seq_coords w h') < w).
+        { assert (length (seq_coords_row 0 w h') = w) by apply seq_coords_row_length.
+          assert (j0 - length (seq_coords w h') < length (seq_coords_row 0 w h')).
+          { apply nth_error_Some. intro Hcontra. rewrite Hcontra in Hnth2. discriminate. }
+          lia. }
+        apply (seq_coords_same_row_ordered w h' 
+                 (i0 - length (seq_coords w h')) 
+                 (j0 - length (seq_coords w h')) 
+                 x1 x2); [lia | assumption | assumption | assumption]. }
+  apply (H (width img) (height img) i j ci cj Hij Hi Hj).
+Qed.
+
+(** If labels are already equal, compaction preserves equality *)
+Lemma compact_labels_preserves_equality : forall u l max_label c1 c2,
+  l c1 = l c2 ->
+  compact_labels u l max_label c1 = compact_labels u l max_label c2.
+Proof.
+  intros u l max_label c1 c2 Heq.
+  unfold compact_labels.
+  rewrite Heq.
+  reflexivity.
+Qed.
+
+(** Compaction of resolved labels preserves equivalences *)
+Lemma compact_resolved_preserves_equiv : forall u l max_label c1 c2,
+  l c1 > 0 -> l c2 > 0 ->
+  uf_same_set u (l c1) (l c2) = true ->
+  let resolved := resolve_labels u l in
+  compact_labels u resolved max_label c1 = compact_labels u resolved max_label c2.
+Proof.
+  intros u l max_label c1 c2 Hpos1 Hpos2 Hequiv.
+  simpl.
+  apply compact_labels_preserves_equality.
+  unfold resolve_labels, uf_same_set in *.
+  apply Nat.eqb_eq in Hequiv.
+  assumption.
+Qed.
+
+(** ** CHECKPOINT THEOREM: Equivalence Is Transitive Through Algorithm *)
+Theorem ccl_pass_equivalence_transitive : forall img c1 c2 c3,
+  let s := ccl_pass img adjacent_4 check_prior_neighbors_4 in
+  labels s c1 > 0 ->
+  labels s c2 > 0 ->
+  labels s c3 > 0 ->
+  uf_same_set (equiv s) (labels s c1) (labels s c2) = true ->
+  uf_same_set (equiv s) (labels s c2) (labels s c3) = true ->
+  uf_same_set (equiv s) (labels s c1) (labels s c3) = true.
+Proof.
+  intros img c1 c2 c3 s Hpos1 Hpos2 Hpos3 H12 H23.
+  apply uf_same_set_trans with (y := labels s c2); assumption.
+Qed.
+
+(** ** CHECKPOINT THEOREM: Final Labels Respect Equivalences *)
+Theorem ccl_algorithm_preserves_equivalences : forall img c1 c2,
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  in_bounds img c1 = true ->
+  in_bounds img c2 = true ->
+  let s := ccl_pass img adjacent_4 check_prior_neighbors_4 in
+  uf_same_set (equiv s) (labels s c1) (labels s c2) = true ->
+  ccl_4 img c1 = ccl_4 img c2.
+Proof.
+  intros img c1 c2 Hfg1 Hfg2 Hbound1 Hbound2.
+  simpl.
+  intro Hequiv.
+  
+  (* ccl_4 applies compact_labels to resolved labels *)
+  unfold ccl_4, ccl_algorithm.
+  
+  (* Both pixels have positive labels after the pass *)
+  assert (Hpos1: labels (ccl_pass img adjacent_4 check_prior_neighbors_4) c1 > 0).
+  { apply ccl_pass_labels_foreground; assumption. }
+  
+  assert (Hpos2: labels (ccl_pass img adjacent_4 check_prior_neighbors_4) c2 > 0).
+  { apply ccl_pass_labels_foreground; assumption. }
+  
+  (* Apply existing theorem about compaction preserving equivalences *)
+  apply compact_resolved_preserves_equiv; assumption.
+Qed.
+
+(** ** CHECKPOINT THEOREM: Background Always Gets Zero *)
+Theorem ccl_4_background_zero : forall img c,
+  get_pixel img c = false ->
+  ccl_4 img c = 0.
+Proof.
+  intros img c Hbg.
+  apply ccl_4_background.
+  assumption.
+Qed.
+
+(** ** CHECKPOINT THEOREM: Out of Bounds Gets Zero *)
+Theorem ccl_4_out_of_bounds_zero : forall img c,
+  in_bounds img c = false ->
+  ccl_4 img c = 0.
+Proof.
+  intros img c Hout.
+  apply ccl_4_background.
+  unfold get_pixel.
+  rewrite Hout.
+  reflexivity.
+Qed.
+
+(** ** Helper: Raster order matches position in all_coords *)
+Lemma raster_lt_implies_earlier_in_all_coords : forall img c1 c2,
+  in_bounds img c1 = true ->
+  in_bounds img c2 = true ->
+  raster_lt c1 c2 = true ->
+  exists i j, 
+    i < j /\
+    nth_error (all_coords img) i = Some c1 /\
+    nth_error (all_coords img) j = Some c2.
+Proof.
+  intros img c1 c2 Hbound1 Hbound2 Horder.
+  
+  (* Find positions of c1 and c2 *)
+  destruct (all_coords_find_position img c1 Hbound1) as [i Hi].
+  destruct (all_coords_find_position img c2 Hbound2) as [j Hj].
+  
+  (* Use find_position_correct to get nth_error *)
+  assert (Hi_nth: nth_error (all_coords img) i = Some c1).
+  { apply find_position_correct with (eqb := coord_eqb).
+    - intros a b. apply coord_eqb_true_iff.
+    - assumption. }
+  
+  assert (Hj_nth: nth_error (all_coords img) j = Some c2).
+  { apply find_position_correct with (eqb := coord_eqb).
+    - intros a b. apply coord_eqb_true_iff.
+    - assumption. }
+  
+  exists i, j.
+  split; [|split]; try assumption.
+  
+  (* Need to show i < j from raster_lt c1 c2 = true *)
+  destruct (Nat.lt_decidable i j) as [Hij | Hij_not].
+  - assumption.
+  - (* If not i < j, then either i = j or j < i *)
+    destruct (Nat.eq_dec i j) as [Heq | Hneq].
+    + (* i = j means c1 = c2 *)
+      subst j.
+      rewrite Hi_nth in Hj_nth.
+      inversion Hj_nth. subst c2.
+      rewrite raster_lt_irrefl in Horder.
+      discriminate.
+    + (* j < i means c2 comes before c1, contradicting raster_lt c1 c2 *)
+      assert (j < i) by lia.
+      assert (raster_lt c2 c1 = true).
+      { apply (all_coords_indices_ordered img j i c2 c1 H Hj_nth Hi_nth). }
+      (* This contradicts our assumption *)
+      assert (c1 <> c2).
+      { intro Heq_c. subst c2.
+        rewrite raster_lt_irrefl in Horder. discriminate. }
+      assert (raster_lt c1 c2 = false).
+      { destruct (raster_lt c1 c2) eqn:E; [|reflexivity].
+        assert (raster_lt c1 c1 = true).
+        { apply (raster_lt_trans c1 c2 c1 E H0). }
+        rewrite raster_lt_irrefl in H2. discriminate. }
+      (* Now we have Horder: raster_lt c1 c2 = true and H1: raster_lt c1 c2 = false *)
+      congruence.
+Qed.
+
+(** ** Helper: nth_error at unique position for NoDup lists *)
+Lemma NoDup_nth_error_unique : forall {A : Type} (l : list A) i j x,
+  NoDup l ->
+  nth_error l i = Some x ->
+  nth_error l j = Some x ->
+  i = j.
+Proof.
+  intros A l i j x Hnodup Hi Hj.
+  generalize dependent j.
+  generalize dependent i.
+  induction Hnodup; intros i Hi j Hj.
+  - destruct i; discriminate.
+  - destruct i, j.
+    + reflexivity.
+    + simpl in Hi, Hj. inversion Hi. subst x.
+      exfalso. apply H. apply nth_error_In with j. assumption.
+    + simpl in Hi, Hj. inversion Hj. subst x.
+      exfalso. apply H. apply nth_error_In with i. assumption.
+    + simpl in Hi, Hj. 
+      f_equal.
+      apply IHHnodup; assumption.
+Qed.
+
+(** ** Helper: Element at position in append *)
+Lemma nth_error_app_position : forall {A : Type} (l1 l2 : list A) x,
+  nth_error (l1 ++ x :: l2) (length l1) = Some x.
+Proof.
+  intros A l1 l2 x.
+  rewrite nth_error_app2; [|lia].
+  rewrite Nat.sub_diag. reflexivity.
+Qed.
+
+(** ** Helper: Element before in raster order appears earlier in all_coords split *)
+Lemma raster_lt_in_prefix : forall img c1 c2 prefix suffix,
+  in_bounds img c1 = true ->
+  in_bounds img c2 = true ->
+  raster_lt c1 c2 = true ->
+  all_coords img = prefix ++ c2 :: suffix ->
+  ~ In c2 prefix ->
+  In c1 prefix.
+Proof.
+  intros img c1 c2 prefix suffix Hbound1 Hbound2 Horder Hsplit Hnotin.
+  
+  (* Get indices *)
+  destruct (raster_lt_implies_earlier_in_all_coords img c1 c2 Hbound1 Hbound2 Horder) 
+    as [i [j [Hij [Hi Hj]]]].
+  
+  (* j = length prefix since c2 is at that position *)
+  assert (j = length prefix).
+  { apply (NoDup_nth_error_unique (all_coords img) j (length prefix) c2).
+    - apply all_coords_NoDup.
+    - assumption.
+    - rewrite Hsplit. apply nth_error_app_position. }
+  
+  (* So i < length prefix, meaning c1 is in prefix *)
+  subst j.
+  rewrite Hsplit, nth_error_app1 in Hi; [|assumption].
+  apply nth_error_In in Hi. assumption.
+Qed.
+
+(** ** Helper: Element can't be in both parts of a NoDup split *)
+Lemma not_in_both_parts : forall {A : Type} (l1 l2 : list A) (x y : A),
+  NoDup (l1 ++ y :: l2) ->
+  In x l1 ->
+  ~ In x l2.
+Proof.
+  intros A l1 l2 x y Hnodup Hin1 Hin2.
+  induction l1.
+  - simpl in Hin1. contradiction.
+  - simpl in Hnodup. inversion Hnodup. subst.
+    simpl in Hin1. destruct Hin1 as [Heq | Hin1'].
+    + subst a. apply H1. apply in_app_iff. right. right. assumption.
+    + apply IHl1; assumption.
+Qed.
+
+(** ** Helper: Adjacent pixels where first comes before second *)
+Lemma adjacent_pixels_first_before_second : forall img c1 c2,
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  adjacent_4 c1 c2 = true ->
+  raster_lt c1 c2 = true ->
+  in_bounds img c1 = true ->
+  in_bounds img c2 = true ->
+  let s := ccl_pass img adjacent_4 check_prior_neighbors_4 in
+  uf_same_set (equiv s) (labels s c1) (labels s c2) = true.
+Proof.
+  intros img c1 c2 Hfg1 Hfg2 Hadj Horder Hbound1 Hbound2.
+  simpl.
+  
+  (* Split at c2 *)
+  destruct (all_coords_split_at img c2 Hbound2) as [prefix [suffix [Hsplit [Hnotin_pre Hnotin_suf]]]].
+  
+  (* c1 is in prefix *)
+  assert (Hc1_in: In c1 prefix).
+  { apply (raster_lt_in_prefix img c1 c2 prefix suffix).
+    - assumption.
+    - assumption.
+    - assumption.
+    - assumption.
+    - assumption. }
+  
+  (* After processing through c2, they're equivalent *)
+  assert (H := adjacent_pixels_merged_when_second_processed img c1 c2 
+               Hfg1 Hfg2 Hadj Horder Hbound1 Hbound2 prefix suffix Hsplit Hc1_in).
+  
+  (* Equivalence preserved through suffix *)
+  unfold ccl_pass.
+  rewrite Hsplit, fold_left_app.
+  simpl.
+  
+  (* c1 not in suffix *)
+  assert (Hc1_notin: ~ In c1 suffix).
+  { assert (NoDup (all_coords img)) by apply all_coords_NoDup.
+    rewrite Hsplit in H0.
+    apply (not_in_both_parts prefix suffix c1 c2 H0 Hc1_in). }
+  
+  (* c2 not in suffix - we already have this *)
+  
+  (* Now use that labels don't change *)
+  rewrite (fold_process_preserves_labels img adjacent_4 check_prior_neighbors_4 suffix _ c1).
+  rewrite (fold_process_preserves_labels img adjacent_4 check_prior_neighbors_4 suffix _ c2).
+  - apply fold_process_preserves_equiv. 
+    rewrite fold_left_app in H. simpl in H. exact H.
+  - intros c' Hc'. intro Heq. subst c'. contradiction.
+  - intros c' Hc'. intro Heq. subst c'. contradiction.
+Qed.
+
+(** ** CHECKPOINT THEOREM: Adjacent Pixels Get Equivalent Labels *)
+Theorem adjacent_pixels_equivalent_after_ccl_pass : forall img c1 c2,
+  get_pixel img c1 = true ->
+  get_pixel img c2 = true ->
+  adjacent_4 c1 c2 = true ->
+  in_bounds img c1 = true ->
+  in_bounds img c2 = true ->
+  let s := ccl_pass img adjacent_4 check_prior_neighbors_4 in
+  uf_same_set (equiv s) (labels s c1) (labels s c2) = true.
+Proof.
+  intros img c1 c2 Hfg1 Hfg2 Hadj Hbound1 Hbound2.
+  simpl.
+  
+  (* One pixel must come before the other in raster order *)
+  assert (Horder: raster_lt c1 c2 = true \/ raster_lt c2 c1 = true).
+  { apply raster_lt_total. apply adjacent_4_neq. assumption. }
+  
+  destruct Horder as [Hc1_first | Hc2_first].
+  
+  - (* Case 1: c1 comes before c2 *)
+    apply adjacent_pixels_first_before_second; assumption.
+    
+  - (* Case 2: c2 comes before c1 *)
+    rewrite uf_same_set_sym.
+    rewrite adjacent_4_sym in Hadj.
+    apply adjacent_pixels_first_before_second; assumption.
+Qed.
+
+(** ** CHECKPOINT THEOREM: Path of Adjacent Pixels Get Same Label *)
+Theorem adjacent_path_same_label : forall img c1 c2 c_mid,
+  get_pixel img c1 = true ->
+  get_pixel img c_mid = true ->
+  get_pixel img c2 = true ->
+  adjacent_4 c1 c_mid = true ->
+  adjacent_4 c_mid c2 = true ->
+  in_bounds img c1 = true ->
+  in_bounds img c_mid = true ->
+  in_bounds img c2 = true ->
+  ccl_4 img c1 = ccl_4 img c2.
+Proof.
+  intros img c1 c2 c_mid Hfg1 Hfg_mid Hfg2 Hadj1 Hadj2 Hbound1 Hbound_mid Hbound2.
+  
+  (* First, show equivalence after ccl_pass *)
+  assert (Hequiv1: let s := ccl_pass img adjacent_4 check_prior_neighbors_4 in
+                   uf_same_set (equiv s) (labels s c1) (labels s c_mid) = true).
+  { apply adjacent_pixels_equivalent_after_ccl_pass; assumption. }
+  
+  assert (Hequiv2: let s := ccl_pass img adjacent_4 check_prior_neighbors_4 in
+                   uf_same_set (equiv s) (labels s c_mid) (labels s c2) = true).
+  { apply adjacent_pixels_equivalent_after_ccl_pass; assumption. }
+  
+  (* Use transitivity *)
+  assert (Hequiv: let s := ccl_pass img adjacent_4 check_prior_neighbors_4 in
+                  uf_same_set (equiv s) (labels s c1) (labels s c2) = true).
+  { simpl in *. 
+    assert (Hpos1: labels (ccl_pass img adjacent_4 check_prior_neighbors_4) c1 > 0).
+    { apply ccl_pass_labels_foreground; assumption. }
+    assert (Hpos_mid: labels (ccl_pass img adjacent_4 check_prior_neighbors_4) c_mid > 0).
+    { apply ccl_pass_labels_foreground; assumption. }
+    assert (Hpos2: labels (ccl_pass img adjacent_4 check_prior_neighbors_4) c2 > 0).
+    { apply ccl_pass_labels_foreground; assumption. }
+    apply (ccl_pass_equivalence_transitive img c1 c_mid c2 Hpos1 Hpos_mid Hpos2 Hequiv1 Hequiv2). }
+  
+  (* Finally, show final labels are equal *)
+  apply ccl_algorithm_preserves_equivalences; assumption.
+Qed.
+
+(** ** Helper: Foreground pixel must be in bounds *)
+Lemma foreground_in_bounds : forall img c,
+  get_pixel img c = true ->
+  in_bounds img c = true.
+Proof.
+  intros img c Hfg.
+  unfold get_pixel in Hfg.
+  destruct (in_bounds img c) eqn:Hbound.
+  - reflexivity.
+  - discriminate.
+Qed.
+
+(** ** Helper: Connected pixels are both in bounds *)
+Lemma connected_both_in_bounds : forall img adj c1 c2,
+  connected img adj c1 c2 ->
+  in_bounds img c1 = true /\ in_bounds img c2 = true.
+Proof.
+  intros img adj c1 c2 Hconn.
+  apply connected_foreground in Hconn.
+  destruct Hconn as [Hfg1 Hfg2].
+  split.
+  - apply foreground_in_bounds. assumption.
+  - apply foreground_in_bounds. assumption.
+Qed.
+
+(** ** BRIDGE THEOREM: Connected Pixels Get Same Label *)
+Theorem connected_pixels_same_label : forall img c1 c2,
+  connected img adjacent_4 c1 c2 ->
+  ccl_4 img c1 = ccl_4 img c2.
+Proof.
+  intros img c1 c2 Hconn.
+  induction Hconn as [c Hfg | c1 c2 c3 Hconn12 IH Hfg3 Hadj23].
+  
+  - (* Base case: c1 = c2 *)
+    reflexivity.
+    
+  - (* Step case: c1 connected to c2, c2 adjacent to c3 *)
+    (* Get bounds for all pixels *)
+    assert (Hbounds12 := connected_both_in_bounds img adjacent_4 c1 c2 Hconn12).
+    destruct Hbounds12 as [Hbound1 Hbound2].
+    assert (Hbound3: in_bounds img c3 = true).
+    { apply foreground_in_bounds. assumption. }
+    
+    (* c1 and c2 have same label by IH *)
+    (* c2 and c3 have equivalent labels by adjacency *)
+    assert (Hfg2: get_pixel img c2 = true).
+    { apply connected_foreground in Hconn12. destruct Hconn12. assumption. }
+    
+    (* Show equivalence in ccl_pass *)
+    assert (Hequiv23: let s := ccl_pass img adjacent_4 check_prior_neighbors_4 in
+                      uf_same_set (equiv s) (labels s c2) (labels s c3) = true).
+    { apply adjacent_pixels_equivalent_after_ccl_pass; assumption. }
+    
+    (* Use transitivity through c2 *)
+    transitivity (ccl_4 img c2).
+    + apply IH.
+    + apply ccl_algorithm_preserves_equivalences; assumption.
+Qed.
