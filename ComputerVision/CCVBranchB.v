@@ -3472,23 +3472,716 @@ Lemma ccl_pass_labels_background_zero : forall img adj check_neighbors c,
 Proof.
   intros img adj check_neighbors c Hbg.
   unfold ccl_pass.
-  destruct (in_bounds img c) eqn:Hbound.
-  - (* in bounds *)
-    apply fold_process_unprocessed_zero.
-    + intro H. 
-      apply all_coords_sound in H.
-      unfold get_pixel in Hbg.
-      rewrite Hbound in Hbg.
-      rewrite Hbg in H.
-      discriminate.
-    + reflexivity.
-  - (* out of bounds *)
-    apply fold_process_unprocessed_zero.
-    + intro H.
-      apply all_coords_sound in H.
-      rewrite Hbound in H.
-      discriminate.
-    + reflexivity.
+  assert (Hbg_inv: state_labels_background img initial_state).
+  { unfold state_labels_background, initial_state. 
+    intros c' _. reflexivity. }
+  assert (Hbg_preserved: state_labels_background img 
+           (fold_left (process_pixel img adj check_neighbors) (all_coords img) initial_state)).
+  { apply fold_process_preserves_background. assumption. }
+  apply Hbg_preserved. assumption.
 Qed.
 
+(** The equiv in initial_state is uf_init *)
+Lemma initial_state_equiv : 
+  equiv initial_state = uf_init.
+Proof.
+  unfold initial_state.
+  simpl.
+  reflexivity.
+Qed.
 
+(** next_label in ccl_pass is positive *)
+Lemma ccl_pass_next_label_positive : forall img adj check_neighbors,
+  next_label (ccl_pass img adj check_neighbors) > 0.
+Proof.
+  intros img adj check_neighbors.
+  unfold ccl_pass.
+  apply fold_process_preserves_next_label_positive.
+  apply initial_state_next_label_positive.
+Qed.
+
+(** Pixels not in all_coords stay unlabeled *)
+Lemma ccl_pass_out_of_bounds_zero : forall img adj check_neighbors c,
+  in_bounds img c = false ->
+  labels (ccl_pass img adj check_neighbors) c = 0.
+Proof.
+  intros img adj check_neighbors c Hout.
+  unfold ccl_pass.
+  apply fold_process_unprocessed_zero.
+  - intro H.
+    apply all_coords_sound in H.
+    rewrite Hout in H.
+    discriminate.
+  - reflexivity.
+Qed.
+
+(** resolve_labels preserves zero *)
+Lemma resolve_labels_zero : forall u l c,
+  l c = 0 ->
+  uf_find u 0 = 0 ->
+  resolve_labels u l c = 0.
+Proof.
+  intros u l c H0 Hu0.
+  unfold resolve_labels.
+  rewrite H0.
+  assumption.
+Qed.
+
+(** resolve_labels preserves positivity *)
+Lemma resolve_labels_positive : forall u l c,
+  l c > 0 ->
+  (forall n, n > 0 -> uf_find u n > 0) ->
+  resolve_labels u l c > 0.
+Proof.
+  intros u l c Hpos Hinv.
+  unfold resolve_labels.
+  apply Hinv.
+  assumption.
+Qed.
+
+(** uf_init preserves positive labels *)
+Lemma uf_init_preserves_positive : forall n,
+  n > 0 -> uf_find uf_init n > 0.
+Proof.
+  intros n Hpos.
+  unfold uf_find, uf_init.
+  assumption.
+Qed.
+
+(** record_adjacency preserves zero when u maps non-zero to non-zero *)
+Lemma record_adjacency_preserves_zero : forall u l1 l2,
+  uf_find u 0 = 0 ->
+  (forall n, n <> 0 -> uf_find u n <> 0) ->
+  uf_find (record_adjacency u l1 l2) 0 = 0.
+Proof.
+  intros u l1 l2 H0 Hinv.
+  unfold record_adjacency.
+  destruct (negb (l1 =? 0) && negb (l2 =? 0)) eqn:E.
+  - (* Both non-zero *)
+    apply andb_prop in E.
+    destruct E as [Hl1 Hl2].
+    apply negb_true_iff in Hl1, Hl2.
+    apply Nat.eqb_neq in Hl1, Hl2.
+    destruct (l1 =? l2).
+    + assumption.
+    + unfold uf_union, uf_find.
+      simpl.
+      destruct (u l1 =? u 0) eqn:E0.
+      * apply Nat.eqb_eq in E0.
+        assert (u l1 <> 0) by (apply Hinv; assumption).
+        unfold uf_find in H0.
+        rewrite E0, H0 in H.
+        contradiction.
+      * assumption.
+  - assumption.
+Qed.
+
+(** uf_init maps non-zero to non-zero *)
+Lemma uf_init_nonzero_inv : forall n,
+  n <> 0 -> uf_find uf_init n <> 0.
+Proof.
+  intros n Hn.
+  unfold uf_find, uf_init.
+  assumption.
+Qed.
+
+(** record_adjacency preserves the non-zero invariant *)
+Lemma record_adjacency_preserves_nonzero_inv : forall u l1 l2 n,
+  (forall m, m <> 0 -> uf_find u m <> 0) ->
+  n <> 0 ->
+  uf_find (record_adjacency u l1 l2) n <> 0.
+Proof.
+  intros u l1 l2 n Hinv Hn.
+  unfold record_adjacency.
+  destruct (negb (l1 =? 0) && negb (l2 =? 0)) eqn:E.
+  - destruct (l1 =? l2).
+    + apply Hinv. assumption.
+    + unfold uf_union, uf_find.
+      simpl.
+      destruct (u l1 =? u n) eqn:En.
+      * (* u n maps to u l2 *)
+        apply andb_prop in E.
+        destruct E as [Hl1 Hl2].
+        apply negb_true_iff in Hl2.
+        apply Nat.eqb_neq in Hl2.
+        apply Hinv. assumption.
+      * apply Hinv. assumption.
+  - apply Hinv. assumption.
+Qed.
+
+(** fold_left with record_adjacency preserves zero *)
+Lemma fold_record_adjacency_preserves_zero : forall labels min_label u,
+  uf_find u 0 = 0 ->
+  (forall n, n <> 0 -> uf_find u n <> 0) ->
+  uf_find (fold_left (fun u' l' => record_adjacency u' min_label l') labels u) 0 = 0.
+Proof.
+  intros labels min_label u.
+  generalize dependent u.
+  induction labels; intros u Hz Hnz.
+  - simpl. assumption.
+  - simpl. apply IHlabels.
+    + apply record_adjacency_preserves_zero; assumption.
+    + intros m Hm. apply record_adjacency_preserves_nonzero_inv; assumption.
+Qed.
+
+(** process_pixel preserves the non-zero invariant *)
+Lemma process_pixel_preserves_nonzero_inv : forall img adj check_neighbors s c,
+  uf_find (equiv s) 0 = 0 ->
+  (forall n, n <> 0 -> uf_find (equiv s) n <> 0) ->
+  uf_find (equiv (process_pixel img adj check_neighbors s c)) 0 = 0.
+Proof.
+  intros img adj check_neighbors s c H0 Hinv.
+  unfold process_pixel.
+  destruct (get_pixel img c).
+  - destruct (check_neighbors img c).
+    + simpl. assumption.
+    + destruct (filter _ _).
+      * simpl. assumption.
+      * simpl. 
+        remember (fold_left Nat.min l0 n) as min_label.
+        apply fold_record_adjacency_preserves_zero.
+        -- apply record_adjacency_preserves_zero; assumption.
+        -- intros m Hm. apply record_adjacency_preserves_nonzero_inv; assumption.
+  - assumption.
+Qed.
+
+(** fold_left with record_adjacency preserves full non-zero invariant *)
+Lemma fold_record_adjacency_preserves_full_nonzero : forall labels min_label u,
+  (forall n, n <> 0 -> uf_find u n <> 0) ->
+  forall m, m <> 0 -> 
+  uf_find (fold_left (fun u' l' => record_adjacency u' min_label l') labels u) m <> 0.
+Proof.
+  intros labels min_label u Hinv m Hm.
+  generalize dependent u.
+  induction labels; intros u Hinv.
+  - simpl. apply Hinv. assumption.
+  - simpl. apply IHlabels.
+    intros k Hk. apply record_adjacency_preserves_nonzero_inv; assumption.
+Qed.
+
+(** process_pixel preserves the full non-zero invariant *)
+Lemma process_pixel_preserves_full_nonzero_inv : forall img adj check_neighbors s c,
+  uf_find (equiv s) 0 = 0 ->
+  (forall n, n <> 0 -> uf_find (equiv s) n <> 0) ->
+  forall m, m <> 0 -> uf_find (equiv (process_pixel img adj check_neighbors s c)) m <> 0.
+Proof.
+  intros img adj check_neighbors s c H0 Hinv m Hm.
+  unfold process_pixel.
+  destruct (get_pixel img c).
+  - destruct (check_neighbors img c).
+    + simpl. apply Hinv. assumption.
+    + destruct (filter _ _).
+      * simpl. apply Hinv. assumption.
+      * simpl.
+        apply fold_record_adjacency_preserves_full_nonzero.
+        -- intros k Hk. apply record_adjacency_preserves_nonzero_inv; assumption.
+        -- assumption.
+  - apply Hinv. assumption.
+Qed.
+
+(** fold_left with process_pixel preserves the non-zero invariant *)
+Lemma fold_process_preserves_nonzero_inv : forall img adj check_neighbors coords s,
+  uf_find (equiv s) 0 = 0 ->
+  (forall n, n <> 0 -> uf_find (equiv s) n <> 0) ->
+  uf_find (equiv (fold_left (process_pixel img adj check_neighbors) coords s)) 0 = 0.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords; intros s H0 Hinv.
+  - simpl. assumption.
+  - simpl. apply IHcoords.
+    + apply process_pixel_preserves_nonzero_inv; assumption.
+    + apply process_pixel_preserves_full_nonzero_inv; assumption.
+Qed.
+
+(** ccl_pass preserves the zero invariant *)
+Lemma ccl_pass_preserves_zero : forall img adj check_neighbors,
+  uf_find (equiv (ccl_pass img adj check_neighbors)) 0 = 0.
+Proof.
+  intros img adj check_neighbors.
+  unfold ccl_pass.
+  apply fold_process_preserves_nonzero_inv.
+  - unfold initial_state. simpl. reflexivity.
+  - apply uf_init_nonzero_inv.
+Qed.
+
+(** ccl_4 preserves background *)
+Lemma ccl_4_background : forall img c,
+  get_pixel img c = false ->
+  ccl_4 img c = 0.
+Proof.
+  intros img c Hbg.
+  unfold ccl_4, ccl_algorithm.
+  unfold compact_labels.
+  remember (ccl_pass img adjacent_4 check_prior_neighbors_4) as s.
+  assert (Hlabel: labels s c = 0).
+  { subst s. apply ccl_pass_labels_background_zero. assumption. }
+  assert (Hresolve: resolve_labels (equiv s) (labels s) c = 0).
+  { apply resolve_labels_zero.
+    - assumption.
+    - subst s. apply ccl_pass_preserves_zero. }
+  rewrite Hresolve.
+  apply build_label_map_zero.
+Qed.
+
+(** ccl_8 preserves background *)
+Lemma ccl_8_background : forall img c,
+  get_pixel img c = false ->
+  ccl_8 img c = 0.
+Proof.
+  intros img c Hbg.
+  unfold ccl_8, ccl_algorithm.
+  unfold compact_labels.
+  remember (ccl_pass img adjacent_8 check_prior_neighbors_8) as s.
+  assert (Hlabel: labels s c = 0).
+  { subst s. apply ccl_pass_labels_background_zero. assumption. }
+  assert (Hresolve: resolve_labels (equiv s) (labels s) c = 0).
+  { apply resolve_labels_zero.
+    - assumption.
+    - subst s. apply ccl_pass_preserves_zero. }
+  rewrite Hresolve.
+  apply build_label_map_zero.
+Qed.
+
+(** ccl_pass preserves full non-zero invariant *)
+Lemma ccl_pass_preserves_full_nonzero : forall img adj check_neighbors n,
+  n <> 0 ->
+  uf_find (equiv (ccl_pass img adj check_neighbors)) n <> 0.
+Proof.
+  intros img adj check_neighbors n Hn.
+  unfold ccl_pass.
+  assert (Hinv: forall coords s,
+    uf_find (equiv s) 0 = 0 ->
+    (forall m, m <> 0 -> uf_find (equiv s) m <> 0) ->
+    forall m, m <> 0 -> 
+    uf_find (equiv (fold_left (process_pixel img adj check_neighbors) coords s)) m <> 0).
+  { intros coords.
+    induction coords; intros s H0 Hnonzero m Hm.
+    - simpl. apply Hnonzero. assumption.
+    - simpl. apply IHcoords.
+      + apply process_pixel_preserves_nonzero_inv; assumption.
+      + apply process_pixel_preserves_full_nonzero_inv; assumption.
+      + assumption. }
+  apply (Hinv (all_coords img) initial_state).
+  - unfold initial_state. simpl. reflexivity.
+  - intros m Hm. unfold initial_state. simpl. apply uf_init_nonzero_inv. assumption.
+  - assumption.
+Qed.
+
+(** resolve_labels with ccl_pass preserves positivity for foreground *)
+Lemma ccl_pass_resolve_foreground_positive : forall img adj check_neighbors c,
+  get_pixel img c = true ->
+  in_bounds img c = true ->
+  let s := ccl_pass img adj check_neighbors in
+  resolve_labels (equiv s) (labels s) c > 0.
+Proof.
+  intros img adj check_neighbors c Hfg Hbound.
+  simpl.
+  apply resolve_labels_positive.
+  - apply ccl_pass_labels_foreground; assumption.
+  - intros n Hn.
+    assert (n <> 0) by lia.
+    assert (uf_find (equiv (ccl_pass img adj check_neighbors)) n <> 0).
+    { apply ccl_pass_preserves_full_nonzero. assumption. }
+    lia.
+Qed.
+
+(** compact_labels preserves background *)
+Lemma compact_labels_preserves_background : forall u l max_label c,
+  l c = 0 ->
+  compact_labels u l max_label c = 0.
+Proof.
+  intros u l max_label c H.
+  unfold compact_labels.
+  rewrite H.
+  apply build_label_map_zero.
+Qed.
+
+(** Labels are preserved through resolve for same equiv class *)  
+Lemma resolve_labels_equiv : forall u l c1 c2,
+  uf_same_set u (l c1) (l c2) = true ->
+  resolve_labels u l c1 = resolve_labels u l c2.
+Proof.
+  intros u l c1 c2 H.
+  unfold resolve_labels, uf_same_set in *.
+  apply Nat.eqb_eq in H.
+  assumption.
+Qed.
+
+(** Empty image gives all zeros *)
+Lemma ccl_pass_empty_image : forall w h adj check_neighbors c,
+  let img := mkImage w h (fun _ => false) in
+  labels (ccl_pass img adj check_neighbors) c = 0.
+Proof.
+  intros w h adj check_neighbors c.
+  simpl.
+  apply ccl_pass_labels_background_zero.
+  unfold get_pixel.
+  destruct (in_bounds _ _); reflexivity.
+Qed.
+
+(** Union-find respects transitivity *)
+Lemma uf_same_set_trans : forall u x y z,
+  uf_same_set u x y = true ->
+  uf_same_set u y z = true ->
+  uf_same_set u x z = true.
+Proof.
+  intros u x y z Hxy Hyz.
+  unfold uf_same_set in *.
+  apply Nat.eqb_eq in Hxy, Hyz.
+  apply Nat.eqb_eq.
+  congruence.
+Qed.
+
+(** next_label increases monotonically during processing *)
+Lemma process_pixel_next_label_monotonic : forall img adj check_neighbors s c,
+  next_label s <= next_label (process_pixel img adj check_neighbors s c).
+Proof.
+  intros img adj check_neighbors s c.
+  apply process_pixel_next_label_increases.
+Qed.
+
+(** resolve_labels with uf_init is identity on positive labels *)
+Lemma resolve_labels_init_positive : forall l c,
+  l c > 0 ->
+  resolve_labels uf_init l c = l c.
+Proof.
+  intros l c Hpos.
+  unfold resolve_labels, uf_find, uf_init.
+  reflexivity.
+Qed.
+
+(** 1. Subset preservation when adding one element *)
+Lemma processed_append_subset : forall {A : Type} (processed : list A) (c : A) (coords : list A),
+  (forall x, In x processed -> In x coords) ->
+  In c coords ->
+  forall x, In x (processed ++ [c]) -> In x coords.
+Proof.
+  intros A processed c coords Hproc_sub Hc_in x Hx_in.
+  apply in_app_iff in Hx_in.
+  destruct Hx_in as [Hx_proc | Hx_single].
+  - apply Hproc_sub. assumption.
+  - simpl in Hx_single. destruct Hx_single as [Heq | Hcontra].
+    + subst x. assumption.
+    + contradiction.
+Qed.
+
+(** 2. Order preservation when extending processed list *)
+Lemma raster_order_extend : forall processed c cs,
+  (forall c1 c2, In c1 processed -> In c2 (c :: cs) -> raster_lt c1 c2 = true) ->
+  (forall c2, In c2 cs -> raster_lt c c2 = true) ->
+  forall c1 c2, In c1 (processed ++ [c]) -> In c2 cs -> raster_lt c1 c2 = true.
+Proof.
+  intros processed c cs Horder Hc_before_cs c1 c2 Hc1 Hc2.
+  apply in_app_iff in Hc1.
+  destruct Hc1 as [Hc1_old | Hc1_new].
+  - apply Horder.
+    + assumption.
+    + right. assumption.
+  - simpl in Hc1_new. destruct Hc1_new as [Hc1_eq | Hcontra].
+    + subst c1. apply Hc_before_cs. assumption.
+    + contradiction.
+Qed.
+
+(** 3. NoDup preservation through decomposition *)
+Lemma nodup_not_in_prefix : forall {A : Type} (processed remaining : list A) (c : A),
+  NoDup (processed ++ c :: remaining) ->
+  ~ In c processed.
+Proof.
+  intros A processed remaining c Hnodup Hcontra.
+  apply NoDup_remove_2 in Hnodup.
+  apply Hnodup.
+  apply in_app_iff. left. assumption.
+Qed.
+
+(** Elements in seq_coords_row all have the same y and increasing x *)
+Lemma seq_coords_row_ordered : forall x_start width y x1 x2,
+  In (x1, y) (seq_coords_row x_start width y) ->
+  In (x2, y) (seq_coords_row x_start width y) ->
+  x1 < x2 ->
+  raster_lt (x1, y) (x2, y) = true.
+Proof.
+  intros x_start width y x1 x2 H1 H2 Hlt.
+  unfold raster_lt, coord_x, coord_y.
+  simpl.
+  rewrite Nat.ltb_irrefl.
+  rewrite Nat.eqb_refl.
+  simpl.
+  apply Nat.ltb_lt.
+  assumption.
+Qed.
+
+(** Elements from earlier rows come before elements from later rows *)
+Lemma seq_coords_different_rows_ordered : forall w h x1 y1 x2 y2,
+  In (x1, y1) (seq_coords w h) ->
+  In (x2, y2) (seq_coords w h) ->
+  y1 < y2 ->
+  raster_lt (x1, y1) (x2, y2) = true.
+Proof.
+  intros w h x1 y1 x2 y2 H1 H2 Hlt.
+  unfold raster_lt, coord_x, coord_y.
+  simpl.
+  assert (y1 <? y2 = true) by (apply Nat.ltb_lt; assumption).
+  rewrite H.
+  reflexivity.
+Qed.
+
+(** Position in seq_coords_row determines x coordinate *)
+Lemma seq_coords_row_position_x : forall x_start width y i x,
+  nth_error (seq_coords_row x_start width y) i = Some (x, y) ->
+  x = x_start + i.
+Proof.
+  intros x_start width y.
+  generalize dependent x_start.
+  induction width; intros x_start i x H.
+  - simpl in H. apply nth_error_In in H. simpl in H. contradiction.
+  - simpl in H.
+    destruct i.
+    + simpl in H. inversion H. lia.
+    + simpl in H. 
+      apply IHwidth in H.
+      rewrite H.
+      lia.
+Qed.
+
+(** seq_coords builds rows in increasing y order *)
+Lemma seq_coords_structure : forall w h y,
+  y < h ->
+  exists prefix suffix,
+    seq_coords w h = prefix ++ seq_coords_row 0 w y ++ suffix.
+Proof.
+  intros w h.
+  induction h; intros y Hy.
+  - inversion Hy.
+  - simpl.
+    destruct (Nat.eq_dec y h).
+    + subst y.
+      exists (seq_coords w h), [].
+      rewrite app_nil_r.
+      reflexivity.
+    + assert (y < h) by lia.
+      destruct (IHh y H) as [prefix [suffix Heq]].
+      exists prefix, (suffix ++ seq_coords_row 0 w h).
+      rewrite Heq.
+      rewrite <- app_assoc.
+      rewrite <- app_assoc.
+      reflexivity.
+Qed.
+
+(** nth_error in prefix part of append *)
+Lemma nth_error_seq_coords_prefix : forall w h i c,
+  i < length (seq_coords w h) ->
+  nth_error (seq_coords w h ++ seq_coords_row 0 w h) i = Some c ->
+  nth_error (seq_coords w h) i = Some c.
+Proof.
+  intros w h i c Hlen Hi.
+  rewrite nth_error_app1 in Hi; assumption.
+Qed.
+
+(** nth_error in suffix part of append *)
+Lemma nth_error_seq_coords_suffix : forall w h i c,
+  length (seq_coords w h) <= i ->
+  nth_error (seq_coords w h ++ seq_coords_row 0 w h) i = Some c ->
+  nth_error (seq_coords_row 0 w h) (i - length (seq_coords w h)) = Some c.
+Proof.
+  intros w h i c Hlen Hi.
+  rewrite nth_error_app2 in Hi; [assumption | lia].
+Qed.
+
+(** Elements from seq_coords have y < h *)
+Lemma seq_coords_y_bound : forall w h x y,
+  In (x, y) (seq_coords w h) ->
+  y < h.
+Proof.
+  intros w h x y H.
+  apply seq_coords_in in H.
+  apply H.
+Qed.
+
+(** Length of seq_coords_row *)
+Lemma seq_coords_row_length : forall x_start width y,
+  length (seq_coords_row x_start width y) = width.
+Proof.
+  intros x_start width y.
+  generalize dependent x_start.
+  induction width; intros x_start.
+  - reflexivity.
+  - simpl. f_equal. apply IHwidth.
+Qed.
+
+(** ** Short Checkpoint: Zero Invariant End-to-End *)
+Theorem ccl_zero_invariant : forall img adj check_neighbors,
+  let s := ccl_pass img adj check_neighbors in
+  uf_find (equiv s) 0 = 0 /\
+  (forall c, get_pixel img c = false -> labels s c = 0) /\
+  (forall c, get_pixel img c = false -> resolve_labels (equiv s) (labels s) c = 0).
+Proof.
+  intros img adj check_neighbors.
+  simpl.
+  split; [|split].
+  - apply ccl_pass_preserves_zero.
+  - apply ccl_pass_labels_background_zero.
+  - intros c Hbg.
+    apply resolve_labels_zero.
+    + apply ccl_pass_labels_background_zero. assumption.
+    + apply ccl_pass_preserves_zero.
+Qed.
+
+(** ** Equivalence Preservation Through Resolution *)
+Theorem resolve_preserves_equiv_trans : forall u l c1 c2 c3,
+  uf_same_set u (l c1) (l c2) = true ->
+  uf_same_set u (l c2) (l c3) = true ->
+  resolve_labels u l c1 = resolve_labels u l c3.
+Proof.
+  intros u l c1 c2 c3 H12 H23.
+  unfold resolve_labels.
+  unfold uf_same_set in *.
+  apply Nat.eqb_eq in H12, H23.
+  congruence.
+Qed.
+
+(** ** Foreground Pixels Get Positive Labels *)
+Theorem ccl_foreground_positive : forall img adj check_neighbors c,
+  get_pixel img c = true ->
+  in_bounds img c = true ->
+  let s := ccl_pass img adj check_neighbors in
+  labels s c > 0 /\ resolve_labels (equiv s) (labels s) c > 0.
+Proof.
+  intros img adj check_neighbors c Hfg Hbound.
+  simpl.
+  split.
+  - apply ccl_pass_labels_foreground; assumption.
+  - apply ccl_pass_resolve_foreground_positive; assumption.
+Qed.
+
+(** ** All Coordinates Are Properly Bounded and Unique *)
+Theorem all_coords_well_formed : forall img c,
+  In c (all_coords img) <-> in_bounds img c = true.
+Proof.
+  intros img c.
+  split.
+  - apply all_coords_sound.
+  - apply all_coords_complete.
+Qed.
+
+(** ** Prior Neighbors Are Complete and Sound *)
+Theorem prior_neighbors_4_characterization : forall c c',
+  In c' (prior_neighbors_4 c) <-> 
+  (adjacent_4 c' c = true /\ raster_lt c' c = true).
+Proof.
+  intros c c'.
+  split.
+  - intro H.
+    split.
+    + apply prior_neighbors_4_adjacent. assumption.
+    + apply prior_neighbors_4_before. assumption.
+  - intros [Hadj Hbefore].
+    apply prior_neighbors_4_complete; assumption.
+Qed.
+
+(** ** Check Prior Neighbors Filters Correctly *)
+Theorem check_prior_neighbors_4_characterization : forall img c c',
+  In c' (check_prior_neighbors_4 img c) <-> 
+  (get_pixel img c' = true /\ adjacent_4 c' c = true /\ raster_lt c' c = true).
+Proof.
+  intros img c c'.
+  unfold check_prior_neighbors_4.
+  split.
+  - intro H.
+    apply filter_In in H.
+    destruct H as [Hin Hfilter].
+    apply andb_prop in Hfilter.
+    destruct Hfilter as [Hpix Hadj].
+    split; [|split].
+    + assumption.
+    + assumption.
+    + apply prior_neighbors_4_before. assumption.
+  - intros [Hpix [Hadj Hbefore]].
+    apply filter_In.
+    split.
+    + apply prior_neighbors_4_complete; assumption.
+    + apply andb_true_intro. split; assumption.
+Qed.
+
+(** ** Process Pixel Creates Correct Equivalences *)
+Theorem process_pixel_creates_adjacency_equiv : forall img adj check_neighbors s c c',
+  next_label s > 0 ->
+  get_pixel img c = true ->
+  In c' (check_neighbors img c) ->
+  labels s c' > 0 ->
+  let s' := process_pixel img adj check_neighbors s c in
+  uf_same_set (equiv s') (labels s' c) (labels s c') = true.
+Proof.
+  intros img adj check_neighbors s c c' Hnext Hpix Hin Hpos.
+  simpl.
+  assert (H := process_pixel_labels_current_pixel img adj check_neighbors s c Hpix Hnext).
+  destruct H as [_ Hequiv].
+  apply Hequiv; assumption.
+Qed.
+
+(** ** Equivalences Are Preserved Through Processing *)
+Theorem fold_process_preserves_adjacency : forall img adj check_neighbors coords s c1 c2,
+  uf_same_set (equiv s) (labels s c1) (labels s c2) = true ->
+  labels s c1 > 0 ->
+  labels s c2 > 0 ->
+  let s' := fold_left (process_pixel img adj check_neighbors) coords s in
+  uf_same_set (equiv s') (labels s c1) (labels s c2) = true.
+Proof.
+  intros img adj check_neighbors coords s c1 c2 Hequiv Hpos1 Hpos2.
+  simpl.
+  apply fold_process_preserves_equiv.
+  assumption.
+Qed.
+
+(** ** Next Label Monotonically Increases *)
+Theorem fold_process_next_label_monotonic : forall img adj check_neighbors coords s,
+  let s' := fold_left (process_pixel img adj check_neighbors) coords s in
+  next_label s <= next_label s'.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|c cs IH]; intros s.
+  - simpl. reflexivity.
+  - simpl. 
+    apply Nat.le_trans with (m := next_label (process_pixel img adj check_neighbors s c)).
+    + apply process_pixel_next_label_monotonic.
+    + apply IH.
+Qed.
+
+(** ** Unprocessed Pixels Remain Unlabeled *)
+Theorem fold_process_unprocessed_invariant : forall img adj check_neighbors coords s c,
+  ~ In c coords ->
+  labels s c = 0 ->
+  let s' := fold_left (process_pixel img adj check_neighbors) coords s in
+  labels s' c = 0.
+Proof.
+  intros img adj check_neighbors coords s c Hnotin Hzero.
+  simpl.
+  apply fold_process_unprocessed_zero; assumption.
+Qed.
+
+(** ** Processing Preserves and Creates Equivalences *)
+Theorem process_pixel_equiv_complete : forall img adj check_neighbors s c c1 c2,
+  next_label s > 0 ->
+  get_pixel img c = true ->
+  In c1 (check_neighbors img c) ->
+  In c2 (check_neighbors img c) ->
+  labels s c1 > 0 ->
+  labels s c2 > 0 ->
+  let s' := process_pixel img adj check_neighbors s c in
+  uf_same_set (equiv s') (labels s c1) (labels s c2) = true.
+Proof.
+  intros img adj check_neighbors s c c1 c2 Hnext Hpix Hin1 Hin2 Hpos1 Hpos2.
+  simpl.
+  apply process_pixel_equiv_neighbors; assumption.
+Qed.
+
+(** ** Labels Don't Change After Processing *)
+Theorem process_pixel_stable_labels : forall img adj check_neighbors s c c',
+  c <> c' ->
+  let s' := process_pixel img adj check_neighbors s c in
+  labels s' c' = labels s c'.
+Proof.
+  intros img adj check_neighbors s c c' Hneq.
+  simpl.
+  apply process_pixel_labels_unchanged.
+  assumption.
+Qed.
