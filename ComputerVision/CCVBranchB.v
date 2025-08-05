@@ -3256,3 +3256,239 @@ fold s'.
       apply process_pixel_preserves_equiv.
       apply Hprior; assumption.
 Qed.
+
+(** ** Helper Lemmas for Lifting to Full Algorithm *)
+
+(** First, let's establish that all_coords gives us pixels in raster order *)
+Lemma all_coords_raster_sorted : forall img c1 c2,
+  In c1 (all_coords img) ->
+  In c2 (all_coords img) ->
+  c1 <> c2 ->
+  raster_lt c1 c2 = true \/ raster_lt c2 c1 = true.
+Proof.
+  intros img c1 c2 H1 H2 Hneq.
+  apply raster_lt_total. assumption.
+Qed.
+
+
+(** Processing preserves the next_label through fold *)
+Lemma fold_process_preserves_next_label_positive : 
+  forall img adj check_neighbors coords s,
+  next_label s > 0 ->
+  next_label (fold_left (process_pixel img adj check_neighbors) coords s) > 0.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|c cs IH]; intros s Hpos.
+  - simpl. assumption.
+  - simpl. apply IH. apply process_pixel_next_label_positive. assumption.
+Qed.
+
+(** fold_left preserves background labeling through all pixels *)
+Lemma fold_process_preserves_background : 
+  forall img adj check_neighbors coords s,
+  state_labels_background img s ->
+  state_labels_background img (fold_left (process_pixel img adj check_neighbors) coords s).
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|c cs IH]; intros s Hbg.
+  - simpl. assumption.
+  - simpl. apply IH. apply process_pixel_preserves_background. assumption.
+Qed.
+
+(** Labels don't change for pixels not being processed *)
+Lemma fold_process_preserves_labels : 
+  forall img adj check_neighbors coords s c,
+  (forall c', In c' coords -> c <> c') ->
+  labels (fold_left (process_pixel img adj check_neighbors) coords s) c = labels s c.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|c' cs IH]; intros s c Hnotin.
+  - simpl. reflexivity.
+  - simpl. rewrite IH.
+    + apply process_pixel_preserves_other.
+      intro Heq. subst c'. 
+      specialize (Hnotin c).
+      apply Hnotin.
+      * left. reflexivity.
+      * reflexivity.
+    + intros c'' Hc''. apply Hnotin. right. assumption.
+Qed.
+
+(** After processing, foreground pixels have positive labels *)
+Lemma fold_process_labels_foreground :
+  forall img adj check_neighbors coords s c,
+  NoDup coords ->
+  next_label s > 0 ->
+  In c coords ->
+  get_pixel img c = true ->
+  labels (fold_left (process_pixel img adj check_neighbors) coords s) c > 0.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|c' cs IH]; intros s c Hnodup Hnext Hin Hpix.
+  - simpl in Hin. contradiction.
+  - simpl in Hin. destruct Hin as [Heq | Hin'].
+    + subst c'. simpl.
+      inversion Hnodup. subst.
+      rewrite fold_process_preserves_labels.
+      * apply process_pixel_labels_current; assumption.
+      * intros c' Hc' Heq. subst c'.
+        (* c is not in cs by NoDup *)
+        contradiction.
+    + simpl. 
+      inversion Hnodup. subst.
+      apply IH.
+      * assumption.
+      * apply process_pixel_next_label_positive. assumption.
+      * assumption.
+      * assumption.
+Qed.
+
+(** seq_coords_row produces no duplicates *)
+Lemma seq_coords_row_NoDup : forall x_start width y,
+  NoDup (seq_coords_row x_start width y).
+Proof.
+  intros x_start width y.
+  generalize dependent x_start.
+  induction width; intros x_start.
+  - simpl. apply NoDup_nil.
+  - simpl. apply NoDup_cons.
+    + intro H. apply seq_coords_row_in in H.
+      lia.
+    + apply IHwidth.
+Qed.
+
+(** Different rows have different y-coordinates *)
+Lemma seq_coords_row_disjoint : forall x1 w1 y1 x2 w2 y2,
+  y1 <> y2 ->
+  forall c, In c (seq_coords_row x1 w1 y1) -> 
+            ~ In c (seq_coords_row x2 w2 y2).
+Proof.
+  intros x1 w1 y1 x2 w2 y2 Hneq [x y] Hin1 Hin2.
+  assert (Hy1: y = y1) by (apply (seq_coords_row_y x y x1 w1 y1); assumption).
+  assert (Hy2: y = y2) by (apply (seq_coords_row_y x y x2 w2 y2); assumption).
+  rewrite Hy1 in Hy2.
+  apply Hneq. assumption.
+Qed.
+
+(** seq_coords produces no duplicates *)
+Lemma seq_coords_NoDup : forall w h,
+  NoDup (seq_coords w h).
+Proof.
+  intros w h.
+  induction h.
+  - simpl. apply NoDup_nil.
+  - simpl. apply NoDup_app.
+    + assumption.
+    + apply seq_coords_row_NoDup.
+    + intros [x y] Hin1 Hin2.
+      apply seq_coords_in in Hin1.
+      apply seq_coords_row_y in Hin2.
+      destruct Hin1 as [Hx Hy].
+      subst y.
+      lia.
+Qed.
+
+(** all_coords has no duplicates *)
+Lemma all_coords_NoDup : forall img,
+  NoDup (all_coords img).
+Proof.
+  intros img.
+  unfold all_coords.
+  apply seq_coords_NoDup.
+Qed.
+
+(** firstn and skipn partition all_coords *)
+Lemma all_coords_partition : forall img n,
+  n <= length (all_coords img) ->
+  all_coords img = firstn n (all_coords img) ++ skipn n (all_coords img).
+Proof.
+  intros img n Hn.
+  symmetry.
+  apply firstn_skipn.
+Qed.
+
+(** Unprocessed pixels remain unlabeled during fold *)
+Lemma fold_process_unprocessed_zero : forall img adj check_neighbors coords s c,
+  ~ In c coords ->
+  labels s c = 0 ->
+  labels (fold_left (process_pixel img adj check_neighbors) coords s) c = 0.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|c' cs IH]; intros s c Hnotin Hzero.
+  - simpl. assumption.
+  - simpl. apply IH.
+    + intro H. apply Hnotin. right. assumption.
+    + rewrite process_pixel_preserves_other.
+      * assumption.
+      * intro Heq. subst c'. apply Hnotin. left. reflexivity.
+Qed.
+
+(** fold_left preserves existing equivalences *)
+Lemma fold_process_preserves_equiv : forall img adj check_neighbors coords s l1 l2,
+  uf_same_set (equiv s) l1 l2 = true ->
+  uf_same_set (equiv (fold_left (process_pixel img adj check_neighbors) coords s)) l1 l2 = true.
+Proof.
+  intros img adj check_neighbors coords.
+  induction coords as [|c cs IH]; intros s l1 l2 Hequiv.
+  - simpl. assumption.
+  - simpl. apply IH.
+    apply process_pixel_preserves_equiv.
+    assumption.
+Qed.
+
+(** Initial state satisfies invariant for empty processed list *)
+Lemma initial_state_invariant : forall img adj,
+  strong_partial_correct img adj initial_state [].
+Proof.
+  intros img adj.
+  unfold strong_partial_correct, initial_state.
+  simpl.
+  split; [|split; [|split]].
+  - intros c H. contradiction.
+  - intros c H. contradiction.
+  - intros c _. reflexivity.
+  - intros c1 c2 H. contradiction.
+Qed.
+
+(** ccl_pass labels all foreground pixels *)
+Lemma ccl_pass_labels_foreground : forall img adj check_neighbors c,
+  get_pixel img c = true ->
+  in_bounds img c = true ->
+  labels (ccl_pass img adj check_neighbors) c > 0.
+Proof.
+  intros img adj check_neighbors c Hfg Hbound.
+  unfold ccl_pass.
+  apply fold_process_labels_foreground.
+  - apply all_coords_NoDup.
+  - apply initial_state_next_label_positive.
+  - apply all_coords_complete. assumption.
+  - assumption.
+Qed.
+
+(** ccl_pass labels background pixels as 0 *)
+Lemma ccl_pass_labels_background_zero : forall img adj check_neighbors c,
+  get_pixel img c = false ->
+  labels (ccl_pass img adj check_neighbors) c = 0.
+Proof.
+  intros img adj check_neighbors c Hbg.
+  unfold ccl_pass.
+  destruct (in_bounds img c) eqn:Hbound.
+  - (* in bounds *)
+    apply fold_process_unprocessed_zero.
+    + intro H. 
+      apply all_coords_sound in H.
+      unfold get_pixel in Hbg.
+      rewrite Hbound in Hbg.
+      rewrite Hbg in H.
+      discriminate.
+    + reflexivity.
+  - (* out of bounds *)
+    apply fold_process_unprocessed_zero.
+    + intro H.
+      apply all_coords_sound in H.
+      rewrite Hbound in H.
+      discriminate.
+    + reflexivity.
+Qed.
+
+
