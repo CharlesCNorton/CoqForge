@@ -509,36 +509,283 @@ Definition solve_linear_system (sys : linear_system) : option (list Q) :=
   if Nat.eqb (List.length m) 0 then None
   else back_substitution_aux m_upper b_upper (List.length m - 1) initial_solution.
   
-  (* Build indifference system for player p with support s *)
+(* Build indifference system for player p with support s *)
 Definition build_indifference_system (g : game) (p : player) 
           (s : support p) : linear_system :=
   let acts := actions_in_support s in
   let n := List.length acts in
-  match acts with
-  | [] => mkSystem 0 0 [] []  (* Can't happen due to support_nonempty *)
-  | a0 :: rest =>
-      (* For each pair of actions in support, add equality constraint *)
-      let constraints := map (fun a =>
-        (* Constraint: BR(a0) - BR(a) = 0 *)
-        let row := match p with
-          | P1 => 
-              (* Coefficients are differences in utilities *)
-              map (fun (a2 : action P2) =>
-                (utility g P1 (a0, a2)) - (utility g P1 (a, a2))
-              ) (enum_actions P2)
-          | P2 =>
-              map (fun (a1 : action P1) =>
-                (utility g P2 (a1, a0)) - (utility g P2 (a1, a))
-              ) (enum_actions P1)
-          end in
-        row
-      ) rest in
-      (* Add probability sum = 1 constraint *)
-      let prob_constraint := List.repeat 1 (match p with P1 => n2 | P2 => n1 end) in
-      let all_constraints := constraints ++ [prob_constraint] in
-      let rhs_vals := (List.repeat 0 (List.length rest)) ++ [1] in
-      mkSystem (match p with P1 => n2 | P2 => n1 end) 
-               (List.length all_constraints)
-               all_constraints 
-               rhs_vals
+  match p as p' return support p' -> linear_system with
+  | P1 => fun (s1 : support P1) =>
+      match actions_in_support s1 with
+      | [] => mkSystem 0 0 [] []
+      | a0 :: rest =>
+          let constraints := map (fun (a : action P1) =>
+            map (fun (a2 : action P2) =>
+              (utility g P1 (a0, a2)) - (utility g P1 (a, a2))
+            ) (enum_actions P2)
+          ) rest in
+          let prob_constraint := List.repeat 1 n2 in
+          let all_constraints := constraints ++ [prob_constraint] in
+          let rhs_vals := (List.repeat 0 (List.length rest)) ++ [1] in
+          mkSystem n2 (List.length all_constraints) all_constraints rhs_vals
+      end
+  | P2 => fun (s2 : support P2) =>
+      match actions_in_support s2 with
+      | [] => mkSystem 0 0 [] []
+      | a0 :: rest =>
+          let constraints := map (fun (a : action P2) =>
+            map (fun (a1 : action P1) =>
+              (utility g P2 (a1, a0)) - (utility g P2 (a1, a))
+            ) (enum_actions P1)
+          ) rest in
+          let prob_constraint := List.repeat 1 n1 in
+          let all_constraints := constraints ++ [prob_constraint] in
+          let rhs_vals := (List.repeat 0 (List.length rest)) ++ [1] in
+          mkSystem n1 (List.length all_constraints) all_constraints rhs_vals
+      end
+  end s.
+  
+(* Build mixed strategy from probabilities (returns None if invalid) *)
+Definition build_mixed_from_probs_unchecked (p : player) (probs : list Q) 
+          : (action p -> Q) :=
+  match p as p' return (action p' -> Q) with
+  | P1 => fun (a : [fin n1]) => List.nth (nat_of_ord a) probs 0
+  | P2 => fun (a : [fin n2]) => List.nth (nat_of_ord a) probs 0
   end.
+  
+(* Check if probabilities are valid for a mixed strategy *)
+Definition valid_probs (probs : list Q) : bool :=
+  List.forallb (fun q => Qle_bool 0 q) probs && 
+  Qeq_bool (fold_left Qplus probs 0) 1.
+  
+  (* Check if probability functions satisfy Nash conditions *)
+Definition check_nash_conditions (g : game) 
+          (s1 : support P1) (s2 : support P2)
+          (prob1 : action P1 -> Q) (prob2 : action P2 -> Q) : bool :=
+  (* Build pseudo mixed strategies for checking *)
+  let check_indiff_1 := 
+    match actions_in_support s1 with
+    | [] => false
+    | a :: rest =>
+        let v := fold_left Qplus 
+          (map (fun a2 => prob2 a2 * utility g P1 (a, a2)) (enum_actions P2)) 0 in
+        List.forallb (fun a' =>
+          let v' := fold_left Qplus 
+            (map (fun a2 => prob2 a2 * utility g P1 (a', a2)) (enum_actions P2)) 0 in
+          Qeq_bool v v'
+        ) rest
+    end in
+  let check_indiff_2 := 
+    match actions_in_support s2 with
+    | [] => false  
+    | a :: rest =>
+        let v := fold_left Qplus
+          (map (fun a1 => prob1 a1 * utility g P2 (a1, a)) (enum_actions P1)) 0 in
+        List.forallb (fun a' =>
+          let v' := fold_left Qplus
+            (map (fun a1 => prob1 a1 * utility g P2 (a1, a')) (enum_actions P1)) 0 in
+          Qeq_bool v v'
+        ) rest
+    end in
+  check_indiff_1 && check_indiff_2.
+  
+(* Helper lemma: extract non-negativity from valid_probs *)
+Lemma valid_probs_nonneg (probs : list Q) :
+  valid_probs probs = true ->
+  forall i, (i < List.length probs)%nat -> 0 <= List.nth i probs 0.
+Proof.
+  unfold valid_probs.
+  intro H.
+  destruct (andb_prop _ _ H) as [H_all H_sum].
+  intros i Hi.
+  clear H_sum H.
+  revert i Hi.
+  induction probs as [|h t IH]; intros i Hi.
+  - simpl in Hi. inversion Hi.
+  - destruct i.
+    + simpl in H_all.
+      destruct (andb_prop _ _ H_all) as [H_h _].
+      simpl.
+      unfold Qle_bool in H_h.
+      destruct (0 ?= h) eqn:E.
+      * (* Case: 0 = h *)
+        apply Qeq_alt in E. rewrite <- E. apply Qle_refl.
+      * (* Case: 0 < h *)
+        apply Qlt_alt in E. apply Qlt_le_weak. exact E.
+      * (* Case: 0 > h - impossible *)
+        discriminate H_h.
+    + simpl in H_all.
+      destruct (andb_prop _ _ H_all) as [_ H_t].
+      simpl.
+      apply IH.
+      * exact H_t.
+      * simpl in Hi.
+        by move: Hi; rewrite !ltnS.
+Qed.
+
+(* For now, let's just keep the weaker property *)
+Lemma valid_probs_sum_one_Qeq (probs : list Q) :
+  valid_probs probs = true ->
+  Qeq (fold_left Qplus probs 0) 1.
+Proof.
+  unfold valid_probs.
+  intro H.
+  destruct (andb_prop _ _ H) as [_ H_sum].
+  unfold Qeq_bool in H_sum.
+  destruct (fold_left Qplus probs 0 ?= 1) eqn:E.
+  - (* When Qcompare returns Eq, we have Qeq *)
+    apply Qeq_alt.
+    exact E.
+  - discriminate H_sum.
+  - discriminate H_sum.
+Qed.
+
+(* Redefine mixed strategy to use Qeq for the sum constraint *)
+Record mixed_strategy_eq (p : player) := mkMixedEq {
+  prob_mass_eq : action p -> Q;
+  prob_nonneg_eq : forall a, 0 <= prob_mass_eq a;
+  prob_sum_one_eq : Qeq (fold_left Qplus (map prob_mass_eq (enum_actions p)) 0) 1
+}.
+
+(* Mixed strategy profile with the new definition *)
+Definition mixed_profile_eq := (mixed_strategy_eq P1 * mixed_strategy_eq P2)%type.
+
+(* Expected utility works the same way *)
+Definition expected_utility_eq (g : game) (p : player) (σ : mixed_profile_eq) : Q :=
+  let (σ1, σ2) := σ in
+  fold_left Qplus
+    (map (fun a1 => 
+      fold_left Qplus
+        (map (fun a2 =>
+          (prob_mass_eq σ1 a1) * (prob_mass_eq σ2 a2) * 
+          (utility g p (a1, a2)))
+        (enum_actions P2))
+      0)
+    (enum_actions P1))
+  0.
+
+(* Helper: length of probs matches number of actions *)
+Lemma probs_length_P1 (probs : list Q) :
+  List.length probs = n1 ->
+  forall a : [fin n1], (nat_of_ord a < List.length probs)%nat.
+Proof.
+  intro H.
+  intro a.
+  rewrite H.
+  exact (ltn_ord a).
+Qed.
+
+Lemma probs_length_P2 (probs : list Q) :
+  List.length probs = n2 ->
+  forall a : [fin n2], (nat_of_ord a < List.length probs)%nat.
+Proof.
+  intro H.
+  intro a.
+  rewrite H.
+  exact (ltn_ord a).
+Qed.
+
+(* Simpler: just check if a probability list gives a valid mixed strategy *)
+Definition check_mixed_strategy_P1 (probs : list Q) : bool :=
+  (Nat.eqb (List.length probs) n1) &&
+  valid_probs probs.
+
+Definition check_mixed_strategy_P2 (probs : list Q) : bool :=
+  (Nat.eqb (List.length probs) n2) &&
+  valid_probs probs.
+  
+  (* Simple representation of a mixed strategy as a probability list *)
+Definition mixed_as_probs_P1 := list Q.
+Definition mixed_as_probs_P2 := list Q.
+
+(* Check if two probability lists form a Nash equilibrium with given supports *)
+Definition check_nash_with_probs (g : game) 
+          (s1 : support P1) (s2 : support P2)
+          (probs1 : mixed_as_probs_P1) (probs2 : mixed_as_probs_P2) : bool :=
+  (* First check valid probabilities *)
+  let valid1 := check_mixed_strategy_P1 probs1 in
+  let valid2 := check_mixed_strategy_P2 probs2 in
+  (* Build probability functions - using @ for explicit application *)
+  let prob_fn1 := @build_mixed_from_probs_unchecked P1 probs1 in
+  let prob_fn2 := @build_mixed_from_probs_unchecked P2 probs2 in
+  (* Check Nash conditions *)
+  let nash_ok := check_nash_conditions g s1 s2 prob_fn1 prob_fn2 in
+  (* Check support consistency for P1 *)
+  let support1_ok := List.forallb (fun a => 
+    if in_support a s1 
+    then Qlt_bool 0 (List.nth (nat_of_ord a) probs1 0)
+    else Qeq_bool (List.nth (nat_of_ord a) probs1 0) 0
+  ) (enum_actions P1) in
+  (* Check support consistency for P2 *)
+  let support2_ok := List.forallb (fun a => 
+    if in_support a s2
+    then Qlt_bool 0 (List.nth (nat_of_ord a) probs2 0)
+    else Qeq_bool (List.nth (nat_of_ord a) probs2 0) 0
+  ) (enum_actions P2) in
+  (* Combine all checks *)
+  valid1 && valid2 && nash_ok && support1_ok && support2_ok.
+  
+(* Find Nash equilibrium with given supports *)
+Definition find_nash_with_support (g : game) 
+          (s1 : support P1) (s2 : support P2) : option (mixed_as_probs_P1 * mixed_as_probs_P2) :=
+  (* Build and solve linear system for P1 *)
+  let sys1 := @build_indifference_system g P1 s1 in
+  match solve_linear_system sys1 with
+  | None => None
+  | Some probs1 =>
+      (* Build and solve linear system for P2 *)
+      let sys2 := @build_indifference_system g P2 s2 in
+      match solve_linear_system sys2 with
+      | None => None
+      | Some probs2 =>
+          (* Check if the solution is valid *)
+          if check_nash_with_probs g s1 s2 probs1 probs2
+          then Some (probs1, probs2)
+          else None
+      end
+  end.
+
+(* Helper to create support from non-empty list *)
+Program Definition support_from_nonempty_list (p : player) (acts : list (action p)) 
+        (H : acts <> nil) : support p :=
+  @mkSupport p acts H.
+
+(* Generate all non-empty supports for P1 - simplified version *)
+Definition all_supports_P1_simple : list (list (action P1)) :=
+  nonempty_powerset (enum_actions P1).
+
+(* Generate all non-empty supports for P2 - simplified version *)
+Definition all_supports_P2_simple : list (list (action P2)) :=
+  nonempty_powerset (enum_actions P2).
+
+(* Helper lemma: cons is not nil *)
+Lemma cons_not_nil {A : Type} (h : A) (t : list A) : h :: t <> [].
+Proof.
+  discriminate.
+Qed.
+
+(* Find Nash equilibrium for a specific support pair given as lists *)
+Definition find_nash_with_support_lists (g : game) 
+          (acts1 : list (action P1)) (acts2 : list (action P2)) 
+          : option (mixed_as_probs_P1 * mixed_as_probs_P2) :=
+  match acts1, acts2 with
+  | [], _ => None
+  | _, [] => None
+  | h1 :: t1, h2 :: t2 =>
+      (* Create supports with proofs *)
+      let s1 := @mkSupport P1 (h1 :: t1) (@cons_not_nil (action P1) h1 t1) in
+      let s2 := @mkSupport P2 (h2 :: t2) (@cons_not_nil (action P2) h2 t2) in
+      find_nash_with_support g s1 s2
+  end.
+  
+(* Main algorithm: find ALL Nash equilibria *)
+Definition find_all_nash (g : game) : list (mixed_as_probs_P1 * mixed_as_probs_P2) :=
+  let support_pairs := cartesian_product all_supports_P1_simple all_supports_P2_simple in
+  fold_left (fun acc (pair : list (action P1) * list (action P2)) =>
+    let (acts1, acts2) := pair in
+    match find_nash_with_support_lists g acts1 acts2 with
+    | None => acc
+    | Some nash => nash :: acc
+    end
+  ) support_pairs [].
+  
