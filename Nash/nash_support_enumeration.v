@@ -789,3 +789,83 @@ Definition find_all_nash (g : game) : list (mixed_as_probs_P1 * mixed_as_probs_P
     end
   ) support_pairs [].
   
+(* Test case: Battle of Sexes (2x2 game) *)
+Section TestGame.
+
+(* Override n1 and n2 to be 2 for this test *)
+Let test_n1 := 2.
+Let test_n2 := 2.
+
+(* Create a simple 2x2 game utility function *)
+Definition simple_utility_P1 (p : pure_profile) : Q :=
+  let (a1, a2) := p in
+  if (Nat.eqb (nat_of_ord a1) 0) && (Nat.eqb (nat_of_ord a2) 0) then 2#1  (* (0,0) -> 2 *)
+  else if (Nat.eqb (nat_of_ord a1) 1) && (Nat.eqb (nat_of_ord a2) 1) then 1#1  (* (1,1) -> 1 *)
+  else 0#1.  (* off-diagonal -> 0 *)
+
+Definition simple_utility_P2 (p : pure_profile) : Q :=
+  let (a1, a2) := p in
+  if (Nat.eqb (nat_of_ord a1) 0) && (Nat.eqb (nat_of_ord a2) 0) then 1#1  (* (0,0) -> 1 *)
+  else if (Nat.eqb (nat_of_ord a1) 1) && (Nat.eqb (nat_of_ord a2) 1) then 2#1  (* (1,1) -> 2 *)
+  else 0#1.  (* off-diagonal -> 0 *)
+
+Definition battle_of_sexes : game :=
+  mkGame simple_utility_P1 simple_utility_P2.
+
+End TestGame.
+
+(* Test computation - this will take a while to run *)
+Definition test_find_nash : list (mixed_as_probs_P1 * mixed_as_probs_P2) :=
+  find_all_nash battle_of_sexes.
+
+(* For debugging, let's also create a simpler test that just checks the supports *)
+Definition test_supports : list (list (action P1)) * list (list (action P2)) :=
+  (all_supports_P1_simple, all_supports_P2_simple).
+
+(* Check that we can at least enumerate supports correctly *)
+Eval compute in (List.length all_supports_P1_simple).
+Eval compute in (List.length all_supports_P2_simple).
+
+(* Check if a pure strategy profile is a Nash equilibrium *)
+Definition is_pure_nash (g : game) (a1 : action P1) (a2 : action P2) : bool :=
+  (* Check if P1 wants to deviate *)
+  let u1_current := utility g P1 (a1, a2) in
+  let p1_stable := List.forallb (fun a1' =>
+    Qle_bool (utility g P1 (a1', a2)) u1_current
+  ) (enum_actions P1) in
+  (* Check if P2 wants to deviate *)
+  let u2_current := utility g P2 (a1, a2) in
+  let p2_stable := List.forallb (fun a2' =>
+    Qle_bool (utility g P2 (a1, a2')) u2_current
+  ) (enum_actions P2) in
+  p1_stable && p2_stable.
+
+(* Find all pure Nash equilibria *)
+Definition find_pure_nash (g : game) : list (action P1 * action P2) :=
+  let all_profiles := cartesian_product (enum_actions P1) (enum_actions P2) in
+  filter (fun (p : action P1 * action P2) => 
+    let (a1, a2) := p in is_pure_nash g a1 a2
+  ) all_profiles.
+  
+  (* Test finding pure Nash equilibria in Battle of Sexes *)
+Definition test_pure_nash := find_pure_nash battle_of_sexes.
+
+(* Let's also create a simple printer for debugging *)
+Definition show_pure_profile (p : action P1 * action P2) : nat * nat :=
+  let (a1, a2) := p in
+  (nat_of_ord a1, nat_of_ord a2).
+
+(* Show the pure Nash equilibria as natural number pairs *)
+Definition test_pure_nash_readable := map show_pure_profile test_pure_nash.
+
+(* Simpler test: just check if (0,0) is a pure Nash *)
+Definition test_00_nash : bool := is_pure_nash battle_of_sexes (Ordinal n1_pos) (Ordinal n2_pos).
+
+(* Simpler: just count how many pure Nash equilibria we find *)
+Definition count_pure_nash : nat := List.length test_pure_nash.
+
+(* Try vm_compute for faster evaluation *)
+Eval vm_compute in count_pure_nash.
+
+(* Evaluate to see the pure Nash equilibria *)
+Eval compute in test_pure_nash_readable.
