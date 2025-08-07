@@ -869,3 +869,313 @@ Eval vm_compute in count_pure_nash.
 
 (* Evaluate to see the pure Nash equilibria *)
 Eval compute in test_pure_nash_readable.
+
+(* ================================================================= *)
+(*                    CORRECTNESS PROOFS                            *)
+(* ================================================================= *)
+
+Section Correctness.
+
+(* First, let's formally define what a Nash equilibrium is *)
+Definition is_nash_equilibrium (g : game) (σ : mixed_profile_eq) : Prop :=
+  let (σ1, σ2) := σ in
+  (* P1 cannot improve by deviating *)
+  (forall σ1' : mixed_strategy_eq P1,
+    expected_utility_eq g P1 (σ1', σ2) <= expected_utility_eq g P1 (σ1, σ2)) /\
+  (* P2 cannot improve by deviating *)
+  (forall σ2' : mixed_strategy_eq P2,
+    expected_utility_eq g P2 (σ1, σ2') <= expected_utility_eq g P2 (σ1, σ2)).
+    
+(* Lemma 1: enum_actions for P1 gives all ordinals in order *)
+Lemma enum_actions_P1_complete : 
+  map (nat_of_ord (n:=n1)) (enum_actions P1) = iota 0 n1.
+Proof.
+  unfold enum_actions.
+  simpl.
+  (* Use the fact that enum gives all ordinals *)
+  have ->: map (nat_of_ord (n:=n1)) (enum [fin n1]) = 
+           map val (enum [fin n1]).
+  { apply map_ext. intro x. reflexivity. }
+  rewrite val_enum_ord.
+  reflexivity.
+Qed.
+
+(* Helper: iota shift property - more general version *)
+Lemma iota_shift_general m n : iota m.+1 n = map S (iota m n).
+Proof.
+  induction n as [|n' IH] in m |- *.
+  - reflexivity.
+  - simpl. f_equal. 
+    apply (IH m.+1).
+Qed.
+
+(* Now the specific case we need *)
+Lemma iota_shift n : iota 1 n = map S (iota 0 n).
+Proof.
+  exact (iota_shift_general 0 n).
+Qed.
+
+(* Lemma 2: Indexing into a list with iota 0 (length l) recovers the list *)
+Lemma nth_iota_recover (l : list Q) :
+  map (fun i => List.nth i l 0) (iota 0 (List.length l)) = l.
+Proof.
+  induction l as [|h t IH].
+  - reflexivity.
+  - simpl.
+    f_equal.
+    (* Use the iota_shift lemma *)
+    rewrite iota_shift.
+    rewrite -[LHS]map_comp.
+    simpl.
+    exact IH.
+Qed.
+
+(* Lemma 3a: Mapping nat_of_ord preserves function composition *)
+Lemma map_enum_actions_comp (f : nat -> Q) :
+  map (fun a : action P1 => f (nat_of_ord a)) (enum_actions P1) = 
+  map f (map (nat_of_ord (n:=n1)) (enum_actions P1)).
+Proof.
+  rewrite map_comp.
+  reflexivity.
+Qed.
+
+(* Lemma 3b: Simplify the double map using enum_actions_P1_complete *)
+Lemma map_enum_to_iota (f : nat -> Q) :
+  map f (map (nat_of_ord (n:=n1)) (enum_actions P1)) = map f (iota 0 n1).
+Proof.
+  f_equal.
+  exact enum_actions_P1_complete.
+Qed.
+
+(* Lemma 3: Mapping through enum_actions and indexing gives back probs *)
+Lemma map_enum_nth_probs (probs : list Q) :
+  List.length probs = n1 ->
+  map (fun a : action P1 => List.nth (nat_of_ord a) probs 0) (enum_actions P1) = probs.
+Proof.
+  intro H_len.
+  rewrite (map_enum_actions_comp (fun i => List.nth i probs 0)).
+  rewrite map_enum_to_iota.
+  rewrite -H_len.
+  exact (nth_iota_recover probs).
+Qed.
+
+(* Lemma 4: Sum preservation *)
+Lemma sum_enum_actions_probs (probs : list Q) :
+  List.length probs = n1 ->
+  fold_left Qplus probs 0 = 
+  fold_left Qplus (map (fun a : action P1 => List.nth (nat_of_ord a) probs 0) 
+                       (enum_actions P1)) 0.
+Proof.
+  intro H_len.
+  rewrite map_enum_nth_probs; auto.
+Qed.
+
+(* Lemma to get the sum property in the right form *)
+Lemma valid_probs_sum_enum_P1 (probs : list Q) :
+  List.length probs = n1 ->
+  valid_probs probs = true ->
+  Qeq (fold_left Qplus 
+       (map (fun a : action P1 => List.nth (nat_of_ord a) probs 0) 
+            (enum_actions P1)) 0) 1.
+Proof.
+  intros H_len H_valid.
+  rewrite -sum_enum_actions_probs; auto.
+  apply valid_probs_sum_one_Qeq.
+  exact H_valid.
+Qed.
+
+(* Helper: Build the probability mass function from a list *)
+Definition probs_to_mass_fn_P1 (probs : list Q) : action P1 -> Q :=
+  fun a => List.nth (nat_of_ord a) probs 0.
+
+(* Lemma: The mass function from valid probs is non-negative *)
+Lemma probs_to_mass_fn_nonneg (probs : list Q) :
+  List.length probs = n1 ->
+  valid_probs probs = true ->
+  forall a : action P1, 0 <= probs_to_mass_fn_P1 probs a.
+Proof.
+  intros H_len H_valid a.
+  unfold probs_to_mass_fn_P1.
+  apply valid_probs_nonneg; auto.
+  apply probs_length_P1; auto.
+Qed.
+
+(* Helper: Build mixed strategy from valid probability list *)
+Definition build_mixed_P1 (probs : list Q) (H_len : List.length probs = n1) 
+           (H_valid : valid_probs probs = true) : mixed_strategy_eq P1 :=
+  @mkMixedEq P1
+    (probs_to_mass_fn_P1 probs)
+    (@probs_to_mass_fn_nonneg probs H_len H_valid)
+    (@valid_probs_sum_enum_P1 probs H_len H_valid).
+    
+    
+(* Now we can complete the correspondence lemma *)
+Lemma probs_to_mixed_P1 (probs : list Q) :
+  check_mixed_strategy_P1 probs = true ->
+  {σ : mixed_strategy_eq P1 | 
+    forall a : action P1, prob_mass_eq σ a = List.nth (nat_of_ord a) probs 0}.
+Proof.
+  intro H.
+  unfold check_mixed_strategy_P1 in H.
+  destruct (andb_prop _ _ H) as [H_len H_valid].
+  apply Nat.eqb_eq in H_len.
+  
+  exists (@build_mixed_P1 probs H_len H_valid).
+  
+  intro a.
+  unfold build_mixed_P1, probs_to_mass_fn_P1.
+  simpl.
+  reflexivity.
+Qed.
+
+(* ============= Player 2 versions ============= *)
+
+(* Lemma 1 for P2: enum_actions for P2 gives all ordinals in order *)
+Lemma enum_actions_P2_complete : 
+  map (nat_of_ord (n:=n2)) (enum_actions P2) = iota 0 n2.
+Proof.
+  unfold enum_actions.
+  simpl.
+  have ->: map (nat_of_ord (n:=n2)) (enum [fin n2]) = 
+           map val (enum [fin n2]).
+  { apply map_ext. intro x. reflexivity. }
+  rewrite val_enum_ord.
+  reflexivity.
+Qed.
+
+(* Lemma 3a for P2: Mapping nat_of_ord preserves function composition *)
+Lemma map_enum_actions_comp_P2 (f : nat -> Q) :
+  map (fun a : action P2 => f (nat_of_ord a)) (enum_actions P2) = 
+  map f (map (nat_of_ord (n:=n2)) (enum_actions P2)).
+Proof.
+  rewrite map_comp.
+  reflexivity.
+Qed.
+
+(* Lemma 3b for P2: Simplify the double map using enum_actions_P2_complete *)
+Lemma map_enum_to_iota_P2 (f : nat -> Q) :
+  map f (map (nat_of_ord (n:=n2)) (enum_actions P2)) = map f (iota 0 n2).
+Proof.
+  f_equal.
+  exact enum_actions_P2_complete.
+Qed.
+
+(* Lemma 3 for P2: Mapping through enum_actions and indexing gives back probs *)
+Lemma map_enum_nth_probs_P2 (probs : list Q) :
+  List.length probs = n2 ->
+  map (fun a : action P2 => List.nth (nat_of_ord a) probs 0) (enum_actions P2) = probs.
+Proof.
+  intro H_len.
+  rewrite (map_enum_actions_comp_P2 (fun i => List.nth i probs 0)).
+  rewrite map_enum_to_iota_P2.
+  rewrite -H_len.
+  exact (nth_iota_recover probs).
+Qed.
+
+(* Lemma 4 for P2: Sum preservation *)
+Lemma sum_enum_actions_probs_P2 (probs : list Q) :
+  List.length probs = n2 ->
+  fold_left Qplus probs 0 = 
+  fold_left Qplus (map (fun a : action P2 => List.nth (nat_of_ord a) probs 0) 
+                       (enum_actions P2)) 0.
+Proof.
+  intro H_len.
+  rewrite map_enum_nth_probs_P2; auto.
+Qed.
+
+(* Helper: Build the probability mass function from a list for P2 *)
+Definition probs_to_mass_fn_P2 (probs : list Q) : action P2 -> Q :=
+  fun a => List.nth (nat_of_ord a) probs 0.
+
+(* Lemma: The mass function from valid probs is non-negative for P2 *)
+Lemma probs_to_mass_fn_nonneg_P2 (probs : list Q) :
+  List.length probs = n2 ->
+  valid_probs probs = true ->
+  forall a : action P2, 0 <= probs_to_mass_fn_P2 probs a.
+Proof.
+  intros H_len H_valid a.
+  unfold probs_to_mass_fn_P2.
+  apply valid_probs_nonneg; auto.
+  apply probs_length_P2; auto.
+Qed.
+
+(* Lemma to get the sum property in the right form for P2 *)
+Lemma valid_probs_sum_enum_P2 (probs : list Q) :
+  List.length probs = n2 ->
+  valid_probs probs = true ->
+  Qeq (fold_left Qplus 
+       (map (fun a : action P2 => List.nth (nat_of_ord a) probs 0) 
+            (enum_actions P2)) 0) 1.
+Proof.
+  intros H_len H_valid.
+  rewrite -sum_enum_actions_probs_P2; auto.
+  apply valid_probs_sum_one_Qeq.
+  exact H_valid.
+Qed.
+
+(* Helper: Build mixed strategy from valid probability list for P2 *)
+Definition build_mixed_P2 (probs : list Q) (H_len : List.length probs = n2) 
+           (H_valid : valid_probs probs = true) : mixed_strategy_eq P2 :=
+  @mkMixedEq P2
+    (probs_to_mass_fn_P2 probs)
+    (@probs_to_mass_fn_nonneg_P2 probs H_len H_valid)
+    (@valid_probs_sum_enum_P2 probs H_len H_valid).
+
+(* Main correspondence lemma for P2 *)
+Lemma probs_to_mixed_P2 (probs : list Q) :
+  check_mixed_strategy_P2 probs = true ->
+  {σ : mixed_strategy_eq P2 | 
+    forall a : action P2, prob_mass_eq σ a = List.nth (nat_of_ord a) probs 0}.
+Proof.
+  intro H.
+  unfold check_mixed_strategy_P2 in H.
+  destruct (andb_prop _ _ H) as [H_len H_valid].
+  apply Nat.eqb_eq in H_len.
+  
+  exists (@build_mixed_P2 probs H_len H_valid).
+  
+  intro a.
+  unfold build_mixed_P2, probs_to_mass_fn_P2.
+  simpl.
+  reflexivity.
+Qed.
+
+(* ================================================================= *)
+(*                SUPPORT CHARACTERIZATION THEOREM                  *)
+(* ================================================================= *)
+
+Section SupportCharacterization.
+
+(* Define best response for a pure action *)
+Definition is_best_response (g : game) (p : player) 
+           (a : action p) (σ_opp : mixed_strategy_eq (other p)) : Prop :=
+  forall a' : action p,
+    best_response_value g p a' σ_opp <= best_response_value g p a σ_opp.
+
+(* Define support of a mixed strategy *)
+Definition supp_of_mixed {p : player} (σ : mixed_strategy_eq p) : list (action p) :=
+  filter (fun a => negb (Qeq_bool (prob_mass_eq σ a) 0)) (enum_actions p).
+
+(* Lemma: An action is in support iff it has positive probability *)
+Lemma in_supp_iff_positive {p : player} (σ : mixed_strategy_eq p) (a : action p) :
+  In a (supp_of_mixed σ) <-> 0 < prob_mass_eq σ a.
+Proof.
+  unfold supp_of_mixed.
+  rewrite mem_filter.
+  split.
+  - move/andP => [H_neq H_enum].
+    unfold Qeq_bool in H_neq.
+    destruct (prob_mass_eq σ a ?= 0) eqn:E.
+    + discriminate H_neq.
+    + apply Qlt_alt. exact E.
+    + discriminate H_neq.
+  - intro H_pos.
+    apply/andP; split.
+    + unfold Qeq_bool.
+      destruct (prob_mass_eq σ a ?= 0) eqn:E.
+      * apply Qeq_alt in E. lra.
+      * reflexivity.
+      * apply Qgt_alt in E. lra.
+    + apply mem_enum.
+Qed.
+ 
