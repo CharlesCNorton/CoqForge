@@ -926,3 +926,152 @@ Proof.
   - apply outl_addition_of_pairs.
   - apply outr_addition_of_pairs.
 Qed.
+
+Lemma prod_of_projections_is_id
+  (Y : object C) :
+  1%morphism =
+  biproduct_prod_mor (semiadditive_biproduct Y Y)
+    (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+    (outl (biproduct_data (semiadditive_biproduct Y Y)))
+    (outr (biproduct_data (semiadditive_biproduct Y Y))).
+Proof.
+  set (BY := semiadditive_biproduct Y Y).
+  eapply (biproduct_morphism_unique C Y
+           (biproduct_obj (biproduct_data BY))
+           1%morphism
+           (outl (biproduct_data BY)) (outr (biproduct_data BY))).
+  - apply Category.Core.right_identity.
+  - apply Category.Core.right_identity.
+Qed.
+
+Lemma sum_of_pairs_is_pair_of_sums
+  (X Y : object C)
+  (f1 f2 g1 g2 : morphism C X Y) :
+  morphism_addition C X
+    (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+    (biproduct_prod_mor (semiadditive_biproduct Y Y) X f1 g1)
+    (biproduct_prod_mor (semiadditive_biproduct Y Y) X f2 g2)
+  =
+  biproduct_prod_mor (semiadditive_biproduct Y Y) X
+    (morphism_addition C X Y f1 f2)
+    (morphism_addition C X Y g1 g2).
+Proof.
+  set (BY := semiadditive_biproduct Y Y).
+  eapply (biproduct_morphism_unique C Y X
+            (morphism_addition C X
+               (biproduct_obj (biproduct_data BY))
+               (biproduct_prod_mor BY X f1 g1)
+               (biproduct_prod_mor BY X f2 g2))
+            (morphism_addition C X Y f1 f2)
+            (morphism_addition C X Y g1 g2)).
+  - (* left projection *)
+    rewrite outl_addition_of_pairs.
+    reflexivity.
+  - (* right projection *)
+    rewrite outr_addition_of_pairs.
+    reflexivity.
+Qed.
+
+Theorem morphism_addition_associative
+  (X Y : object C) (f g h : morphism C X Y) :
+  ((f + g) + h = f + (g + h))%morphism.
+Proof.
+  set (BY := semiadditive_biproduct Y Y).
+
+  (* Rewrite both sides to codiagonal ∘ pair *)
+  rewrite (@morphism_addition_simplify C X Y ((f + g)%morphism) h).
+  rewrite (@morphism_addition_simplify C X Y f ((g + h)%morphism)).
+
+  (* Insert 0 + h in the second component *)
+  etransitivity
+    ((biproduct_coprod_mor BY Y 1%morphism 1%morphism
+      o biproduct_prod_mor BY X ((f + g)%morphism) ((zero_morphism X Y + h)%morphism))%morphism).
+  { refine (
+      ap011 (fun x y =>
+        (biproduct_coprod_mor BY Y 1%morphism 1%morphism
+         o biproduct_prod_mor BY X x y)%morphism)
+        (idpath _)
+        ((@zero_left_identity C X Y h)^)
+    ). }
+
+  (* Turn “pair of sums” into “sum of pairs” *)
+  rewrite <- (sum_of_pairs_is_pair_of_sums
+                X Y f g (zero_morphism X Y) h).
+
+  (* Distribute postcomposition by the codiagonal over the sum *)
+  rewrite (addition_postcompose
+             X
+             (biproduct_obj (biproduct_data BY))
+             Y
+             (biproduct_prod_mor BY X f (zero_morphism X Y))
+             (biproduct_prod_mor BY X g h)
+             (biproduct_coprod_mor BY Y 1%morphism 1%morphism)).
+
+  (* Evaluate the two summands *)
+  rewrite (@codiagonal_zero_left C Y X f).
+  rewrite <- (@morphism_addition_simplify C X Y g h).
+
+  (* Match the right-hand side *)
+  rewrite <- (@morphism_addition_simplify C X Y f ((g + h)%morphism)).
+  reflexivity.
+Qed.
+
+End Associativity.
+
+Instance is_commutative_monoid_morphisms (C : SemiAdditiveCategory) (X Y : object C)
+  : IsCommutativeMonoid (morphism C X Y).
+Proof.
+  split.
+  - (* IsMonoid *)
+    split.
+    + (* IsSemiGroup *)
+      split.
+      * exact _.  (* IsHSet *)
+      * (* Associative *)
+        intros f g h.
+        unfold sg_op, morphism_sgop.
+        symmetry.
+        apply (morphism_addition_associative C X Y).
+    + (* LeftIdentity *)
+      intro f.
+      unfold mon_unit, morphism_monunit, sg_op, morphism_sgop.
+      apply (zero_left_identity C X Y).
+    + (* RightIdentity *)
+      intro f.
+      unfold mon_unit, morphism_monunit, sg_op, morphism_sgop.
+      apply (zero_right_identity C X Y).
+  - (* Commutative *)
+    intros f g.
+    unfold sg_op, morphism_sgop.
+    apply (morphism_addition_commutative C X Y).
+Defined.
+
+(** ** Bilinearity of composition *)
+
+Theorem composition_left_distributive (C : SemiAdditiveCategory) {X Y Z : object C}
+  (h : morphism C Y Z) (f g : morphism C X Y)
+  : (h o (f + g))%morphism = ((h o f) + (h o g))%morphism.
+Proof.
+  exact (addition_postcompose C X Y Z f g h).
+Qed.
+
+Theorem composition_right_distributive (C : SemiAdditiveCategory) {X Y Z : object C}
+  (f g : morphism C Y Z) (h : morphism C X Y)
+  : ((f + g) o h)%morphism = ((f o h) + (g o h))%morphism.
+Proof.
+  exact (addition_precompose C Y Z X f g h).
+Qed.
+
+(** ** Export hints and derived instances *)
+
+#[export] Instance is_semigroup_morphisms (C : SemiAdditiveCategory) (X Y : object C)
+  : IsSemiGroup (morphism C X Y)
+  := _.
+  
+#[export] Instance is_commutative_semigroup_morphisms (C : SemiAdditiveCategory) (X Y : object C)
+  : IsCommutativeSemiGroup (morphism C X Y).
+Proof.
+  split.
+  - exact _.  (* IsSemiGroup - from IsMonoid *)
+  - exact _.  (* Commutative - from IsCommutativeMonoid *)
+Defined.
