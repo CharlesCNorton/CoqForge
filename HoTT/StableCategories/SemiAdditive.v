@@ -776,3 +776,153 @@ Proof.
       apply zero_morphism_right.
   - apply zero_right_identity.
 Qed.
+
+Lemma codiagonal_pair_inr
+  (Y Y' : object C) (a b : morphism C Y Y') :
+  (biproduct_coprod_mor (semiadditive_biproduct Y' Y') Y' 1%morphism 1%morphism
+   o (biproduct_prod_mor (semiadditive_biproduct Y' Y')
+        (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+        (a o outl (biproduct_data (semiadditive_biproduct Y Y)))
+        (b o outr (biproduct_data (semiadditive_biproduct Y Y)))
+      o Biproducts.inr (biproduct_data (semiadditive_biproduct Y Y))))%morphism
+  = b.
+Proof.
+  set (BY  := semiadditive_biproduct Y Y).
+  set (BY' := semiadditive_biproduct Y' Y').
+
+  rewrite <- Category.Core.associativity.
+  rewrite <- (@morphism_addition_simplify C
+               (biproduct_obj (biproduct_data BY)) Y'
+               (a o outl (biproduct_data BY))
+               (b o outr (biproduct_data BY))).
+  rewrite (@addition_precompose
+             (biproduct_obj (biproduct_data BY))  (* X *)
+             Y'                                   (* Y *)
+             Y                                    (* W *)
+             ((a o outl (biproduct_data BY))%morphism)  (* f *)
+             ((b o outr (biproduct_data BY))%morphism)  (* g *)
+             (Biproducts.inr (biproduct_data BY))).     (* a *)
+
+  transitivity (morphism_addition C Y Y' (zero_morphism Y Y') b).
+  - apply ap011.
+    + rewrite Category.Core.associativity.
+      rewrite (mixed_l (biproduct_is BY)).
+      apply zero_morphism_right.
+    + rewrite Category.Core.associativity.
+      rewrite outr_after_inr.
+      apply Category.Core.right_identity.
+  - apply zero_left_identity.
+Qed.
+
+Lemma codiagonal_factor_through_pair
+  (Y Y' : object C) (a b : morphism C Y Y') :
+  (biproduct_coprod_mor (semiadditive_biproduct Y' Y') Y' 1%morphism 1%morphism
+   o biproduct_prod_mor (semiadditive_biproduct Y' Y')
+       (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+       (a o outl (biproduct_data (semiadditive_biproduct Y Y)))
+       (b o outr (biproduct_data (semiadditive_biproduct Y Y))))%morphism
+  = biproduct_coprod_mor (semiadditive_biproduct Y Y) Y' a b.
+Proof.
+  set (BY  := semiadditive_biproduct Y Y).
+  set (BY' := semiadditive_biproduct Y' Y').
+  apply (biproduct_coprod_unique BY Y' a b).
+  - rewrite Category.Core.associativity.
+    apply codiagonal_pair_inl.
+  - rewrite Category.Core.associativity.
+    apply codiagonal_pair_inr.
+Qed.
+
+Lemma addition_postcompose
+  (X Y Y' : object C) (f g : morphism C X Y) (a : morphism C Y Y') :
+  (a o morphism_addition C X Y f g)%morphism
+  =
+  morphism_addition C X Y' (a o f)%morphism (a o g)%morphism.
+Proof.
+  rewrite (morphism_addition_simplify C X Y f g).
+  rewrite (morphism_addition_simplify C X Y' (a o f)%morphism (a o g)%morphism).
+  set (BY  := semiadditive_biproduct Y Y).
+  set (BY' := semiadditive_biproduct Y' Y').
+  (* reassociate a ∘ (Δ;pair) to (a∘Δ);pair *)
+  rewrite <- Category.Core.associativity.
+  (* push a through the codiagonal *)
+  rewrite (codiagonal_postcompose_any Y Y' a).
+  (* factor codiagonal a,a through the BY'–pair *)
+  rewrite <- (codiagonal_factor_through_pair Y Y' a a).
+  (* re-associate to coprod ∘ (pair ∘ pair) *)
+  rewrite Category.Core.associativity.
+  (* naturality of the pair under postcomposition by a *)
+  rewrite <- (biproduct_pair_naturality X Y Y' a f g).
+  reflexivity.
+Qed.
+
+Lemma outl_addition_of_pairs
+  (X Y : object C)
+  (f1 f2 g1 g2 : morphism C X Y) :
+  (outl (biproduct_data (semiadditive_biproduct Y Y)) o
+     morphism_addition C X
+       (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+       (biproduct_prod_mor (semiadditive_biproduct Y Y) X f1 g1)
+       (biproduct_prod_mor (semiadditive_biproduct Y Y) X f2 g2))%morphism
+  =
+  morphism_addition C X Y f1 f2.
+Proof.
+  set (BY := semiadditive_biproduct Y Y).
+rewrite (@addition_postcompose
+           X
+           (biproduct_obj (biproduct_data BY))
+           Y
+           (biproduct_prod_mor BY X f1 g1)
+           (biproduct_prod_mor BY X f2 g2)
+           (outl (biproduct_data BY))).
+rewrite outl_biproduct_prod.
+rewrite outl_biproduct_prod.
+reflexivity.
+Qed.
+
+Lemma outr_addition_of_pairs
+  (X Y : object C)
+  (f1 f2 g1 g2 : morphism C X Y) :
+  (outr (biproduct_data (semiadditive_biproduct Y Y)) o
+     morphism_addition C X
+       (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+       (biproduct_prod_mor (semiadditive_biproduct Y Y) X f1 g1)
+       (biproduct_prod_mor (semiadditive_biproduct Y Y) X f2 g2))%morphism
+  =
+  morphism_addition C X Y g1 g2.
+Proof.
+  set (BY := semiadditive_biproduct Y Y).
+  rewrite (@addition_postcompose
+             X
+             (biproduct_obj (biproduct_data BY))
+             Y
+             (biproduct_prod_mor BY X f1 g1)
+             (biproduct_prod_mor BY X f2 g2)
+             (outr (biproduct_data BY))).
+  rewrite outr_biproduct_prod.
+  rewrite outr_biproduct_prod.
+  reflexivity.
+Qed.
+
+Lemma addition_of_pairs
+  (X Y : object C)
+  (f1 f2 g1 g2 : morphism C X Y) :
+  morphism_addition C X
+    (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+    (biproduct_prod_mor (semiadditive_biproduct Y Y) X f1 g1)
+    (biproduct_prod_mor (semiadditive_biproduct Y Y) X f2 g2)
+  =
+  biproduct_prod_mor (semiadditive_biproduct Y Y) X
+    (morphism_addition C X Y f1 f2)
+    (morphism_addition C X Y g1 g2).
+Proof.
+  set (BY := semiadditive_biproduct Y Y).
+  refine (biproduct_morphism_unique C Y X
+            (morphism_addition C X (biproduct_obj (biproduct_data BY))
+               (biproduct_prod_mor BY X f1 g1)
+               (biproduct_prod_mor BY X f2 g2))
+            (morphism_addition C X Y f1 f2)
+            (morphism_addition C X Y g1 g2)
+            _ _).
+  - apply outl_addition_of_pairs.
+  - apply outr_addition_of_pairs.
+Qed.
