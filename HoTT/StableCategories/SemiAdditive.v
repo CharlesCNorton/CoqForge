@@ -534,1328 +534,245 @@ Proof.
   reflexivity.
 Qed.
 
-(** ** Lemmas for associativity *)
+(** ** Associativity of morphism addition *)
 
-Section AssociativityProof.
+Section Associativity.
   Context (C : SemiAdditiveCategory).
 
-Lemma diagonal_then_outl {X : object C} :
-  (outl (biproduct_data (semiadditive_biproduct X X)) o 
-   biproduct_prod_mor (semiadditive_biproduct X X) X 1%morphism 1%morphism)%morphism = 
-  1%morphism.
+  Local Notation obj := (object C).
+  Local Notation hom := (morphism C).
+
+  (* Shorthands for frequently used biproduct structure on Y ⊕ Y and variants *)
+  Local Definition YY (Y : obj) : Biproduct Y Y := semiadditive_biproduct Y Y.
+  Local Definition YYYL (Y : obj) : Biproduct (biproduct_obj (biproduct_data (YY Y))) Y
+    := semiadditive_biproduct (biproduct_obj (biproduct_data (YY Y))) Y.
+  Local Definition YYYR (Y : obj) : Biproduct Y (biproduct_obj (biproduct_data (YY Y)))
+    := semiadditive_biproduct Y (biproduct_obj (biproduct_data (YY Y))).
+    
+Lemma biproduct_prod_compose_left
+  (X Y Z : object C)
+  (f : morphism C Z X) (g : morphism C Z Y)
+  (a : morphism C X X) (b : morphism C Y Y)
+: (biproduct_prod_mor (semiadditive_biproduct X Y)
+     (biproduct_obj (biproduct_data (semiadditive_biproduct X Y)))
+     (a o outl (biproduct_data (semiadditive_biproduct X Y)))
+     (b o outr (biproduct_data (semiadditive_biproduct X Y)))
+    o biproduct_prod_mor (semiadditive_biproduct X Y) Z f g)%morphism
+  =
+  biproduct_prod_mor (semiadditive_biproduct X Y) Z (a o f) (b o g).
 Proof.
-  apply biproduct_prod_beta_l.
+  set (B := semiadditive_biproduct X Y).
+  set (lhs :=
+         (biproduct_prod_mor B
+             (biproduct_obj (biproduct_data B))
+             (a o outl (biproduct_data B))
+             (b o outr (biproduct_data B))
+          o biproduct_prod_mor B Z f g)%morphism).
+  assert (Hl :
+      (outl (biproduct_data B) o lhs)%morphism = (a o f)%morphism).
+  { rewrite <- Category.Core.associativity.
+    rewrite biproduct_prod_beta_l.
+    rewrite Category.Core.associativity.
+    rewrite biproduct_prod_beta_l.
+    reflexivity. }
+  assert (Hr :
+      (outr (biproduct_data B) o lhs)%morphism = (b o g)%morphism).
+  { rewrite <- Category.Core.associativity.
+    rewrite biproduct_prod_beta_r.
+    rewrite Category.Core.associativity.
+    rewrite biproduct_prod_beta_r.
+    reflexivity. }
+  set (U := prod_universal (biproduct_universal B) Z (a o f) (b o g)).
+  change (lhs = (biproduct_prod_mor B Z (a o f) (b o g))).
+  exact (ap pr1 (@path_contr _ U (lhs; (Hl, Hr)) (@center _ U))).
 Qed.
 
-(** Adding zero twice demonstrates the pattern we need for associativity.
-    This tests that (f + 0) + 0 = f + (0 + 0) = f + 0 = f.
-    This is a special case of associativity where g = h = 0. *)
-Lemma add_zero_twice {X Y : object C} (f : morphism C X Y) :
-  morphism_addition C X Y (morphism_addition C X Y f (zero_morphism X Y)) (zero_morphism X Y) = f.
+Lemma codiagonal_after_componentwise
+  (Y Z : object C)
+  (f g : morphism C Z Y)
+  (a b : morphism C Y Y)
+: (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism
+     o biproduct_prod_mor (semiadditive_biproduct Y Y)
+         (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+         ((a o outl (biproduct_data (semiadditive_biproduct Y Y)))%morphism)
+         ((b o outr (biproduct_data (semiadditive_biproduct Y Y)))%morphism)
+     o biproduct_prod_mor (semiadditive_biproduct Y Y) Z f g)%morphism
+  =
+  morphism_addition C Z Y ((a o f)%morphism) ((b o g)%morphism).
 Proof.
-  (* First application of zero_right_identity: f + 0 = f *)
-  rewrite zero_right_identity.
-  (* Second application of zero_right_identity: f + 0 = f *)
-  rewrite zero_right_identity.
-  (* Both sides are now f *)
-  reflexivity.
-Qed.
-
-(** Example: When we add f and zero, the right component of the middle biproduct 
-    morphism picks up zero from the right projection after diagonal. *)
-Example diagonal_outr_in_addition {X Y : object C} (f : morphism C X Y) :
-  (zero_morphism X Y o outr (biproduct_data (semiadditive_biproduct X X)) o
-   biproduct_prod_mor (semiadditive_biproduct X X) X 1%morphism 1%morphism)%morphism = 
-  zero_morphism X Y.
-Proof.
-  (* The goal has composition ((zero o outr) o biproduct_prod_mor) *)
-  (* Reassociate to get zero o (outr o biproduct_prod_mor) *)
+  set (B := semiadditive_biproduct Y Y).
+  set (P := biproduct_prod_mor B Z f g).
+  change
+    ((biproduct_coprod_mor B Y 1%morphism 1%morphism
+       o biproduct_prod_mor B (biproduct_obj (biproduct_data B))
+           ((a o outl (biproduct_data B))%morphism)
+           ((b o outr (biproduct_data B))%morphism)
+       o P)%morphism
+     =
+     morphism_addition C Z Y ((a o f)%morphism) ((b o g)%morphism)).
   rewrite Category.Core.associativity.
-  (* Apply diagonal_outr: outr ∘ diagonal = 1 *)
-  rewrite diagonal_outr.
-  (* Simplify: zero ∘ 1 = zero *)
-  apply Category.Core.right_identity.
+  rewrite (@morphism_addition_simplify C Z Y ((a o f)%morphism) ((b o g)%morphism)).
+  apply (ap (fun k => (biproduct_coprod_mor B Y 1%morphism 1%morphism o k)%morphism)).
+  rewrite (@biproduct_comp_general C
+             (biproduct_obj (biproduct_data B)) Y Y Z
+             (a o outl (biproduct_data B))
+             (b o outr (biproduct_data B))
+             P).
+  apply ap011.
+  - rewrite Category.Core.associativity.
+    apply (ap (fun t => (a o t)%morphism)).
+    apply outl_biproduct_prod.
+  - rewrite Category.Core.associativity.
+    apply (ap (fun t => (b o t)%morphism)).
+    apply outr_biproduct_prod.
 Qed.
 
-(** The codiagonal morphism Y⊕Y → Y satisfies the injection laws.
-    This lemma shows that codiagonal after left injection gives identity. *)
-Lemma inl_then_codiagonal {Y : object C} :
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   Biproducts.inl (biproduct_data (semiadditive_biproduct Y Y)))%morphism = 
-  1%morphism.
+Lemma componentwise_after_prod
+  (Y Z : object C)
+  (f g : morphism C Z Y)
+  (a b : morphism C Y Y)
+  : (biproduct_prod_mor (semiadditive_biproduct Y Y)
+       (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+       (a o outl (biproduct_data (semiadditive_biproduct Y Y)))
+       (b o outr (biproduct_data (semiadditive_biproduct Y Y)))
+     o biproduct_prod_mor (semiadditive_biproduct Y Y) Z f g)%morphism
+    =
+    biproduct_prod_mor (semiadditive_biproduct Y Y) Z (a o f) (b o g).
 Proof.
-  apply biproduct_coprod_beta_l.
-Qed.
-
-(** Example: When computing f + 0, the left path through the biproduct
-    contributes f to the final result via the codiagonal. *)
-Example codiagonal_left_path {X Y : object C} (f : morphism C X Y) :
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   Biproducts.inl (biproduct_data (semiadditive_biproduct Y Y)) o f)%morphism = f.
-Proof.
-  (* The goal is already ((codiag o inl) o f) due to left associativity *)
-  (* Apply inl_then_codiagonal: codiag o inl = 1 *)
-  rewrite inl_then_codiagonal.
-  (* Simplify: 1 o f = f *)
-  apply Category.Core.left_identity.
-Qed.
-
-(** The codiagonal morphism Y⊕Y → Y satisfies the injection laws.
-    This lemma shows that codiagonal after right injection gives identity. *)
-Lemma inr_then_codiagonal {Y : object C} :
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   Biproducts.inr (biproduct_data (semiadditive_biproduct Y Y)))%morphism = 
-  1%morphism.
-Proof.
-  apply biproduct_coprod_beta_r.
-Qed.
-
-(** Example: When computing 0 + g, the right path through the biproduct
-    contributes g to the final result via the codiagonal. *)
-Example codiagonal_right_path {X Y : object C} (g : morphism C X Y) :
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   Biproducts.inr (biproduct_data (semiadditive_biproduct Y Y)) o g)%morphism = g.
-Proof.
-  (* The goal is already ((codiag o inr) o g) due to left associativity *)
-  (* Apply inr_then_codiagonal: codiag o inr = 1 *)
-  rewrite inr_then_codiagonal.
-  (* Simplify: 1 o g = g *)
-  apply Category.Core.left_identity.
-Qed.
-
-(** Morphism addition can be expressed as a biproduct morphism between 
-    the diagonal and codiagonal. *)
-Lemma addition_as_biproduct {X Y : object C} (f g : morphism C X Y) :
-  morphism_addition C X Y f g = 
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)%morphism.
-Proof.
-  (* Unfold the definition of morphism_addition *)
-  unfold morphism_addition.
-  (* Simplify using biproduct_comp_general *)
-  f_ap.
-  rewrite biproduct_comp_general.
-  (* Show the components are equal *)
-  f_ap.
-  - rewrite compose_through_diagonal_left. reflexivity.
-  - rewrite compose_through_diagonal_right. reflexivity.
-Qed.
-
-(** Example: When we add f and g using the simplified form, 
-    we get the same result as the original definition. *)
-Example addition_simplified_example {X Y : object C} (f g : morphism C X Y) :
-  morphism_addition C X Y f g = 
-  morphism_addition C X Y f g.
-Proof.
-  (* This is trivially true, but let's use our lemma to show the structure *)
-  rewrite addition_as_biproduct.
-  rewrite <- addition_as_biproduct.
+  set (B := semiadditive_biproduct Y Y).
+  set (P := biproduct_prod_mor B Z f g).
+rewrite (@biproduct_comp_general C
+           (biproduct_obj (biproduct_data B)) Y Y Z
+           (a o outl (biproduct_data B))
+           (b o outr (biproduct_data B))
+           P).
+  rewrite !Category.Core.associativity.
+  rewrite (biproduct_prod_beta_l B Z f g).
+  rewrite (biproduct_prod_beta_r B Z f g).
   reflexivity.
 Qed.
 
-(** When (f + g) appears as the left component of another addition,
-    we need to compose it with the left projection. *)
-Lemma addition_as_left_component {X Y : object C} (f g : morphism C X Y) :
-  ((f + g) o outl (biproduct_data (semiadditive_biproduct X X)))%morphism =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) _ f g o 
-   outl (biproduct_data (semiadditive_biproduct X X)))%morphism.
+Lemma codiagonal_postcompose
+  (Y : object C) (a : morphism C Y Y) :
+  (a o biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism)%morphism
+  =
+  biproduct_coprod_mor (semiadditive_biproduct Y Y) Y a a.
 Proof.
-  (* Use our simplification lemma *)
-  rewrite addition_as_biproduct.
-  reflexivity.
+  set (B := semiadditive_biproduct Y Y).
+  apply (biproduct_coprod_unique B Y a a).
+  - rewrite Category.Core.associativity.
+    rewrite inl_codiagonal.
+    apply Category.Core.right_identity.
+  - rewrite Category.Core.associativity.
+    rewrite inr_codiagonal.
+    apply Category.Core.right_identity.
 Qed.
 
-(** Example: When we project left from X⊕X and then add morphisms,
-    the addition happens on the left component. *)
-Example addition_on_left_projection {X Y : object C} (f g : morphism C X Y) :
-  ((f + g) o outl (biproduct_data (semiadditive_biproduct X X)))%morphism =
-  ((f + g) o outl (biproduct_data (semiadditive_biproduct X X)))%morphism.
+Lemma diagonal_precompose
+  (X W : object C) (a : morphism C W X) :
+  (biproduct_prod_mor (semiadditive_biproduct X X) X 1%morphism 1%morphism o a)%morphism
+  =
+  biproduct_prod_mor (semiadditive_biproduct X X) W a a.
 Proof.
-  (* Use addition_as_left_component to see the structure *)
-  rewrite addition_as_left_component.
-  rewrite <- addition_as_left_component.
-  reflexivity.
-Qed.
-
-(** Composition of biproduct morphisms can be computed componentwise. *)
-Lemma biproduct_morphism_comp {W X Y Z : object C}
-  (f : morphism C W Y) (g : morphism C X Z) (h : morphism C W X) :
-  (biproduct_prod_mor (semiadditive_biproduct Y Z) W f 
-    (g o h))%morphism =
-  (biproduct_prod_mor (semiadditive_biproduct Y Z) W f (g o h))%morphism.
-Proof.
-  (* This is trivially true but shows the pattern *)
-  reflexivity.
-Qed.
-
-(** Example: When we compose a morphism h with a biproduct morphism,
-    it distributes to both components. *)
-Example biproduct_comp_distributes {X Y Z : object C} 
-  (f g : morphism C X Y) (h : morphism C Z X) :
-  (biproduct_prod_mor (semiadditive_biproduct Y Y) Z (f o h) (g o h))%morphism =
-  (biproduct_prod_mor (semiadditive_biproduct Y Y) X f g o h)%morphism.
-Proof.
-  (* Use the general composition lemma *)
-  rewrite <- biproduct_comp_general.
-  reflexivity.
-Qed.
-
-(** When we add (f + g) and h, the left component is (f + g). *)
-Lemma nested_addition_left {X Y : object C} (f g h : morphism C X Y) :
-  morphism_addition C X Y (morphism_addition C X Y f g) h =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-     (morphism_addition C X Y f g) h)%morphism.
-Proof.
-  (* Apply the simplified form of addition *)
-  apply addition_as_biproduct.
-Qed.
-
-(** Example: When we compute (f + g) + h, the intermediate result f + g
-    appears as the left component of the outer addition. *)
-Example nested_left_structure {X Y : object C} (f g h : morphism C X Y) :
-  morphism_addition C X Y (morphism_addition C X Y f g) h =
-  morphism_addition C X Y (morphism_addition C X Y f g) h.
-Proof.
-  (* Use nested_addition_left to see the structure *)
-  rewrite nested_addition_left.
-  rewrite <- nested_addition_left.
-  reflexivity.
-Qed.
-
-(** Full expansion of (f + g) + h into its biproduct components. *)
-Lemma left_nested_expansion {X Y : object C} (f g h : morphism C X Y) :
-  morphism_addition C X Y (morphism_addition C X Y f g) h =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)
-     h)%morphism.
-Proof.
-  (* First apply nested_addition_left *)
-  rewrite nested_addition_left.
-  (* Then expand the inner addition *)
-  f_ap.
-  f_ap.
-  apply addition_as_biproduct.
-Qed.
-
-(** Example: The full expansion of (f + g) + h shows the nested structure
-    with two applications of codiagonal and biproduct morphisms. *)
-Example left_nested_full {X Y : object C} (f g h : morphism C X Y) :
-  exists middle, morphism_addition C X Y (morphism_addition C X Y f g) h =
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-     middle)%morphism.
-Proof.
-  (* Use left_nested_expansion to identify the middle morphism *)
-  exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X
-           (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-            biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h).
-  apply left_nested_expansion.
-Qed.
-
-(** When we add f and (g + h), the right component is (g + h). *)
-Lemma nested_addition_right {X Y : object C} (f g h : morphism C X Y) :
-  morphism_addition C X Y f (morphism_addition C X Y g h) =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-     f (morphism_addition C X Y g h))%morphism.
-Proof.
-  (* Apply the simplified form of addition *)
-  apply addition_as_biproduct.
-Qed.
-
-(** Example: When we compute f + (g + h), the intermediate result g + h
-    appears as the right component of the outer addition. *)
-Example nested_right_structure {X Y : object C} (f g h : morphism C X Y) :
-  morphism_addition C X Y f (morphism_addition C X Y g h) =
-  morphism_addition C X Y f (morphism_addition C X Y g h).
-Proof.
-  (* Use nested_addition_right to see the structure *)
-  rewrite nested_addition_right.
-  rewrite <- nested_addition_right.
-  reflexivity.
-Qed.
-
-(** Check: What is the actual form after nested_addition_right? *)
-Lemma check_nested_right_form {X Y : object C} (f g h : morphism C X Y) :
-  morphism_addition C X Y f (morphism_addition C X Y g h) =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-     f (morphism_addition C X Y g h))%morphism.
-Proof.
-  apply nested_addition_right.
-Qed.
-
-(** Example: When computing f + (0 + 0), the right component simplifies to 0. *)
-Example nested_right_with_zeros {X Y : object C} (f : morphism C X Y) :
-  morphism_addition C X Y f (morphism_addition C X Y (zero_morphism X Y) (zero_morphism X Y)) = f.
-Proof.
-  (* First: 0 + 0 = 0 by zero_left_identity *)
-  rewrite zero_left_identity.
-  (* Then: f + 0 = f by zero_right_identity *)
-  rewrite zero_right_identity.
-  reflexivity.
-Qed.
-
-(** Full expansion of f + (g + h) into its biproduct components. *)
-Lemma right_nested_expansion {X Y : object C} (f g h : morphism C X Y) :
-  morphism_addition C X Y f (morphism_addition C X Y g h) =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     f
-     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      biproduct_prod_mor (semiadditive_biproduct Y Y) X g h))%morphism.
-Proof.
-  (* First expand the outer addition *)
-  rewrite addition_as_biproduct.
-  (* Now expand the inner (g + h) that appears in the second component *)
-  rewrite addition_as_biproduct.
-  reflexivity.
-Qed.
-
-(** Example: Both nested forms work correctly with special cases. *)
-Example associativity_with_zero_middle {X Y : object C} (f h : morphism C X Y) :
-  morphism_addition C X Y (morphism_addition C X Y f (zero_morphism X Y)) h =
-  morphism_addition C X Y f (morphism_addition C X Y (zero_morphism X Y) h).
-Proof.
-  rewrite zero_right_identity.
-  rewrite zero_left_identity.
-  reflexivity.
-Qed.
-
-(** When we compose codiagonal with a biproduct morphism, we can compute
-    the result by applying codiagonal to each component. *)
-Lemma codiagonal_of_biproduct {X Y : object C} (f g : morphism C X Y) :
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)%morphism =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)%morphism.
-Proof.
-  reflexivity.
-Qed.
-
-(** Example: Codiagonal of identity biproduct gives double identity. *)
-Example codiagonal_of_identity_pair {Y : object C} :
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism)%morphism =
-  morphism_addition C Y Y 1%morphism 1%morphism.
-Proof.
-  symmetry.
-  apply addition_as_biproduct.
-Qed.
-
-(** Projecting left from a nested biproduct morphism. *)
-Lemma outl_nested_biproduct {X Y : object C} (f g h : morphism C X Y) :
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     (morphism_addition C X Y f g) h)%morphism = 
-  morphism_addition C X Y f g.
-Proof.
-  apply biproduct_prod_beta_l.
-Qed.
-
-(** Example: Projecting left from (f + 0) gives f. *)
-Example outl_nested_with_zero {X Y : object C} (f : morphism C X Y) :
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     f (zero_morphism X Y))%morphism = f.
-Proof.
-  rewrite biproduct_prod_beta_l.
-  reflexivity.
-Qed.
-
-(** Projecting right from a nested biproduct morphism. *)
-Lemma outr_nested_biproduct {X Y : object C} (f g h : morphism C X Y) :
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     f (morphism_addition C X Y g h))%morphism = 
-  morphism_addition C X Y g h.
-Proof.
-  apply biproduct_prod_beta_r.
-Qed.
-
-(** Example: Tracing through (f + g) + h step by step using our lemmas. *)
-Example trace_left_nested_addition {X Y : object C} (f g h : morphism C X Y) :
-  exists middle_mor,
-    morphism_addition C X Y (morphism_addition C X Y f g) h = 
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o middle_mor)%morphism /\
-    (outl (biproduct_data (semiadditive_biproduct Y Y)) o middle_mor)%morphism = 
-    morphism_addition C X Y f g /\
-    (outr (biproduct_data (semiadditive_biproduct Y Y)) o middle_mor)%morphism = h.
-Proof.
-  exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-           (morphism_addition C X Y f g) h).
-  split.
-  - (* This is nested_addition_left *)
-    apply nested_addition_left.
-  - split.
-    + (* Left projection gives f + g by outl_nested_biproduct *)
-      apply biproduct_prod_beta_l.
-    + (* Right projection gives h *)
-      apply biproduct_prod_beta_r.
-Qed.
-
-(** Checkpoint: Both nested forms expand to codiagonal composed with a biproduct morphism. *)
-Lemma both_nested_forms_structure {X Y : object C} (f g h : morphism C X Y) :
-  (exists left_middle,
-    morphism_addition C X Y (morphism_addition C X Y f g) h =
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o left_middle)%morphism /\
-    (outl (biproduct_data (semiadditive_biproduct Y Y)) o left_middle)%morphism = 
-    morphism_addition C X Y f g /\
-    (outr (biproduct_data (semiadditive_biproduct Y Y)) o left_middle)%morphism = h) /\
-  (exists right_middle,
-    morphism_addition C X Y f (morphism_addition C X Y g h) =
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o right_middle)%morphism /\
-    (outl (biproduct_data (semiadditive_biproduct Y Y)) o right_middle)%morphism = f /\
-    (outr (biproduct_data (semiadditive_biproduct Y Y)) o right_middle)%morphism = 
-    morphism_addition C X Y g h).
-Proof.
-  split.
-  - (* Left nested form *)
-    exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-             (morphism_addition C X Y f g) h).
-    split.
-    + apply nested_addition_left.
-    + split.
-      * apply biproduct_prod_beta_l.
-      * apply biproduct_prod_beta_r.
-  - (* Right nested form *)
-    exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-             f (morphism_addition C X Y g h)).
-    split.
-    + apply nested_addition_right.
-    + split.
-      * apply biproduct_prod_beta_l.
-      * apply biproduct_prod_beta_r.
-Qed.
-
-(** Example: Both nested forms give the same result when fully expanded and simplified
-    for the special case (f + 0) + h = f + (0 + h). *)
-Example both_forms_equal_special_case {X Y : object C} (f h : morphism C X Y) :
-  let left_form := morphism_addition C X Y (morphism_addition C X Y f (zero_morphism X Y)) h in
-  let right_form := morphism_addition C X Y f (morphism_addition C X Y (zero_morphism X Y) h) in
-  left_form = right_form /\
-  left_form = morphism_addition C X Y f h /\
-  (exists middle_left middle_right,
-    left_form = (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o middle_left)%morphism /\
-    right_form = (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o middle_right)%morphism /\
-    middle_left = biproduct_prod_mor (semiadditive_biproduct Y Y) X f h /\
-    middle_right = biproduct_prod_mor (semiadditive_biproduct Y Y) X f h).
-Proof.
-  split.
-  - (* Show left_form = right_form *)
-    simpl.
-    rewrite zero_right_identity.
-    rewrite zero_left_identity.
-    reflexivity.
-  - split.
-    + (* Show left_form = f + h *)
-      simpl.
-      rewrite zero_right_identity.
-      reflexivity.
-    + (* Show the middle morphisms exist and are equal *)
-      exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X f h).
-      exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X f h).
-      split.
-      * simpl.
-        rewrite zero_right_identity.
-        apply addition_as_biproduct.
-      * split.
-        -- simpl.
-           rewrite zero_left_identity.
-           apply addition_as_biproduct.
-        -- split; reflexivity.
-Qed.
-
-(** Expanding the left component of the left nested form. *)
-Lemma left_nested_left_component {X Y : object C} (f g h : morphism C X Y) :
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     (morphism_addition C X Y f g) h)%morphism =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)%morphism.
-Proof.
-  rewrite biproduct_prod_beta_l.
-  apply addition_as_biproduct.
-Qed.
-
-(** Example: The left component of (f + g) + h fully expands to show f and g separately. *)
-Example left_nested_left_expansion_demo {X Y : object C} (f g h : morphism C X Y) :
-  exists inner_mor,
-    (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-     biproduct_prod_mor (semiadditive_biproduct Y Y) X
-       (morphism_addition C X Y f g) h)%morphism =
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o inner_mor)%morphism /\
-    inner_mor = biproduct_prod_mor (semiadditive_biproduct Y Y) X f g /\
-    (outl (biproduct_data (semiadditive_biproduct Y Y)) o inner_mor)%morphism = f /\
-    (outr (biproduct_data (semiadditive_biproduct Y Y)) o inner_mor)%morphism = g.
-Proof.
-  exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X f g).
-  split.
-  - (* Use left_nested_left_component *)
-    apply left_nested_left_component.
-  - split.
-    + reflexivity.
-    + split.
-      * apply biproduct_prod_beta_l.
-      * apply biproduct_prod_beta_r.
-Qed.
-
-(** Expanding the right component of the right nested form. *)
-Lemma right_nested_right_component {X Y : object C} (f g h : morphism C X Y) :
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     f (morphism_addition C X Y g h))%morphism =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X g h)%morphism.
-Proof.
-  rewrite biproduct_prod_beta_r.
-  apply addition_as_biproduct.
-Qed.
-
-(** Example: The right component of f + (g + h) fully expands to show g and h separately. *)
-Example right_nested_right_expansion_demo {X Y : object C} (f g h : morphism C X Y) :
-  exists inner_mor,
-    (outr (biproduct_data (semiadditive_biproduct Y Y)) o
-     biproduct_prod_mor (semiadditive_biproduct Y Y) X
-       f (morphism_addition C X Y g h))%morphism =
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o inner_mor)%morphism /\
-    inner_mor = biproduct_prod_mor (semiadditive_biproduct Y Y) X g h /\
-    (outl (biproduct_data (semiadditive_biproduct Y Y)) o inner_mor)%morphism = g /\
-    (outr (biproduct_data (semiadditive_biproduct Y Y)) o inner_mor)%morphism = h.
-Proof.
-  exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X g h).
-  split.
-  - (* Use right_nested_right_component *)
-    apply right_nested_right_component.
-  - split.
-    + reflexivity.
-    + split.
-      * apply biproduct_prod_beta_l.
-      * apply biproduct_prod_beta_r.
-Qed.
-
-(** The left projection of the right nested form gives just f. *)
-Lemma right_nested_left_component {X Y : object C} (f g h : morphism C X Y) :
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     f (morphism_addition C X Y g h))%morphism = f.
-Proof.
-  apply biproduct_prod_beta_l.
-Qed.  
-
-(** Example: Tracing both associative forms through their full expansions for (f + 0) + h vs f + (0 + h). *)
-Example associativity_trace_with_zero {X Y : object C} (f h : morphism C X Y) :
-  let left_form := morphism_addition C X Y (morphism_addition C X Y f (zero_morphism X Y)) h in
-  let right_form := morphism_addition C X Y f (morphism_addition C X Y (zero_morphism X Y) h) in
-  let left_middle := biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-                       (morphism_addition C X Y f (zero_morphism X Y)) h in
-  let right_middle := biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-                        f (morphism_addition C X Y (zero_morphism X Y) h) in
-  (* Both forms equal f + h *)
-  left_form = morphism_addition C X Y f h /\
-  right_form = morphism_addition C X Y f h /\
-  (* Their middle morphisms simplify to the same thing *)
-  left_middle = biproduct_prod_mor (semiadditive_biproduct Y Y) X f h /\
-  right_middle = biproduct_prod_mor (semiadditive_biproduct Y Y) X f h /\
-  (* And compose with codiagonal to give f + h *)
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o left_middle)%morphism = 
-  morphism_addition C X Y f h /\
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o right_middle)%morphism = 
-  morphism_addition C X Y f h.
-Proof.
-  split.
-  - simpl. rewrite zero_right_identity. reflexivity.
-  - split.
-    + simpl. rewrite zero_left_identity. reflexivity.
-    + split.
-      * simpl. rewrite zero_right_identity. reflexivity.
-      * split.
-        -- simpl. rewrite zero_left_identity. reflexivity.
-        -- split.
-           ++ simpl. rewrite zero_right_identity. symmetry. apply addition_as_biproduct.
-           ++ simpl. rewrite zero_left_identity. symmetry. apply addition_as_biproduct.
-Qed.
-
-(** The right projection of the left nested form gives just h. *)
-Lemma left_nested_right_component {X Y : object C} (f g h : morphism C X Y) :
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     (morphism_addition C X Y f g) h)%morphism = h.
-Proof.
-  apply biproduct_prod_beta_r.
-Qed.
-
-(** Example: Both nested forms expose all three morphisms f, g, h through projections. *)
-Example all_components_accessible {X Y : object C} (f g h : morphism C X Y) :
-  let left_form := biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-                     (morphism_addition C X Y f g) h in
-  let right_form := biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-                      f (morphism_addition C X Y g h) in
-  (* From left_form we can extract f, g, h *)
-  (exists extract_f extract_g,
-    extract_f = (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-                 biproduct_prod_mor (semiadditive_biproduct Y Y) X f g o
-                 outl (biproduct_data (semiadditive_biproduct X X)))%morphism /\
-    extract_g = (outr (biproduct_data (semiadditive_biproduct Y Y)) o
-                 biproduct_prod_mor (semiadditive_biproduct Y Y) X f g o
-                 outl (biproduct_data (semiadditive_biproduct X X)))%morphism /\
-    (outr (biproduct_data (semiadditive_biproduct Y Y)) o left_form)%morphism = h) /\
-  (* From right_form we can extract f, g, h *)
-  (exists extract_g' extract_h',
-    (outl (biproduct_data (semiadditive_biproduct Y Y)) o right_form)%morphism = f /\
-    extract_g' = (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-                  biproduct_prod_mor (semiadditive_biproduct Y Y) X g h o
-                  outr (biproduct_data (semiadditive_biproduct X X)))%morphism /\
-    extract_h' = (outr (biproduct_data (semiadditive_biproduct Y Y)) o
-                  biproduct_prod_mor (semiadditive_biproduct Y Y) X g h o
-                  outr (biproduct_data (semiadditive_biproduct X X)))%morphism).
-Proof.
-  split.
-  - (* Left form *)
-    exists (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-            biproduct_prod_mor (semiadditive_biproduct Y Y) X f g o
-            outl (biproduct_data (semiadditive_biproduct X X)))%morphism.
-    exists (outr (biproduct_data (semiadditive_biproduct Y Y)) o
-            biproduct_prod_mor (semiadditive_biproduct Y Y) X f g o
-            outl (biproduct_data (semiadditive_biproduct X X)))%morphism.
-    split; [reflexivity|].
-    split; [reflexivity|].
-    apply left_nested_right_component.
-  - (* Right form *)
-    exists (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-            biproduct_prod_mor (semiadditive_biproduct Y Y) X g h o
-            outr (biproduct_data (semiadditive_biproduct X X)))%morphism.
-    exists (outr (biproduct_data (semiadditive_biproduct Y Y)) o
-            biproduct_prod_mor (semiadditive_biproduct Y Y) X g h o
-            outr (biproduct_data (semiadditive_biproduct X X)))%morphism.
-    split.
-    + apply right_nested_left_component.
-    + split; reflexivity.
-Qed.
-
-(** Composing codiagonal with each injection separately. *)
-Lemma codiagonal_splits_addition {X Y : object C} (f g : morphism C X Y) :
-  morphism_addition C X Y f g =
-  morphism_addition C X Y
-    ((biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      Biproducts.inl (biproduct_data (semiadditive_biproduct Y Y))) o f)%morphism
-    ((biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      Biproducts.inr (biproduct_data (semiadditive_biproduct Y Y))) o g)%morphism.
-Proof.
-  rewrite inl_codiagonal.
-  rewrite inr_codiagonal.
+rewrite (@biproduct_comp_general _ X X X W 1%morphism 1%morphism a).
   rewrite !Category.Core.left_identity.
   reflexivity.
 Qed.
 
-(** Example: The identity morphism added to itself gives the same result through different paths. *)
-Example identity_double_path {Y : object C} :
-  let double_id := morphism_addition C Y Y 1%morphism 1%morphism in
-  let via_split := morphism_addition C Y Y
-    ((biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      Biproducts.inl (biproduct_data (semiadditive_biproduct Y Y))) o 1%morphism)%morphism
-    ((biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      Biproducts.inr (biproduct_data (semiadditive_biproduct Y Y))) o 1%morphism)%morphism in
-  let via_biproduct := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                        biproduct_prod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism)%morphism in
-  double_id = via_split /\
-  double_id = via_biproduct /\
-  via_split = via_biproduct.
+Lemma addition_precompose
+  (X Y W : object C) (f g : morphism C X Y) (a : morphism C W X) :
+  (morphism_addition C X Y f g o a)%morphism
+  =
+  morphism_addition C W Y (f o a)%morphism (g o a)%morphism.
 Proof.
-  split.
-  - (* double_id = via_split *)
-    apply codiagonal_splits_addition.
-  - split.
-    + (* double_id = via_biproduct *)
-      simpl.
-      apply addition_as_biproduct.
-    + (* via_split = via_biproduct *)
-      simpl.
-      rewrite <- codiagonal_splits_addition.
-      apply addition_as_biproduct.
-Qed.
-
-(** Composing biproduct morphisms with codiagonal distributes. *)
-Lemma codiagonal_biproduct_distribute {X Y : object C} (f g h k : morphism C X Y) :
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)
-     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      biproduct_prod_mor (semiadditive_biproduct Y Y) X h k))%morphism =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     (morphism_addition C X Y f g)
-     (morphism_addition C X Y h k))%morphism.
-Proof.
-  f_ap.
-  f_ap.
-  - symmetry. apply addition_as_biproduct.
-  - symmetry. apply addition_as_biproduct.
-Qed.
-
-(** Example: Distributing codiagonal shows how (f + g) + (h + k) can be reorganized. *)
-Example codiagonal_distribution_demo {X Y : object C} (f g h k : morphism C X Y) :
-  let left_sum := morphism_addition C X Y f g in
-  let right_sum := morphism_addition C X Y h k in
-  let combined := morphism_addition C X Y left_sum right_sum in
-  let expanded_form := 
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-     biproduct_prod_mor (semiadditive_biproduct Y Y) X
-       (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-        biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)
-       (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-        biproduct_prod_mor (semiadditive_biproduct Y Y) X h k))%morphism in
-  let simplified_form :=
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-     biproduct_prod_mor (semiadditive_biproduct Y Y) X left_sum right_sum)%morphism in
-  combined = simplified_form /\
-  expanded_form = simplified_form /\
-  expanded_form = combined /\
-  (* The expanded form equals the nested additions *)
-  expanded_form = 
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-     biproduct_prod_mor (semiadditive_biproduct Y Y) X
-       (morphism_addition C X Y f g)
-       (morphism_addition C X Y h k))%morphism.
-Proof.
-  split.
-  - (* combined = simplified_form *)
-    simpl. apply addition_as_biproduct.
-  - split.
-    + (* expanded_form = simplified_form *)
-      simpl. apply codiagonal_biproduct_distribute.
-    + split.
-      * (* expanded_form = combined *)
-        simpl. 
-        rewrite codiagonal_biproduct_distribute.
-        symmetry. apply addition_as_biproduct.
-      * (* expanded_form = the last expression *)
-        simpl. apply codiagonal_biproduct_distribute.
-Qed.
-
-(** The crucial step: comparing projections of both nested forms after expansion. *)
-Lemma nested_forms_projection_comparison {X Y : object C} (f g h : morphism C X Y) :
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h)%morphism =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)%morphism.
-Proof.
-  apply biproduct_prod_beta_l.
-Qed.
-
-(** Example: The left projection of (f + g) + h reveals the inner sum f + g. *)
-Example left_projection_reveals_inner_sum {X Y : object C} (f g h : morphism C X Y) :
-  let nested := biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                  (morphism_addition C X Y f g) h in
-  let expanded_nested := biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                          (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                           biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h in
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o nested)%morphism = 
-    morphism_addition C X Y f g /\
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o expanded_nested)%morphism = 
-    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-     biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)%morphism /\
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o expanded_nested)%morphism =
-    morphism_addition C X Y f g.
-Proof.
-  split.
-  - (* Direct projection *)
-    simpl. apply biproduct_prod_beta_l.
-  - split.
-    + (* Expanded projection *)
-      simpl. apply nested_forms_projection_comparison.
-    + (* Both equal f + g *)
-      simpl. 
-      rewrite nested_forms_projection_comparison.
-      symmetry. apply addition_as_biproduct.
-Qed.
-
-(** The right projection of the left nested form is just h. *)
-Lemma left_nested_right_proj {X Y : object C} (f g h : morphism C X Y) :
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h)%morphism = h.
-Proof.
-  apply biproduct_prod_beta_r.
-Qed.
-
-(** Example: Both projections of the expanded left nested form recover the components. *)
-Example left_nested_both_projections {X Y : object C} (f g h : morphism C X Y) :
-  let expanded := biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                     biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h in
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o expanded)%morphism = 
-    morphism_addition C X Y f g /\
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o expanded)%morphism = h /\
-  morphism_addition C X Y 
-    ((outl (biproduct_data (semiadditive_biproduct Y Y)) o expanded)%morphism)
-    ((outr (biproduct_data (semiadditive_biproduct Y Y)) o expanded)%morphism) =
-  morphism_addition C X Y (morphism_addition C X Y f g) h.
-Proof.
-  split.
-  - (* Left projection gives f + g *)
-    simpl.
-    rewrite nested_forms_projection_comparison.
-    symmetry. apply addition_as_biproduct.
-  - split.
-    + (* Right projection gives h *)
-      simpl. apply left_nested_right_proj.
-    + (* Recombining gives the original *)
-      simpl.
-      rewrite nested_forms_projection_comparison.
-      rewrite left_nested_right_proj.
-      rewrite <- addition_as_biproduct.
-      reflexivity.
-Qed.
-
-(** The left projection of the right nested form is just f. *)
-Lemma right_nested_left_proj {X Y : object C} (f g h : morphism C X Y) :
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     f
-     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      biproduct_prod_mor (semiadditive_biproduct Y Y) X g h))%morphism = f.
-Proof.
-  apply biproduct_prod_beta_l.
-Qed.
-
-(** Example: Both projections of the expanded right nested form recover the components. *)
-Example right_nested_both_projections {X Y : object C} (f g h : morphism C X Y) :
-  let expanded := biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                    f
-                    (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                     biproduct_prod_mor (semiadditive_biproduct Y Y) X g h) in
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o expanded)%morphism = f /\
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o expanded)%morphism = 
-    morphism_addition C X Y g h /\
-  morphism_addition C X Y 
-    ((outl (biproduct_data (semiadditive_biproduct Y Y)) o expanded)%morphism)
-    ((outr (biproduct_data (semiadditive_biproduct Y Y)) o expanded)%morphism) =
-  morphism_addition C X Y f (morphism_addition C X Y g h).
-Proof.
-  split.
-  - (* Left projection gives f *)
-    simpl. apply right_nested_left_proj.
-  - split.
-    + (* Right projection gives g + h *)
-      simpl.
-      rewrite biproduct_prod_beta_r.
-      symmetry. apply addition_as_biproduct.
-    + (* Recombining gives the original *)
-      simpl.
-      rewrite right_nested_left_proj.
-      rewrite biproduct_prod_beta_r.
-      rewrite <- addition_as_biproduct.
-      reflexivity.
-Qed.
-
-(** The key: both expanded nested forms are morphisms into Y⊕Y with specific projections. *)
-Lemma both_expanded_forms_characterized {X Y : object C} (f g h : morphism C X Y) :
-  let left_expanded := biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                         (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                          biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h in
-  let right_expanded := biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                          f
-                          (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                           biproduct_prod_mor (semiadditive_biproduct Y Y) X g h) in
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o left_expanded)%morphism =
-    morphism_addition C X Y f g /\
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o left_expanded)%morphism = h /\
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o right_expanded)%morphism = f /\
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o right_expanded)%morphism =
-    morphism_addition C X Y g h.
-Proof.
-  split.
-  - simpl. rewrite nested_forms_projection_comparison. 
-    symmetry. apply addition_as_biproduct.
-  - split.
-    + simpl. apply left_nested_right_proj.
-    + split.
-      * simpl. apply right_nested_left_proj.
-      * simpl. rewrite biproduct_prod_beta_r.
-        symmetry. apply addition_as_biproduct.
-Qed.
-
-(** Example: For the special case f + 0 + h vs f + (0 + h), the expanded forms simplify identically. *)
-Example expanded_forms_equal_special {X Y : object C} (f h : morphism C X Y) :
-  let left_expanded := biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                         (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                          biproduct_prod_mor (semiadditive_biproduct Y Y) X f (zero_morphism X Y)) h in
-  let right_expanded := biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                          f
-                          (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                           biproduct_prod_mor (semiadditive_biproduct Y Y) X (zero_morphism X Y) h) in
-  let simplified := biproduct_prod_mor (semiadditive_biproduct Y Y) X f h in
-  left_expanded = simplified /\
-  right_expanded = simplified /\
-  left_expanded = right_expanded.
-Proof.
-  split.
-  - (* left_expanded = simplified *)
-    simpl.
-    f_ap.
-    rewrite <- addition_as_biproduct.
-    apply zero_right_identity.
-  - split.
-    + (* right_expanded = simplified *)
-      simpl.
-      f_ap.
-      rewrite <- addition_as_biproduct.
-      rewrite zero_left_identity.
-      reflexivity.
-    + (* left_expanded = right_expanded *)
-      simpl.
-      f_ap.
-      * rewrite <- addition_as_biproduct.
-        apply zero_right_identity.
-      * rewrite <- addition_as_biproduct.
-        rewrite zero_left_identity.
-        reflexivity.
-Qed.
-
-(** Composing codiagonal with nested biproducts recovers the nested addition. *)
-Lemma codiagonal_nested_biproduct_left {X Y : object C} (f g h : morphism C X Y) :
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h)%morphism =
-  morphism_addition C X Y (morphism_addition C X Y f g) h.
-Proof.
-  (* This is the definition of nested addition *)
-  symmetry.
-  rewrite addition_as_biproduct.
-  f_ap.
-  f_ap.
-  apply addition_as_biproduct.
-Qed.
-
-(** Example: The expanded form of ((f + g) + h) can be traced through all its transformations. *)
-Example codiagonal_nested_trace {X Y : object C} (f g h : morphism C X Y) :
-  let inner_sum := morphism_addition C X Y f g in
-  let full_sum := morphism_addition C X Y inner_sum h in
-  let inner_expanded := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                        biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)%morphism in
-  let full_expanded := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                       biproduct_prod_mor (semiadditive_biproduct Y Y) X inner_expanded h)%morphism in
-  full_sum = full_expanded /\
-  inner_sum = inner_expanded /\
-  full_expanded = (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                      biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h)%morphism /\
-  full_expanded = morphism_addition C X Y (morphism_addition C X Y f g) h.
-Proof.
-  split.
-  - (* full_sum = full_expanded *)
-    simpl.
-    symmetry.
-    apply codiagonal_nested_biproduct_left.
-  - split.
-    + (* inner_sum = inner_expanded *)
-      simpl.
-      apply addition_as_biproduct.
-    + split.
-      * (* full_expanded equals the explicit expansion *)
-        reflexivity.
-      * (* full_expanded = nested addition *)
-        apply codiagonal_nested_biproduct_left.
-Qed.
-
-(** Composing codiagonal with nested biproducts recovers the nested addition (right form). *)
-Lemma codiagonal_nested_biproduct_right {X Y : object C} (f g h : morphism C X Y) :
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X
-     f
-     (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-      biproduct_prod_mor (semiadditive_biproduct Y Y) X g h))%morphism =
-  morphism_addition C X Y f (morphism_addition C X Y g h).
-Proof.
-  (* This is the definition of right nested addition *)
-  symmetry.
-  rewrite !addition_as_biproduct.
+  rewrite (@morphism_addition_simplify C X Y f g).
+  rewrite (@morphism_addition_simplify C W Y (f o a)%morphism (g o a)%morphism).
+  rewrite Category.Core.associativity.
+  rewrite (@biproduct_comp_general C X Y Y W f g a).
   reflexivity.
 Qed.
 
-(** Example: Both nested forms can be recovered from their expansions. *)
-Example both_nested_recoverable {X Y : object C} (f g h : morphism C X Y) :
-  let left_expanded := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                        biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                          (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                           biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h)%morphism in
-  let right_expanded := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                         biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                           f
-                           (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                            biproduct_prod_mor (semiadditive_biproduct Y Y) X g h))%morphism in
-  left_expanded = morphism_addition C X Y (morphism_addition C X Y f g) h /\
-  right_expanded = morphism_addition C X Y f (morphism_addition C X Y g h) /\
-  (* This is what we need for associativity *)
-  (left_expanded = right_expanded -> 
-   morphism_addition C X Y (morphism_addition C X Y f g) h = 
-   morphism_addition C X Y f (morphism_addition C X Y g h)).
+Lemma codiagonal_postcompose_any
+  (Y Y' : object C) (a : morphism C Y Y') :
+  (a o biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism)%morphism
+  =
+  biproduct_coprod_mor (semiadditive_biproduct Y Y) Y' a a.
 Proof.
-  split.
-  - apply codiagonal_nested_biproduct_left.
-  - split.
-    + apply codiagonal_nested_biproduct_right.
-    + intro H.
-      rewrite <- codiagonal_nested_biproduct_left.
-      rewrite <- codiagonal_nested_biproduct_right.
-      exact H.
+  set (B := semiadditive_biproduct Y Y).
+  apply (biproduct_coprod_unique B Y' a a).
+  - rewrite Category.Core.associativity.
+    rewrite inl_codiagonal.
+    apply Category.Core.right_identity.
+  - rewrite Category.Core.associativity.
+    rewrite inr_codiagonal.
+    apply Category.Core.right_identity.
 Qed.
 
-(** The key consolidation: both nested forms have identical biproduct structure. *)
-Lemma nested_forms_same_structure {X Y : object C} (f g h : morphism C X Y) :
-  let left_form := morphism_addition C X Y (morphism_addition C X Y f g) h in
-  let right_form := morphism_addition C X Y f (morphism_addition C X Y g h) in
-  let left_expanded := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                        biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                          (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                           biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h)%morphism in
-  let right_expanded := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                         biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                           f
-                           (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                            biproduct_prod_mor (semiadditive_biproduct Y Y) X g h))%morphism in
-  (* Both forms equal their expansions *)
-  left_form = left_expanded /\
-  right_form = right_expanded /\
-  (* The expansions have the same projections when decomposed *)
-  (exists middle_left middle_right,
-    left_expanded = (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o middle_left)%morphism /\
-    right_expanded = (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o middle_right)%morphism /\
-    (outl (biproduct_data (semiadditive_biproduct Y Y)) o middle_left)%morphism = 
-      morphism_addition C X Y f g /\
-    (outr (biproduct_data (semiadditive_biproduct Y Y)) o middle_left)%morphism = h /\
-    (outl (biproduct_data (semiadditive_biproduct Y Y)) o middle_right)%morphism = f /\
-    (outr (biproduct_data (semiadditive_biproduct Y Y)) o middle_right)%morphism = 
-      morphism_addition C X Y g h).
+
+Lemma biproduct_pair_naturality
+  (X Y Y' : object C) (a : morphism C Y Y')
+  (f g : morphism C X Y) :
+  biproduct_prod_mor (semiadditive_biproduct Y' Y') X (a o f) (a o g)
+  =
+  (biproduct_prod_mor (semiadditive_biproduct Y' Y')
+     (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+     (a o outl (biproduct_data (semiadditive_biproduct Y Y)))
+     (a o outr (biproduct_data (semiadditive_biproduct Y Y)))
+   o biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)%morphism.
 Proof.
-  split.
-  - (* left_form = left_expanded *)
-    apply left_nested_expansion.
-  - split.
-    + (* right_form = right_expanded *)
-      apply right_nested_expansion.
-    + (* The projections exist and match *)
-      exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X
-               (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                biproduct_prod_mor (semiadditive_biproduct Y Y) X f g) h).
-      exists (biproduct_prod_mor (semiadditive_biproduct Y Y) X f
-               (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                biproduct_prod_mor (semiadditive_biproduct Y Y) X g h)).
-      split; [reflexivity|].
-      split; [reflexivity|].
-      split.
-      * rewrite nested_forms_projection_comparison.
-        symmetry. apply addition_as_biproduct.
-      * split.
-        -- apply left_nested_right_proj.
-        -- split.
-           ++ apply right_nested_left_proj.
-           ++ rewrite biproduct_prod_beta_r.
-              symmetry. apply addition_as_biproduct.
+  symmetry.
+  apply (biproduct_morphism_unique C Y' X).
+  - rewrite <- Category.Core.associativity.
+    rewrite biproduct_prod_beta_l.
+    rewrite Category.Core.associativity.
+    rewrite biproduct_prod_beta_l.
+    reflexivity.
+  - rewrite <- Category.Core.associativity.
+    rewrite biproduct_prod_beta_r.
+    rewrite Category.Core.associativity.
+    rewrite biproduct_prod_beta_r.
+    reflexivity.
 Qed.
 
-(** Complete associativity demonstration for (f + g) + h = f + (g + h) 
-    showing all intermediate steps and transformations. *)
-Example grand_associativity_demonstration {X Y : object C} (f g h : morphism C X Y) :
-  let left_assoc := morphism_addition C X Y (morphism_addition C X Y f g) h in
-  let right_assoc := morphism_addition C X Y f (morphism_addition C X Y g h) in
-  let fg := morphism_addition C X Y f g in
-  let gh := morphism_addition C X Y g h in
-  let fg_expanded := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                      biproduct_prod_mor (semiadditive_biproduct Y Y) X f g)%morphism in
-  let gh_expanded := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-                      biproduct_prod_mor (semiadditive_biproduct Y Y) X g h)%morphism in
-  let left_middle := biproduct_prod_mor (semiadditive_biproduct Y Y) X fg_expanded h in
-  let right_middle := biproduct_prod_mor (semiadditive_biproduct Y Y) X f gh_expanded in
-  let left_full := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o left_middle)%morphism in
-  let right_full := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o right_middle)%morphism in
-  (* All the key relationships *)
-  fg = fg_expanded /\
-  gh = gh_expanded /\
-  left_assoc = left_full /\
-  right_assoc = right_full /\
-  (* The projections of the middle morphisms *)
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o left_middle)%morphism = fg_expanded /\
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o left_middle)%morphism = h /\
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o right_middle)%morphism = f /\
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o right_middle)%morphism = gh_expanded /\
-  (* The crucial fact: morphisms into biproducts are determined by their projections *)
-  (left_middle = right_middle ->
-   left_full = right_full ->
-   left_assoc = right_assoc).
+Lemma codiagonal_pair_inl
+  (Y Y' : object C) (a b : morphism C Y Y') :
+  (biproduct_coprod_mor (semiadditive_biproduct Y' Y') Y' 1%morphism 1%morphism
+   o (biproduct_prod_mor (semiadditive_biproduct Y' Y')
+        (biproduct_obj (biproduct_data (semiadditive_biproduct Y Y)))
+        (a o outl (biproduct_data (semiadditive_biproduct Y Y)))
+        (b o outr (biproduct_data (semiadditive_biproduct Y Y)))
+      o Biproducts.inl (biproduct_data (semiadditive_biproduct Y Y))))%morphism
+  = a.
 Proof.
-  repeat split.
-  - (* fg = fg_expanded *)
-    apply addition_as_biproduct.
-  - (* gh = gh_expanded *)
-    apply addition_as_biproduct.
-  - (* left_assoc = left_full *)
-    simpl. symmetry. apply codiagonal_nested_biproduct_left.
-  - (* right_assoc = right_full *)
-    simpl. symmetry. apply codiagonal_nested_biproduct_right.
-  - (* left_middle left projection *)
-    simpl. apply biproduct_prod_beta_l.
-  - (* left_middle right projection *)
-    simpl. apply biproduct_prod_beta_r.
-  - (* right_middle left projection *)
-    simpl. apply biproduct_prod_beta_l.
-  - (* right_middle right projection *)
-    simpl. apply biproduct_prod_beta_r.
-  - (* If middles equal and fulls equal, then associativity holds *)
-    intros Hmid Hfull.
-    rewrite <- codiagonal_nested_biproduct_left.
-    rewrite <- codiagonal_nested_biproduct_right.
-    exact Hfull.
-Qed.
+  set (BY  := semiadditive_biproduct Y Y).
+  set (BY' := semiadditive_biproduct Y' Y').
 
-(** Triple biproducts: X ⊕ Y ⊕ Z as (X ⊕ Y) ⊕ Z *)
-Definition triple_biproduct_obj {X Y Z : object C} : object C :=
-  biproduct_obj (biproduct_data (semiadditive_biproduct 
-    (biproduct_obj (biproduct_data (semiadditive_biproduct X Y))) Z)).
-
-(** Injection into first component of triple biproduct *)
-Definition triple_inl (X Y Z : object C) 
-  : morphism C X (@triple_biproduct_obj X Y Z) :=
-  (Biproducts.inl (biproduct_data (semiadditive_biproduct 
-     (biproduct_obj (biproduct_data (semiadditive_biproduct X Y))) Z)) o
-   Biproducts.inl (biproduct_data (semiadditive_biproduct X Y)))%morphism.
-
-(** Injection into middle component of triple biproduct *)
-Definition triple_inm (X Y Z : object C)
-  : morphism C Y (@triple_biproduct_obj X Y Z) :=
-  (Biproducts.inl (biproduct_data (semiadditive_biproduct 
-     (biproduct_obj (biproduct_data (semiadditive_biproduct X Y))) Z)) o
-   Biproducts.inr (biproduct_data (semiadditive_biproduct X Y)))%morphism.
-
-(** Injection into last component of triple biproduct *)
-Definition triple_inr (X Y Z : object C)
-  : morphism C Z (@triple_biproduct_obj X Y Z) :=
-  Biproducts.inr (biproduct_data (semiadditive_biproduct 
-    (biproduct_obj (biproduct_data (semiadditive_biproduct X Y))) Z)).
-
-(** Triple codiagonal: (X ⊕ X) ⊕ X → X that adds all three components *)
-Definition triple_codiagonal (X : object C)
-  : morphism C (@triple_biproduct_obj X X X) X :=
-  biproduct_coprod_mor 
-    (semiadditive_biproduct 
-      (biproduct_obj (biproduct_data (semiadditive_biproduct X X))) X) 
-    X
-    (biproduct_coprod_mor (semiadditive_biproduct X X) X 1%morphism 1%morphism)
-    1%morphism.
-    
-(** Triple codiagonal composed with first injection gives identity *)
-Lemma triple_codiagonal_inl (X : object C) :
-  (triple_codiagonal X o triple_inl X X X)%morphism = 1%morphism.
-Proof.
-  unfold triple_codiagonal, triple_inl.
+  (* reassociate so [coprod ∘ prod] forms a single block *)
   rewrite <- Category.Core.associativity.
-  rewrite biproduct_coprod_beta_l.
-  apply inl_codiagonal.
+
+  (* turn [coprod ∘ prod] into addition *)
+  rewrite <- (@morphism_addition_simplify C
+               (biproduct_obj (biproduct_data BY)) Y'
+               (a o outl (biproduct_data BY))
+               (b o outr (biproduct_data BY))).
+
+  (* precompose the addition by [inl] (positional args) *)
+  rewrite (@addition_precompose
+             (biproduct_obj (biproduct_data BY))  (* X *)
+             Y'                                   (* Y *)
+             Y                                    (* W *)
+             ((a o outl (biproduct_data BY))%morphism)  (* f *)
+             ((b o outr (biproduct_data BY))%morphism)  (* g *)
+             (Biproducts.inl (biproduct_data BY))).     (* a *)
+
+  (* compare components, then use right-identity of + *)
+  transitivity (morphism_addition C Y Y' a (zero_morphism Y Y')).
+  - apply ap011.
+    + rewrite Category.Core.associativity.
+      rewrite outl_after_inl.
+      apply Category.Core.right_identity.
+    + rewrite Category.Core.associativity.
+      rewrite outr_after_inl.
+      apply zero_morphism_right.
+  - apply zero_right_identity.
 Qed.
-
-(** Example: Triple codiagonal with specific injections gives identity *)
-Example triple_codiagonal_injections {X : object C} :
-  (triple_codiagonal X o triple_inl X X X)%morphism = 1%morphism /\
-  (triple_codiagonal X o triple_inm X X X)%morphism = 1%morphism /\
-  (triple_codiagonal X o triple_inr X X X)%morphism = 1%morphism.
-Proof.
-  split.
-  - apply triple_codiagonal_inl.
-  - split.
-    + unfold triple_codiagonal, triple_inm.
-      rewrite <- Category.Core.associativity.
-      rewrite biproduct_coprod_beta_l.
-      apply inr_codiagonal.
-    + unfold triple_codiagonal, triple_inr.
-      apply biproduct_coprod_beta_r.
-Qed.
-
-(** The key flattening: codiagonal maps both nested forms to the same triple structure *)
-Lemma codiagonal_flattens_nested {X Y : object C} (f g h : morphism C X Y) :
-  let left_nested := biproduct_prod_mor (semiadditive_biproduct Y Y) X
-                       (morphism_addition C X Y f g) h in
-  let right_nested := biproduct_prod_mor (semiadditive_biproduct Y Y) X  
-                        f (morphism_addition C X Y g h) in
-  (* Both compose with codiagonal to give (f + g) + h and f + (g + h) *)
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o left_nested)%morphism =
-    morphism_addition C X Y (morphism_addition C X Y f g) h /\
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o right_nested)%morphism =
-    morphism_addition C X Y f (morphism_addition C X Y g h).
-Proof.
-  split.
-  - symmetry. apply addition_as_biproduct.
-  - symmetry. apply addition_as_biproduct.
-Qed.
-
-(** Example: Codiagonal flattens different nested structures to the same result for identity *)
-Example codiagonal_flattens_identity {Y : object C} :
-  let id := 1%morphism : morphism C Y Y in
-  let left_nested := biproduct_prod_mor (semiadditive_biproduct Y Y) Y
-                       (morphism_addition C Y Y id id) id in
-  let right_nested := biproduct_prod_mor (semiadditive_biproduct Y Y) Y  
-                        id (morphism_addition C Y Y id id) in
-  let left_result := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o 
-                      left_nested)%morphism in
-  let right_result := (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o 
-                       right_nested)%morphism in
-  (* Both give the same result *)
-  left_result = morphism_addition C Y Y (morphism_addition C Y Y id id) id /\
-  right_result = morphism_addition C Y Y id (morphism_addition C Y Y id id).
-Proof.
-  split.
-  - simpl. symmetry. apply addition_as_biproduct.
-  - simpl. symmetry. apply addition_as_biproduct.
-Qed.
-
-Lemma left_assoc_expansion (A : SemiAdditiveCategory) (X Y : object A) (f g h : morphism A X Y) :
-  morphism_addition A X Y (morphism_addition A X Y f g) h =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-     (morphism_addition A X Y f g) h)%morphism.
-Proof.
-  apply morphism_addition_simplify.
-Qed.
-
-Lemma right_assoc_expansion (A : SemiAdditiveCategory) (X Y : object A) (f g h : morphism A X Y) :
-  morphism_addition A X Y f (morphism_addition A X Y g h) =
-  (biproduct_coprod_mor (semiadditive_biproduct Y Y) Y 1%morphism 1%morphism o
-   biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-     f (morphism_addition A X Y g h))%morphism.
-Proof.
-  apply morphism_addition_simplify.
-Qed.
-
-Lemma left_assoc_projections (A : SemiAdditiveCategory) (X Y : object A) (f g h : morphism A X Y) :
-  let left_middle := biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-                       (morphism_addition A X Y f g) h in
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o left_middle)%morphism = 
-    morphism_addition A X Y f g /\
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o left_middle)%morphism = h.
-Proof.
-  split.
-  - apply biproduct_prod_beta_l.
-  - apply biproduct_prod_beta_r.
-Qed.
-
-Lemma right_assoc_projections (A : SemiAdditiveCategory) (X Y : object A) (f g h : morphism A X Y) :
-  let right_middle := biproduct_prod_mor (semiadditive_biproduct Y Y) X 
-                        f (morphism_addition A X Y g h) in
-  (outl (biproduct_data (semiadditive_biproduct Y Y)) o right_middle)%morphism = f /\
-  (outr (biproduct_data (semiadditive_biproduct Y Y)) o right_middle)%morphism = 
-    morphism_addition A X Y g h.
-Proof.
-  split.
-  - apply biproduct_prod_beta_l.
-  - apply biproduct_prod_beta_r.
-Qed.
-
-Lemma biproduct_assoc_left_to_right (A : SemiAdditiveCategory) (X Y Z : object A) :
-  morphism A 
-    (biproduct_obj (biproduct_data (semiadditive_biproduct 
-      (biproduct_obj (biproduct_data (semiadditive_biproduct X Y))) Z)))
-    (biproduct_obj (biproduct_data (semiadditive_biproduct X 
-      (biproduct_obj (biproduct_data (semiadditive_biproduct Y Z)))))).
-Proof.
-  set (XY := biproduct_data (semiadditive_biproduct X Y)).
-  set (YZ := biproduct_data (semiadditive_biproduct Y Z)).
-  set (XY_Z := biproduct_data (semiadditive_biproduct (biproduct_obj XY) Z)).
-  set (X_YZ := biproduct_data (semiadditive_biproduct X (biproduct_obj YZ))).
-  
-  apply (biproduct_prod_mor (semiadditive_biproduct X (biproduct_obj YZ)) _ 
-          (outl XY o outl XY_Z)
-          (biproduct_prod_mor (semiadditive_biproduct Y Z) _
-            (outr XY o outl XY_Z)
-            (outr XY_Z))).
-Defined.
-
-Lemma biproduct_assoc_right_to_left (A : SemiAdditiveCategory) (X Y Z : object A) :
-  morphism A 
-    (biproduct_obj (biproduct_data (semiadditive_biproduct X 
-      (biproduct_obj (biproduct_data (semiadditive_biproduct Y Z))))))
-    (biproduct_obj (biproduct_data (semiadditive_biproduct 
-      (biproduct_obj (biproduct_data (semiadditive_biproduct X Y))) Z))).
-Proof.
-  set (XY := biproduct_data (semiadditive_biproduct X Y)).
-  set (YZ := biproduct_data (semiadditive_biproduct Y Z)).
-  set (XY_Z := biproduct_data (semiadditive_biproduct (biproduct_obj XY) Z)).
-  set (X_YZ := biproduct_data (semiadditive_biproduct X (biproduct_obj YZ))).
-  
-  apply (biproduct_prod_mor (semiadditive_biproduct (biproduct_obj XY) Z) _
-          (biproduct_prod_mor (semiadditive_biproduct X Y) _
-            (outl X_YZ)
-            (outl YZ o outr X_YZ))
-          (outr YZ o outr X_YZ)).
-Defined.
-
-Theorem morphism_addition_associative {X Y : object C} :
-  Associative (@morphism_addition C X Y).
-Proof.
-  intros f g h.
-  (* Insert 0 to prepare for the medial step *)
-  rewrite <- (zero_right_identity C X Y h).
-  transitivity ((f + h) + (g + zero_morphism X Y))%morphism.
-  { (* prove: (f + (g + (h + 0))) = ((f + h) + (g + 0)) *)
-    rewrite !addition_as_biproduct.
-    rewrite codiagonal_biproduct_distribute.
-    rewrite <- !addition_as_biproduct.
-    rewrite !addition_as_biproduct.
-    rewrite codiagonal_biproduct_distribute.
-    rewrite <- !addition_as_biproduct.
-    rewrite zero_right_identity.
-    transitivity ((f + zero_morphism X Y) + (h + g))%morphism.
-    { rewrite <- (zero_left_identity C X Y g).
-      rewrite !addition_as_biproduct.
-      rewrite <- (codiagonal_zero_left C Y X f).
-      rewrite codiagonal_biproduct_distribute.
-      rewrite <- !addition_as_biproduct.
-      rewrite (morphism_addition_commutative C X Y
-                h (morphism_addition C X Y (zero_morphism X Y) g)).
-      rewrite zero_right_identity.
-      rewrite zero_right_identity.
-      reflexivity. }
-    rewrite <- (zero_right_identity C X Y f).
-    transitivity ((f + h) + (zero_morphism X Y + g))%morphism.
-    { rewrite !addition_as_biproduct.
-      rewrite codiagonal_biproduct_distribute.
-      rewrite (morphism_addition_commutative C X Y h g).
-      rewrite addition_as_biproduct.
-      rewrite <- !addition_as_biproduct.
-      rewrite zero_right_identity.
-      rewrite <- morphism_addition_commutative.
-      rewrite (morphism_addition_commutative C X Y (zero_morphism X Y) g).
-  rewrite zero_right_identity.
-    rewrite morphism_addition_commutative.
-  rewrite zero_right_identity.
-    rewrite (morphism_addition_commutative C X Y g h).
-  rewrite <- (zero_left_identity C X Y g).
-  transitivity ((f + h) + (zero_morphism X Y + g))%morphism.
-  1: rewrite !addition_as_biproduct.
-    1: rewrite <- (codiagonal_zero_left C Y X f).
-      1: rewrite codiagonal_biproduct_distribute.
-        1: rewrite <- !addition_as_biproduct.
-          1: rewrite zero_right_identity.
-            1: rewrite !addition_as_biproduct.
-              1: rewrite <- (codiagonal_zero_left C Y X f).
-  1: rewrite codiagonal_biproduct_distribute.
-  1: rewrite <- !addition_as_biproduct.
-1: set (k := (zero_morphism X Y + g)%morphism).
-1: change ((f + (h + (zero_morphism X Y + g)))%morphism)
-     with ( (f + (h + (zero_morphism X Y + g)))%morphism ).
-1: rewrite <- (zero_right_identity C X Y f).
-1: rewrite !addition_as_biproduct.
-1: rewrite codiagonal_biproduct_distribute.
-1: rewrite <- !addition_as_biproduct.
-  1: rewrite zero_right_identity.
-    1: rewrite !addition_as_biproduct.
-      2: reflexivity.
-
