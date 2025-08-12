@@ -13,6 +13,7 @@
 
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp Require Import fintype finfun bigop matrix ssrnum vector mxalgebra.
+From mathcomp Require Import seq.
 From mathcomp.algebra Require Import rat.
 Require Import Coq.Init.Nat.
 
@@ -91,18 +92,29 @@ Definition seq_to_col (v : seq rat) (k : nat) : 'M[rat]_(k,1) :=
   \matrix_(i < k, _ < 1) (nth 0%R v i).
 
 (* Convert a kx1 column vector back to a seq of length k *)
-Definition col_to_seq k (x : 'M[rat]_(k,1)) : seq rat :=
+Definition col_to_seq {k : nat} (x : 'M[rat]_(k,1)) : seq rat :=
   [seq x i ord0 | i <- enum 'I_k].
 
 (* Submatrix utilities: pick rows/cols by ordinal index lists *)
+Lemma default_ord (n : nat) : 'I_n.+1.
+Proof. exact: ord0. Qed.
+
 Definition submx_rc m n
   (A : 'M[rat]_(m,n)) (R : seq 'I_m) (C : seq 'I_n)
   : 'M[rat]_(size R, size C) :=
-  \matrix_(i < size R, j < size C) A (nth ord0 R i) (nth ord0 C j).
+  \matrix_(i < size R, j < size C) 
+    match R, C with
+    | r :: _, c :: _ => A (nth r R i) (nth c C j)
+    | _, _ => 0%R
+    end.
 
 Definition subcol m
   (b : 'M[rat]_(m,1)) (R : seq 'I_m) : 'M[rat]_(size R,1) :=
-  \matrix_(i < size R, _ < 1) b (nth ord0 R i) ord0.
+  \matrix_(i < size R, _ < 1)
+    match R with
+    | r :: _ => b (nth r R i) ord0
+    | [::] => 0%R
+    end.
 
 (* Place a size-|C| column back into a size-k column, zeros elsewhere *)
 Definition place_on_columns k
@@ -127,8 +139,7 @@ Definition max_seq (xs : seq rat) : rat :=
 (* For P1: unknowns are σ2(b) for b ∈ S2; anchor a0 ∈ S1 *)
 Definition build_system_P1_anchor
   (G : game) (S1 : seq A1) (S2 : seq A2) (a0 : A1)
-  : option ('M[rat]_(size S1, size S2) * 'M[rat]_(size S1,1)).
-Proof.
+  : option ('M[rat]_(size S1, size S2) * 'M[rat]_(size S1,1)) :=
   if a0 \in S1 then
     let row_for (a : A1) : seq rat :=
       [seq (u1 G a0 b - u1 G a b) | b <- S2] in
@@ -138,13 +149,11 @@ Proof.
     let b  := seq_to_col rhs (size S1) in
     Some (A, b)
   else None.
-Defined.
 
 (* For P2: unknowns are σ1(a) for a ∈ S1; anchor b0 ∈ S2 *)
 Definition build_system_P2_anchor
   (G : game) (S1 : seq A1) (S2 : seq A2) (b0 : A2)
-  : option ('M[rat]_(size S2, size S1) * 'M[rat]_(size S2,1)).
-Proof.
+  : option ('M[rat]_(size S2, size S1) * 'M[rat]_(size S2,1)) :=
   if b0 \in S2 then
     let row_for (b : A2) : seq rat :=
       [seq (u2 G a b0 - u2 G a b) | a <- S1] in
@@ -154,39 +163,60 @@ Proof.
     let b  := seq_to_col rhs (size S2) in
     Some (A, b)
   else None.
-Defined.
 
 (* --------------------------------------------------------------- *)
 (*     Rank-pruned rectangular solving via invertible minors       *)
 (* --------------------------------------------------------------- *)
 
+(* Helper: extract square submatrix and check if invertible *)
+Definition check_minor_solution {m k : nat} (r : nat)
+  (A : 'M[rat]_(m,k)) (b : 'M[rat]_(m,1)) 
+  (R : seq 'I_m) (C : seq 'I_k) : seq ('M[rat]_(k,1)) :=
+  if (size R == r) && (size C == r) && (0 < r)%N then
+    (* Need default elements for nth *)
+    match R, C with
+    | r0 :: _, c0 :: _ =>
+      (* Build the r×r submatrix *)
+      let Mr := \matrix_(i < r, j < r) 
+                  A (nth r0 R i) (nth c0 C j) in
+      if unitmx Mr then
+        (* Extract corresponding rows from b *)
+        let br := \matrix_(i < r, _ < 1) 
+                    b (nth r0 R i) ord0 in
+        (* Solve the system *)
+        let xr := invmx Mr *m br in
+        (* Place solution back into full-sized vector *)
+        let xlist := [seq xr i ord0 | i <- enum 'I_r] in
+        let x := \matrix_(j < k, _ < 1)
+                   if j \in C then 
+                     nth 0%R xlist (index j C)
+                   else 0%R in
+        (* Check if it satisfies the original system *)
+        if (A *m x == b) && nonneg_col x then [:: x] else [::]
+      else [::]
+    | _, _ => [::]
+    end
+  else [::].
+
 (* Given A (m x k), b (m x 1), let r = rank(A); try invertible minors (R,C)
    with |R| = |C| = r. Solve, place back, and keep those that satisfy
    A x = b and x >= 0. *)
 Definition solve_rect_via_minors
-  m k (A : 'M[rat]_(m,k)) (b : 'M[rat]_(m,1)) : seq ('M[rat]_(k,1)) :=
+  {m k : nat} (A : 'M[rat]_(m,k)) (b : 'M[rat]_(m,1)) : seq ('M[rat]_(k,1)) :=
   let r := mxrank A in
   let rowSubs := index_ksubsets m r in
   let colSubs := index_ksubsets k r in
   let sols :=
     flatten [seq
-      let R := R in
       flatten [seq
-        let C := C in
-        let M := submx_rc A R C in
-        if unitmx M then
-          let bR := subcol b R in
-          let xC := (invmx M) *m bR in
-          let x  := place_on_columns k C xC in
-          if (A *m x == b) && nonneg_col x then [:: x] else [::]
-        else [::]
+        check_minor_solution r A b R C
       | C <- colSubs]
     | R <- rowSubs] in
   undup sols.
 
 Definition solve_rect_via_minors_to_seq
   m k (A : 'M[rat]_(m,k)) (b : 'M[rat]_(m,1)) : seq (seq rat) :=
-  [seq col_to_seq k x | x <- solve_rect_via_minors A b].
+  [seq col_to_seq x | x <- solve_rect_via_minors A b].
 
 (* --------------------------------------------------------------- *)
 (*     Reflective checks & include helper for soundness lemmas     *)
@@ -398,25 +428,26 @@ Lemma solve_support_pair_full_sound (G : game)
   (s1, s2) \in solve_support_pair_full G S1 S2 ->
   is_nash_seq G s1 s2.
 Proof.
-  rewrite /solve_support_pair_full mem_undup.
-  move/flattenP => [x2 Hx2 Hin2].
-  move/flattenP: Hin2 => [x1 Hx1 Hin1].
-  set sigma1 := expand_on_support S1 x1.
-  set sigma2 := expand_on_support S2 x2.
-  set s1' := [seq sigma1 a | a <- enumA1].
-  set s2' := [seq sigma2 b | b <- enumA2].
-  move: Hin1.
-  rewrite (mem_include_if_pair G (s1, s2) s1' s2').
-  move/andP => [/eqP Heq Hnash].
-  case: Heq => -> ->; exact: Hnash.
+rewrite /solve_support_pair_full mem_undup.
+case/flattenP => inner Hinner Hmem.
+case/mapP: Hinner => x2 Hx2 Heq.
+subst inner.
+case/flattenP: Hmem => inner2 Hinner2 Hmem2.
+case/mapP: Hinner2 => x1 Hx1 ->.
+move: Hmem2.
+rewrite mem_include_if_pair.
+move/andP => [/eqP [-> ->] Hnas].
+exact: Hnas.
 Qed.
 
 Lemma find_all_nash_sound (G : game) (s1 s2 : seq rat) :
   (s1, s2) \in find_all_nash G -> is_nash_seq G s1 s2.
 Proof.
-  rewrite /find_all_nash mem_undup.
-  move/flattenP => [p Hp Hin].
-  exact: (solve_support_pair_full_sound G p.1 p.2 s1 s2 Hin).
+rewrite /find_all_nash mem_undup.
+move=> Hin.
+case/flattenP: Hin => ps Hps Hin.
+case/mapP: Hps => p Hp ->.
+exact: (solve_support_pair_full_sound _ _ _ _ _ Hin).
 Qed.
 
 (* ================================================================ *)
@@ -436,20 +467,70 @@ Lemma dominated1_not_in_NE (G : game) (a : A1) (s1 s2 : seq rat) :
   is_nash_seq G s1 s2 ->
   nth 0%R s1 (nat_of_ord a) = 0%R.
 Proof.
-(* TODO: standard proof:
-   - From dominance, pick a' with u1 a' b > u1 a b ∀b.
-   - With σ₂ a distribution, EU1(a') > EU1(a).
-   - In NE, any action with positive prob must attain the max EU1; contradiction.
- *)
-Admitted.
+move=> /hasP [a' _ Hall_dom].
+move=> /andP [/andP [Hdist1 Hdist2] Hnash].
+apply/eqP; apply: contraT => Hnonzero.
+move: Hnash.
+rewrite /nash_checks => /andP [/andP [/andP [Hbr1 Hbr2] Heq1] Heq2].
+move: Heq1 => /allP Heq1.
+have Hpos: 0%R < nth 0%R s1 (nat_of_ord a).
+  by rewrite lt0r Hnonzero /= ; move: Hdist1 => /andP [_ /andP [/allP Hall _]]; apply: Hall; rewrite mem_enum.
+have Heu_eq: EU1 G (seqA2_fun s2) a == max_seq [seq EU1 G (seqA2_fun s2) a0 | a0 <- enumA1].
+  by move: (Heq1 a (mem_enum _ _)); rewrite /seqA1_fun nth_nth Hpos.
+move: Hall_dom => /allP Hall_dom.
+have Heu_strict: EU1 G (seqA2_fun s2) a' > EU1 G (seqA2_fun s2) a.
+  rewrite /EU1.
+  apply: sumr_gt0 => b _.
+  apply: mulr_gt0.
+  - move: Hdist2 => /andP [_ /andP [/allP Hall2 _]].
+    by apply: Hall2; rewrite mem_enum.
+  - by apply: Hall_dom; rewrite mem_enum.
+have Hmax_ge: max_seq [seq EU1 G (seqA2_fun s2) a0 | a0 <- enumA1] >= EU1 G (seqA2_fun s2) a'.
+  rewrite /max_seq.
+  case: [seq EU1 G (seqA2_fun s2) a0 | a0 <- enumA1] => // x xs.
+  elim: xs x => [x|y ys IH x] //=.
+  case: ifP => // Hlt.
+  by apply: IH.
+have Hcontra: EU1 G (seqA2_fun s2) a' <= EU1 G (seqA2_fun s2) a.
+  move/eqP: Heu_eq => <-.
+  exact: Hmax_ge.
+by move: Heu_strict; rewrite -ltNge Hcontra.
+Qed.
 
 Lemma dominated2_not_in_NE (G : game) (b : A2) (s1 s2 : seq rat) :
   strictly_dominated_by_pure2 G b ->
   is_nash_seq G s1 s2 ->
   nth 0%R s2 (nat_of_ord b) = 0%R.
 Proof.
-(* TODO: symmetric to dominated1_not_in_NE. *)
-Admitted.
+move=> /hasP [b' _ Hall_dom].
+move=> /andP [/andP [Hdist1 Hdist2] Hnash].
+apply/eqP; apply: contraT => Hnonzero.
+move: Hnash.
+rewrite /nash_checks => /andP [/andP [/andP [Hbr1 Hbr2] Heq1] Heq2].
+move: Heq2 => /allP Heq2.
+have Hpos: 0%R < nth 0%R s2 (nat_of_ord b).
+  by rewrite lt0r Hnonzero /= ; move: Hdist2 => /andP [_ /andP [/allP Hall _]]; apply: Hall; rewrite mem_enum.
+have Heu_eq: EU2 G (seqA1_fun s1) b == max_seq [seq EU2 G (seqA1_fun s1) b0 | b0 <- enumA2].
+  by move: (Heq2 b (mem_enum _ _)); rewrite /seqA2_fun nth_nth Hpos.
+move: Hall_dom => /allP Hall_dom.
+have Heu_strict: EU2 G (seqA1_fun s1) b' > EU2 G (seqA1_fun s1) b.
+  rewrite /EU2.
+  apply: sumr_gt0 => a _.
+  apply: mulr_gt0.
+  - move: Hdist1 => /andP [_ /andP [/allP Hall1 _]].
+    by apply: Hall1; rewrite mem_enum.
+  - by apply: Hall_dom; rewrite mem_enum.
+have Hmax_ge: max_seq [seq EU2 G (seqA1_fun s1) b0 | b0 <- enumA2] >= EU2 G (seqA1_fun s1) b'.
+  rewrite /max_seq.
+  case: [seq EU2 G (seqA1_fun s1) b0 | b0 <- enumA2] => // x xs.
+  elim: xs x => [x|y ys IH x] //=.
+  case: ifP => // Hlt.
+  by apply: IH.
+have Hcontra: EU2 G (seqA1_fun s1) b' <= EU2 G (seqA1_fun s1) b.
+  move/eqP: Heu_eq => <-.
+  exact: Hmax_ge.
+by move: Heu_strict; rewrite -ltNge Hcontra.
+Qed.
 
 Lemma supports_pruned_complete (G : game) (s1 s2 : seq rat) :
   is_nash_seq G s1 s2 ->
@@ -457,8 +538,23 @@ Lemma supports_pruned_complete (G : game) (s1 s2 : seq rat) :
   let S2 := [seq b <- enumA2 | 0%R < nth 0%R s2 (nat_of_ord b)] in
   support_ok1 G S1 /\ support_ok2 G S2.
 Proof.
-(* Direct from dominated*_not_in_NE lemmas. *)
-Admitted.
+move=> Hnash.
+split.
+- rewrite /support_ok1 /=.
+  apply/allP => a.
+  rewrite mem_filter => /andP [Hpos _].
+  apply/negP => Hdom.
+  move: (dominated1_not_in_NE G a s1 s2 Hdom Hnash) => Hzero.
+  move: Hpos.
+  by rewrite Hzero ltxx.
+- rewrite /support_ok2 /=.
+  apply/allP => b.
+  rewrite mem_filter => /andP [Hpos _].
+  apply/negP => Hdom.
+  move: (dominated2_not_in_NE G b s1 s2 Hdom Hnash) => Hzero.
+  move: Hpos.
+  by rewrite Hzero ltxx.
+Qed.
 
 (* (3) Early BR-subset prune is safe – fully proved *)
 
@@ -514,7 +610,7 @@ Inductive extreme_sigma2_witness (G : game)
     of build_system_P1_anchor G S1 S2 a0 = Some (A,b)
     & col_to_seq _ x2 \in solve_rect_via_minors A b
     & (forall b2, sigma2 b2 =
-          if b2 \in S2 then x2 (Ordinal (index b2 S2) isT) ord0 else 0%R).
+          if b2 \in S2 then nth 0%R (col_to_seq _ x2) (index b2 S2) else 0%R).
 
 (* Symmetric witness for σ₁ on S₁ from a P2-system. *)
 Inductive extreme_sigma1_witness (G : game)
@@ -523,7 +619,7 @@ Inductive extreme_sigma1_witness (G : game)
     of build_system_P2_anchor G S1 S2 b0 = Some (A,b)
     & col_to_seq _ x1 \in solve_rect_via_minors A b
     & (forall a1, sigma1 a1 =
-          if a1 \in S1 then x1 (Ordinal (index a1 S1) isT) ord0 else 0%R).
+          if a1 \in S1 then nth 0%R (col_to_seq _ x1) (index a1 S1) else 0%R).
 
 (* “Extreme NE” := both sides have such witnesses on a common support pair. *)
 Definition is_extreme_ne (G : game) (s1 s2 : seq rat) : Prop :=
@@ -543,9 +639,68 @@ Theorem find_all_nash_outputs_have_extreme_witness
   (s1,s2) \in find_all_nash G ->
   is_extreme_ne G s1 s2.
 Proof.
-(* TODO: unwind the enumerations in find_all_nash/solve_support_pair_full;
-   the σ-components come from solve_rect_via_minors, hence produce witnesses. *)
-Admitted.
+rewrite /find_all_nash mem_undup.
+move=> Hin.
+case/flattenP: Hin => sols Hsols Hmem.
+case/mapP: Hsols => [[S1 S2] Hpair ->].
+rewrite /solve_support_pair_full mem_undup in Hmem.
+case/flattenP: Hmem => inner Hinner Hmem2.
+case/mapP: Hinner => x2 Hx2 ->.
+case/flattenP: Hmem2 => inner2 Hinner2 Hincl.
+case/mapP: Hinner2 => x1 Hx1 ->.
+move: Hincl.
+rewrite mem_include_if_pair.
+move/andP => [/eqP [Hs1 Hs2] _].
+exists S1, S2.
+set sigma1 := expand_on_support S1 x1.
+set sigma2 := expand_on_support S2 x2.
+exists sigma1, sigma2.
+split; [|split; [|split]].
+- exact: Hs1.
+- exact: Hs2.
+- rewrite /all_sigma1_candidates in Hx1.
+  rewrite mem_undup in Hx1.
+  rewrite mem_filter in Hx1.
+  move/andP: Hx1 => [_ Hcand].
+  rewrite mem_filter in Hcand.
+  move/andP: Hcand => [_ Hraw].
+  case/flattenP: Hraw => sys Hsys Hmem.
+  case/mapP: Hsys => b0 Hb0 ->.
+  move: Hmem => Hsys.
+  move: Hraw => [b0 [Hb0 Hsys]].
+  case Hbuild: (build_system_P2_anchor G S1 S2 b0) => [[A b]|] //.
+  rewrite Hbuild in Hsys.
+  have Hwitness: exists x, col_to_seq _ x \in solve_rect_via_minors A b /\
+                          x1 = col_to_seq _ x.
+    by exists (seq_to_col x1 (size S1)); split => //; rewrite col_to_seq_to_col.
+  move: Hwitness => [x [Hxmem Hx1eq]].
+  apply: (ExtSig1 _ b0 A b x) => //.
+  move=> a1.
+  rewrite /sigma1 /expand_on_support.
+  case: ifP => // Ha1.
+  by rewrite -Hx1eq.
+- rewrite /all_sigma2_candidates in Hx2.
+  rewrite mem_undup in Hx2.
+  rewrite mem_filter in Hx2.
+  move/andP: Hx2 => [_ Hcand].
+  rewrite mem_filter in Hcand.
+  move/andP: Hcand => [_ Hraw].
+  case/flattenP: Hraw => sys Hsys Hmem.
+  case/mapP: Hsys => b0 Hb0 ->.
+  move: Hmem => Hsys.
+  move: Hraw => [a0 [Ha0 Hsys]].
+  case Hbuild: (build_system_P1_anchor G S1 S2 a0) => [[A b]|] //.
+  rewrite Hbuild in Hsys.
+  have Hwitness: exists x, col_to_seq _ x \in solve_rect_via_minors A b /\
+                          x2 = col_to_seq _ x.
+    by exists (seq_to_col x2 (size S2)); split => //; rewrite col_to_seq_to_col.
+  move: Hwitness => [x [Hxmem Hx2eq]].
+  apply: (ExtSig2 _ a0 A b x) => //.
+  move=> a2.
+  rewrite /sigma2 /expand_on_support.
+  case: ifP => // Ha2.
+  by rewrite -Hx2eq.
+Qed.
 
 (* 4.2 Completeness for extreme NEs (with witness) *)
 Theorem find_all_nash_complete_extreme (G : game) (s1 s2 : seq rat) :
@@ -553,12 +708,282 @@ Theorem find_all_nash_complete_extreme (G : game) (s1 s2 : seq rat) :
   is_extreme_ne G s1 s2 ->
   (s1,s2) \in find_all_nash G.
 Proof.
-(* Sketch: choose the witnessed S1,S2 and the minor-based σ1,σ2;
-   they appear in the per-support candidate lists; include_if_pair
-   keeps them thanks to is_nash_seq; thus they end up in find_all_nash. *)
-Admitted.
+move=> Hnash [S1 [S2 [sigma1 [sigma2 [Hs1 [Hs2 [Hext1 Hext2]]]]]]]].
+rewrite /find_all_nash.
+apply/mem_undup.
+apply/flattenP.
+exists (solve_support_pair_full G S1 S2).
+split.
+- apply/mapP.
+  exists (S1,S2).
+  + rewrite /support_pairs_all_nonempty.
+    apply/flattenP.
+  have HS1ok: S1 \in all_supports_A1_pruned G.
+    rewrite /all_supports_A1_pruned mem_filter.
+    apply/andP; split.
+    + move: (supports_pruned_complete G s1 s2 Hnash) => [Hok1 _].
+      rewrite -Hs1 in Hok1.
+      set S1' := [seq a <- enumA1 | 0%R < sigma1 a] in Hok1.
+      have ->: S1 = S1'.
+        move: Hext1 => [b0 A b x1 _ _ Hdef].
+        rewrite /S1'.
+        apply/eqP; rewrite eqseq_filter.
+        apply/allP => a _.
+        by rewrite Hdef; case: ifP.
+      exact: Hok1.
+    + rewrite /all_supports_A1 /nonempty_subsets mem_filter.
+      apply/andP; split => //.
+      move: Hext1 => [b0 A b x1 Hbuild _ _].
+      move: Hbuild.
+      rewrite /build_system_P2_anchor.
+      case: ifP => // Hb0in _.
+      by apply/eqP => HS1eq; rewrite HS1eq in Hb0in.
+  exists [seq (S1,S2') | S2' <- all_supports_A2_pruned G].
+  split => //.
+  apply/mapP.
+  exists S1 => //.
+  have HS2ok: S2 \in all_supports_A2_pruned G.
+    rewrite /all_supports_A2_pruned mem_filter.
+    apply/andP; split.
+    + move: (supports_pruned_complete G s1 s2 Hnash) => [_ Hok2].
+      rewrite -Hs2 in Hok2.
+      set S2' := [seq b <- enumA2 | 0%R < sigma2 b] in Hok2.
+      have ->: S2 = S2'.
+        move: Hext2 => [a0 A b x2 _ _ Hdef].
+        rewrite /S2'.
+        apply/eqP; rewrite eqseq_filter.
+        apply/allP => b' _.
+        by rewrite Hdef; case: ifP.
+      exact: Hok2.
+    + rewrite /all_supports_A2 /nonempty_subsets mem_filter.
+      apply/andP; split => //.
+      move: Hext2 => [a0 A b x2 Hbuild _ _].
+      move: Hbuild.
+      rewrite /build_system_P1_anchor.
+      case: ifP => // Ha0in _.
+      by apply/eqP => HS2eq; rewrite HS2eq in Ha0in.
+  by [].
+- rewrite /solve_support_pair_full.
+  apply/mem_undup.
+  apply/flattenP.
+  move: Hext2 => [a0 A2 b2 x2 Hbuild2 Hx2mem Hdef2].
+  move: Hext1 => [b0 A1 b1 x1 Hbuild1 Hx1mem Hdef1].
+  have Hx2_cand: col_to_seq _ x2 \in all_sigma2_candidates G S1 S2.
+    rewrite /all_sigma2_candidates.
+    apply/mem_undup.
+    rewrite mem_filter.
+    apply/andP; split.
+    + rewrite /br_subset1_for_S.
+      move: (br_subset_prune_safe1 G s1 s2 Hnash).
+      rewrite -Hs1 => Hbr.
+      set S1' := [seq a <- enumA1 | 0%R < sigma1 a] in Hbr.
+      have ->: S1 = S1'.
+        rewrite /S1'.
+        apply/eqP; rewrite eqseq_filter.
+        apply/allP => a _.
+        by rewrite Hdef1; case: ifP.
+      have ->: seqA2_fun s2 = sigma2.
+        by rewrite /seqA2_fun Hs2; apply: functional_extensionality => b; rewrite (nth_map b).
+      have ->: expand_on_support S2 (col_to_seq _ x2) = sigma2.
+        apply: functional_extensionality => b.
+        rewrite /expand_on_support Hdef2.
+        case: ifP => // Hbin.
+        by rewrite /col_to_seq (nth_map ord0) ?size_enum_ord // nth_enum_ord.
+      exact: Hbr.
+    + rewrite mem_filter.
+      apply/andP; split.
+      * apply/andP; split.
+        -- by rewrite size_col_to_seq.
+        -- apply/allP => q Hq.
+           move: Hx2mem.
+           rewrite /solve_rect_via_minors => /mem_undup.
+           have Hnonneg: nonneg_col x2.
+             move: Hx2mem.
+             rewrite /solve_rect_via_minors mem_undup.
+             case/flattenP: [inner [Hinner _]].
+             move: Hinner => /(flattenP _) [checks _].
+             move: checks => /(mapP _) [C _ ->].
+             case/flattenP: [results _].
+             case/mapP: [R _ ->].
+             rewrite /check_minor_solution.
+             case: ifP => // Hcond.
+             case: R => // r0 Rs.
+             case: C => // c0 Cs.
+             case: ifP => // Hinv.
+             case: ifP => // /andP [_ Hneg].
+             exact: Hneg.
+           rewrite /nonneg_col in Hnonneg.
+           move: Hnonneg => /allP Hall.
+           rewrite /col_to_seq in Hq.
+           move: Hq => /(mapP _) [idx Hidx ->].
+           apply: (Hall idx Hidx).
+      * apply/flattenP.
+        exists (solve_rect_via_minors_to_seq _ _ A2 b2).
+        split.
+        -- apply/mapP.
+           exists a0.
+           ++ move: Hbuild2.
+              rewrite /build_system_P1_anchor.
+              case: ifP => // Ha0in _.
+              exact: Ha0in.
+           ++ by rewrite Hbuild2.
+        -- apply: map_f.
+           exact: Hx2mem.
+  have Hx1_cand: col_to_seq _ x1 \in all_sigma1_candidates G S1 S2.
+    rewrite /all_sigma1_candidates.
+    apply/mem_undup.
+    rewrite mem_filter.
+    apply/andP; split.
+    + rewrite /br_subset2_for_S.
+      move: (br_subset_prune_safe2 G s1 s2 Hnash).
+      rewrite -Hs2 => Hbr.
+      set S2' := [seq b <- enumA2 | 0%R < sigma2 b] in Hbr.
+      have ->: S2 = S2'.
+        rewrite /S2'.
+        apply/eqP; rewrite eqseq_filter.
+        apply/allP => b _.
+        by rewrite Hdef2; case: ifP.
+      have ->: seqA1_fun s1 = sigma1.
+        by rewrite /seqA1_fun Hs1; apply: functional_extensionality => a; rewrite (nth_map a).
+      have ->: expand_on_support S1 (col_to_seq _ x1) = sigma1.
+        apply: functional_extensionality => a.
+        rewrite /expand_on_support Hdef1.
+        case: ifP => // Hain.
+        by [].
+      exact: Hbr.
+    + rewrite mem_filter.
+      apply/andP; split.
+      * apply/andP; split.
+        -- by rewrite size_col_to_seq.
+        -- apply/allP => q Hq.
+           move: Hx1mem.
+           rewrite /solve_rect_via_minors mem_undup.
+           move=> Hsol.
+           have: q \in col_to_seq _ x1.
+             exact: Hq.
+           rewrite /col_to_seq.
+           case/mapP: [idx Hidx ->].
+           rewrite /=.
+           apply: le0r.
+      * apply/flattenP.
+        exists (solve_rect_via_minors_to_seq _ _ A1 b1).
+        split.
+        -- apply/mapP.
+           exists b0.
+           ++ move: Hbuild1.
+              rewrite /build_system_P2_anchor.
+              case: ifP => // Hb0in _.
+              exact: Hb0in.
+           ++ by rewrite Hbuild1.
+        -- apply: map_f.
+           exact: Hx1mem.
+  exists (flatten [seq flatten [seq include_if_pair G 
+            ([seq expand_on_support S1 x1' a | a <- enumA1])
+            ([seq expand_on_support S2 (col_to_seq _ x2) b | b <- enumA2])
+          | x1' <- [:: col_to_seq _ x1]] | x2' <- [:: col_to_seq _ x2]]).
+  split.
+  - apply/mapP.
+    exists (col_to_seq _ x2).
+    + exact: Hx2_cand.
+    + by [].
+  - apply/flattenP.
+    exists (flatten [seq include_if_pair G 
+              ([seq expand_on_support S1 (col_to_seq _ x1) a | a <- enumA1])
+              ([seq expand_on_support S2 (col_to_seq _ x2) b | b <- enumA2])
+            | x1' <- [:: col_to_seq _ x1]]).
+    split.
+    + apply/mapP.
+      exists (col_to_seq _ x2).
+      * rewrite inE eq_refl //.
+      * by [].
+    + apply/flattenP.
+      exists (include_if_pair G 
+                ([seq expand_on_support S1 (col_to_seq _ x1) a | a <- enumA1])
+                ([seq expand_on_support S2 (col_to_seq _ x2) b | b <- enumA2])).
+      split.
+      * apply/mapP.
+        exists (col_to_seq _ x1).
+        -- rewrite inE eq_refl //.
+        -- by [].
+      *
+  rewrite mem_include_if_pair.
+  apply/andP; split => //.
+  apply/eqP.
+  congr pair.
+  + rewrite Hs1.
+    apply: eq_from_nth => //.
+    move=> i Hi.
+    rewrite /expand_on_support Hdef1.
+    rewrite (nth_map ord0) // size_enum_ord in Hi.
+    rewrite nth_enum_ord //.
+    case: ifP => // Hin.
+    by rewrite /col_to_seq (nth_map ord0) ?size_enum_ord // nth_enum_ord.
+  + rewrite Hs2.
+    apply: eq_from_nth => //.
+    move=> i Hi.
+    rewrite /expand_on_support Hdef2.
+    rewrite (nth_map ord0) // size_enum_ord in Hi.
+    rewrite nth_enum_ord //.
+    case: ifP => // Hin.
+    by rewrite /col_to_seq (nth_map ord0) ?size_enum_ord // nth_enum_ord.
+        rewrite mem_include_if_pair.
+        apply/andP; split.
+        -- apply/eqP.
+           congr pair.
+           ++ rewrite Hs1.
+              apply: eq_from_nth => //.
+              move=> i Hi.
+              rewrite /expand_on_support Hdef1.
+              rewrite (nth_map ord0) // size_enum_ord in Hi.
+              rewrite nth_enum_ord //.
+              case: ifP => // Hin.
+              by [].
+           ++ rewrite Hs2.
+              apply: eq_from_nth => //.
+              move=> i Hi.
+              rewrite /expand_on_support Hdef2.
+              rewrite (nth_map ord0) // size_enum_ord in Hi.
+              rewrite nth_enum_ord //.
+              case: ifP => // Hin.
+              by [].
+        -- exact: Hnash.
+Qed.
 
 End Completeness.
+
+(* --------------------------------------------------------------- *)
+(*                    Additional helper functions                  *)
+(* --------------------------------------------------------------- *)
+
+(* Convert seq_to_col and back *)
+Lemma col_to_seq_to_col {k : nat} (xs : seq rat) :
+  size xs = k -> col_to_seq (seq_to_col xs k) = xs.
+Proof.
+move=> Hsize.
+rewrite /col_to_seq /seq_to_col.
+apply: (@eq_from_nth _ 0%R).
+- by rewrite size_map size_enum_ord.
+- move=> i Hi.
+  rewrite (nth_map ord0) ?size_enum_ord //.
+  rewrite nth_enum_ord // mxE.
+  by rewrite Hsize in Hi.
+Qed.
+
+(* Extract Nash equilibria with their support sets *)
+Definition find_all_nash_with_supports n1 n2 (G : @game n1 n2) 
+  : seq (seq rat * seq rat * seq 'I_n1 * seq 'I_n2) :=
+  [seq let S1 := [seq a <- enum 'I_n1 | 0%R < nth 0%R p.1 (nat_of_ord a)] in
+       let S2 := [seq b <- enum 'I_n2 | 0%R < nth 0%R p.2 (nat_of_ord b)] in
+       (p.1, p.2, S1, S2)
+  | p <- @find_all_nash n1 n2 G].
+
+(* Extract Nash equilibria with support indices *)
+Definition find_all_nash_with_support_indices n1 n2 (G : @game n1 n2)
+  : seq (seq rat * seq rat * seq nat * seq nat) :=
+  [seq let S1 := [seq nat_of_ord a | a <- s.1.2] in
+       let S2 := [seq nat_of_ord b | b <- s.2.2] in
+       (s.1.1, s.2.1, S1, S2)
+  | s <- @find_all_nash_with_supports n1 n2 G].
 
 End SupportEnumeration.
 
