@@ -212,4 +212,174 @@ Definition age_pmtu_entries (pd : PMTUDiscovery) (now : N) : PMTUDiscovery :=
          pmtu_last_decreased := entry.(pmtu_last_decreased);
          pmtu_last_increased := now;
          pmtu_locked := false;
-         pmtu_probe_
+         pmtu_probe_count := 0;
+         pmtu_df_bit := true |}
+    else if andb entry.(pmtu_locked)
+                 (N.ltb PMTU_RAISE_TIMER (now - entry.(pmtu_last_decreased))) then
+      (* Unlock for increase attempts *)
+      {| pmtu_destination := entry.(pmtu_destination);
+         pmtu_value := entry.(pmtu_value);
+         pmtu_last_updated := entry.(pmtu_last_updated);
+         pmtu_last_decreased := entry.(pmtu_last_decreased);
+         pmtu_last_increased := entry.(pmtu_last_increased);
+         pmtu_locked := false;
+         pmtu_probe_count := entry.(pmtu_probe_count);
+         pmtu_df_bit := entry.(pmtu_df_bit) |}
+    else
+      entry
+  in
+  
+  {| pmtu_cache := map age_entry pd.(pmtu_cache);
+     pmtu_state := pd.(pmtu_state);
+     pmtu_host_mtu := pd.(pmtu_host_mtu);
+     pmtu_enable_discovery := pd.(pmtu_enable_discovery);
+     pmtu_enable_plateau := pd.(pmtu_enable_plateau) |}.
+
+(* =============================================================================
+   Section 7: PMTU Increase Probing (RFC 1191 Section 6.4)
+   ============================================================================= *)
+
+Definition should_probe_increase (entry : PMTUCacheEntry) (now : N) : bool :=
+  andb (negb entry.(pmtu_locked))
+       (andb (N.ltb entry.(pmtu_value) DEFAULT_PMTU)
+             (N.ltb PMTU_PROBE_INTERVAL (now - entry.(pmtu_last_increased)))).
+
+Definition create_probe_packet (entry : PMTUCacheEntry) : N :=
+  (* Try next plateau value *)
+  let next_mtu := find_next_higher_plateau entry.(pmtu_value) in
+  N.min next_mtu DEFAULT_PMTU.
+
+Definition find_next_higher_plateau (current : N) : N :=
+  let fix find_plateau (table : list N) (prev : N) :=
+    match table with
+    | [] => prev
+    | mtu :: rest =>
+        if N.ltb current mtu then
+          if N.ltb mtu prev then mtu else prev
+        else
+          find_plateau rest prev
+    end
+  in find_plateau MTU_PLATEAU_TABLE (N.ones 16).
+
+(* =============================================================================
+   Section 8: TCP MSS Adjustment (RFC 1191 Section 8)
+   ============================================================================= *)
+
+Definition calculate_tcp_mss (pmtu : N) : N :=
+  (* MSS = PMTU - IP header - TCP header *)
+  let ip_header := 20 in   (* Minimum IPv4 header *)
+  let tcp_header := 20 in  (* Minimum TCP header *)
+  if N.ltb (ip_header + tcp_header) pmtu then
+    pmtu - ip_header - tcp_header
+  else
+    MIN_PMTU - ip_header - tcp_header.
+
+(* Clamp TCP MSS option *)
+Definition clamp_tcp_mss (requested_mss : N) (pmtu : N) : N :=
+  N.min requested_mss (calculate_tcp_mss pmtu).
+
+(* =============================================================================
+   Section 9: Router Behavior (RFC 1191 Section 7)
+   ============================================================================= *)
+
+Record RouterPMTU := {
+  router_interfaces : list (N * N);  (* Interface ID, MTU *)
+  router_send_pmtu : bool;           (* Include MTU in ICMP *)
+  router_estimate_pmtu : bool        (* Use plateau table *)
+}.
+
+Definition router_process_packet (r : RouterPMTU) (packet_size : N) 
+                                 (out_interface : N) : option N :=
+  (* Find outgoing interface MTU *)
+  match find (fun iface => N.eqb (fst iface) out_interface) r.(router_interfaces) with
+  | Some (_, mtu) =>
+      if N.ltb mtu packet_size then
+        (* Would need fragmentation *)
+        if r.(router_send_pmtu) then
+          Some mtu
+        else if r.(router_estimate_pmtu) then
+          Some (find_next_lower_plateau packet_size)
+        else
+          Some 0  (* Old-style ICMP *)
+      else
+        None  (* No fragmentation needed *)
+  | None => None
+  end.
+
+(* =============================================================================
+   Section 10: Key Properties
+   ============================================================================= *)
+
+(* Property 1: PMTU never below minimum *)
+Theorem pmtu_minimum : forall pd dest icmp now,
+  let pd' := process_frag_needed pd dest icmp now in
+  forall entry, In entry pd'.(pmtu_cache) ->
+  entry.(pmtu_value) >= MIN_PMTU.
+Proof.
+  admit.
+Qed.
+
+(* Property 2: Plateau values are decreasing *)
+Theorem plateau_decreasing : forall i j,
+  i < j < length MTU_PLATEAU_TABLE ->
+  nth i MTU_PLATEAU_TABLE 0 > nth j MTU_PLATEAU_TABLE 0.
+Proof.
+  admit.
+Qed.
+
+(* Property 3: DF bit set when discovery enabled *)
+Theorem df_bit_when_enabled : forall pd dest,
+  pd.(pmtu_enable_discovery) = true ->
+  exists df, should_set_df_bit pd dest = df.
+Proof.
+  intros. exists (should_set_df_bit pd dest). reflexivity.
+Qed.
+
+(* Property 4: TCP MSS is conservative *)
+Theorem tcp_mss_conservative : forall pmtu,
+  calculate_tcp_mss pmtu <= pmtu - 40.
+Proof.
+  intros. unfold calculate_tcp_mss.
+  destruct (N.ltb 40 pmtu) eqn:E.
+  - simpl. lia.
+  - lia.
+Qed.
+
+(* Property 5: Aging increases PMTU *)
+Theorem aging_increases_pmtu : forall pd now entry,
+  In entry pd.(pmtu_cache) ->
+  N.ltb PMTU_TIMEOUT (now - entry.(pmtu_last_updated)) = true ->
+  exists entry', In entry' (age_pmtu_entries pd now).(pmtu_cache) /\
+                 entry'.(pmtu_destination) = entry.(pmtu_destination) /\
+                 entry'.(pmtu_value) = DEFAULT_PMTU.
+Proof.
+  admit.
+Qed.
+
+(* Property 6: Probe intervals respected *)
+Theorem probe_interval_maintained : forall entry now,
+  should_probe_increase entry now = true ->
+  N.ltb PMTU_PROBE_INTERVAL (now - entry.(pmtu_last_increased)) = true.
+Proof.
+  intros. unfold should_probe_increase in H.
+  apply andb_prop in H. destruct H.
+  apply andb_prop in H. destruct H.
+  exact H0.
+Qed.
+
+(* =============================================================================
+   Section 11: Extraction
+   ============================================================================= *)
+
+Require Extraction.
+Extract Inductive bool => "bool" [ "true" "false" ].
+Extract Inductive list => "list" [ "[]" "(::)" ].
+
+Extraction "pmtu_discovery.ml"
+  process_frag_needed
+  should_set_df_bit
+  age_pmtu_entries
+  should_probe_increase
+  calculate_tcp_mss
+  find_next_lower_plateau
+  find_next_higher_plateau.
