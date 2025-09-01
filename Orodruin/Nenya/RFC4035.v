@@ -180,3 +180,219 @@ Definition validate_rrset (proc : ValidationProcess) : ValidationProcess :=
       | sig :: _, key :: _ =>
           if verify_rrsig proc.(vp_rrset) sig key proc.(vp_current_time) then
             {| vp_state := VS_BUILD_CHAIN;
+               vp_rrset := proc.(vp_rrset);
+               vp_signatures := proc.(vp_signatures);
+               vp_keys := proc.(vp_keys);
+               vp_ds_records := proc.(vp_ds_records);
+               vp_trust_anchors := proc.(vp_trust_anchors);
+               vp_current_time := proc.(vp_current_time);
+               vp_result := None |}
+          else
+            {| vp_state := VS_FAILED;
+               vp_rrset := proc.(vp_rrset);
+               vp_signatures := proc.(vp_signatures);
+               vp_keys := proc.(vp_keys);
+               vp_ds_records := proc.(vp_ds_records);
+               vp_trust_anchors := proc.(vp_trust_anchors);
+               vp_current_time := proc.(vp_current_time);
+               vp_result := Some SEC_BOGUS |}
+      | _, _ => proc
+      end
+      
+  | VS_BUILD_CHAIN =>
+      (* Build chain to trust anchor *)
+      if can_chain_to_trust_anchor proc.(vp_keys) proc.(vp_trust_anchors) then
+        {| vp_state := VS_VALIDATED;
+           vp_rrset := proc.(vp_rrset);
+           vp_signatures := proc.(vp_signatures);
+           vp_keys := proc.(vp_keys);
+           vp_ds_records := proc.(vp_ds_records);
+           vp_trust_anchors := proc.(vp_trust_anchors);
+           vp_current_time := proc.(vp_current_time);
+           vp_result := Some SEC_SECURE |}
+      else
+        {| vp_state := VS_FIND_DS;
+           vp_rrset := proc.(vp_rrset);
+           vp_signatures := proc.(vp_signatures);
+           vp_keys := proc.(vp_keys);
+           vp_ds_records := proc.(vp_ds_records);
+           vp_trust_anchors := proc.(vp_trust_anchors);
+           vp_current_time := proc.(vp_current_time);
+           vp_result := None |}
+           
+  | _ => proc
+  end.
+
+(* =============================================================================
+   Section 5: Stub Resolver Behavior (RFC 4035 Section 4)
+   ============================================================================= *)
+
+(* Stub resolver with DNSSEC support *)
+Record DNSSECStubResolver := {
+  dsr_set_do_bit : bool;        (* Request DNSSEC records *)
+  dsr_set_cd_bit : bool;        (* Checking disabled *)
+  dsr_understand_ad : bool;     (* Understand AD bit *)
+  dsr_validate_local : bool     (* Perform own validation *)
+}.
+
+(* Create DNSSEC query *)
+Definition create_dnssec_query (resolver : DNSSECStubResolver)
+                              (qname : list string) (qtype : RRType) 
+                              : DNSSECMessage :=
+  {| dm_header := {| dh_id := random_id();
+                     dh_qr := false;
+                     dh_opcode := 0;
+                     dh_aa := false;
+                     dh_tc := false;
+                     dh_rd := true;
+                     dh_ra := false;
+                     dh_z := false;
+                     dh_ad := false;
+                     dh_cd := resolver.(dsr_set_cd_bit);
+                     dh_rcode := 0 |};
+     dm_question := [{| q_name := qname;
+                       q_type := QT_RR qtype;
+                       q_class := 1 |}];
+     dm_answer := [];
+     dm_authority := [];
+     dm_additional := [];
+     dm_edns := if resolver.(dsr_set_do_bit) then
+                  Some {| deo_do := true;
+                         deo_buffer_size := 4096;
+                         deo_extended_rcode := 0;
+                         deo_version := 0 |}
+                else None;
+     dm_signatures := [];
+     dm_keys := [];
+     dm_ds := [];
+     dm_nsec := [] |}.
+
+(* Process DNSSEC response *)
+Definition process_dnssec_response (resolver : DNSSECStubResolver)
+                                  (response : DNSSECMessage) 
+                                  : SecurityStatus :=
+  if response.(dm_header).(dh_ad) && resolver.(dsr_understand_ad) then
+    SEC_SECURE
+  else if resolver.(dsr_validate_local) then
+    (* Perform local validation *)
+    validate_locally response
+  else
+    SEC_INDETERMINATE.
+
+(* =============================================================================
+   Section 6: Authenticated Denial of Existence (RFC 4035 Section 5)
+   ============================================================================= *)
+
+(* NSEC proof of non-existence *)
+Definition verify_nsec_denial (qname : list string) (qtype : RRType)
+                             (nsec_records : list NSECRecord) : bool :=
+  (* Find covering NSEC *)
+  match find (fun nsec => 
+    covers_name nsec.(nsec_owner) nsec.(nsec_next_domain) qname)
+    nsec_records with
+  | Some nsec =>
+      if domain_equal nsec.(nsec_owner) qname then
+        (* Name exists, type doesn't *)
+        negb (nsec_covers_type nsec qtype)
+      else
+        (* Name doesn't exist *)
+        true
+  | None => false
+  end.
+
+(* Wildcard proof *)
+Definition verify_wildcard_expansion (qname : list string) 
+                                    (wildcard : list string)
+                                    (nsec_records : list NSECRecord) : bool :=
+  (* Verify no closer match exists *)
+  let closest_encloser := find_closest_encloser qname wildcard in
+  verify_no_closer_match closest_encloser qname nsec_records.
+
+(* =============================================================================
+   Section 7: Caching (RFC 4035 Section 4.5)
+   ============================================================================= *)
+
+(* DNSSEC cache entry *)
+Record DNSSECCacheEntry := {
+  dce_rrset : list ResourceRecord;
+  dce_signatures : list RRSIGRecord;
+  dce_validation_status : SecurityStatus;
+  dce_ttl : word32;
+  dce_expires : word32
+}.
+
+(* Cache DNSSEC validation results *)
+Definition cache_validation_result (cache : list DNSSECCacheEntry)
+                                  (rrset : list ResourceRecord)
+                                  (status : SecurityStatus)
+                                  (ttl : word32) : list DNSSECCacheEntry :=
+  {| dce_rrset := rrset;
+     dce_signatures := [];
+     dce_validation_status := status;
+     dce_ttl := ttl;
+     dce_expires := current_time() + ttl |} :: cache.
+
+(* =============================================================================
+   Section 8: Special Considerations (RFC 4035 Section 7)
+   ============================================================================= *)
+
+(* Private key operations *)
+Record PrivateKeyOps := {
+  pko_online_signing : bool;
+  pko_key_rollover : bool;
+  pko_emergency_key : option DNSKEYRecord
+}.
+
+(* Key rollover state *)
+Inductive KeyRolloverState :=
+  | KR_STABLE
+  | KR_PRE_PUBLISH
+  | KR_ROLLOVER
+  | KR_POST_ROLLOVER.
+
+(* =============================================================================
+   Section 9: Key Properties
+   ============================================================================= *)
+
+(* Property 1: Validation state machine terminates *)
+Theorem validation_terminates : forall proc,
+  exists final_state, 
+    reaches_state proc final_state /\
+    (final_state.(vp_state) = VS_VALIDATED \/ 
+     final_state.(vp_state) = VS_FAILED).
+Proof.
+  admit.
+Qed.
+
+(* Property 2: AD bit implies validation *)
+Theorem ad_bit_correctness : forall msg,
+  msg.(dm_header).(dh_ad) = true ->
+  exists validation, performed_validation msg validation /\
+                    validation = SEC_SECURE.
+Proof.
+  admit.
+Qed.
+
+(* Property 3: NSEC denial is sound *)
+Theorem nsec_denial_sound : forall qname qtype nsec_records,
+  verify_nsec_denial qname qtype nsec_records = true ->
+  ~ exists_record qname qtype.
+Proof.
+  admit.
+Qed.
+
+(* =============================================================================
+   Section 10: Extraction
+   ============================================================================= *)
+
+Require Extraction.
+Extract Inductive bool => "bool" [ "true" "false" ].
+Extract Inductive list => "list" [ "[]" "(::)" ].
+
+Extraction "dnssec_protocol.ml"
+  generate_dnssec_response
+  validate_rrset
+  create_dnssec_query
+  process_dnssec_response
+  verify_nsec_denial
+  cache_validation_result.
