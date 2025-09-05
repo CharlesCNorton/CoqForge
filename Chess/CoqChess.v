@@ -19,8 +19,7 @@
   - "Play" wrappers using coordinates and perft
   - Examples
   - OCaml extraction of a practical API
-
-  The development is axiom-free.
+  
 *)
 
 Require Import Coq.Lists.List.
@@ -696,23 +695,27 @@ Fixpoint collect_occ (b:Board) (ls:list Position) : list (Position * Piece) :=
   end.
 
 (* EP is relevant for repetition only if capturable from side to move *)
+Definition ep_capture_legal (st:GameState) (s ep:Position) : bool :=
+  match st.(current_board) s with
+  | Some p =>
+      color_eqb p.(pc_color) st.(current_turn) &&
+      ptype_eqb p.(pc_type) Pawn &&
+      match apply_move st (MNormal s ep None) with
+      | Some _ => true
+      | None => false
+      end
+  | None => false
+  end.
+
 Definition ep_relevant (st:GameState) : option Position :=
   match st.(en_passant_target) with
   | None => None
   | Some ep =>
       let c := st.(current_turn) in
-      let src_left  := offset ep (- forward c) (-1) in
-      let src_right := offset ep (- forward c) ( 1) in
-      let exists_ep_from (so:option Position) :=
-        match so with
-        | Some s =>
-            match st.(current_board) s with
-            | Some p => color_eqb p.(pc_color) c && ptype_eqb p.(pc_type) Pawn
-            | None => false
-            end
-        | None => false
-        end in
-      if exists_ep_from src_left || exists_ep_from src_right then Some ep else None
+      let s1 := offset ep (- forward c) (-1) in   (* a pawn that could capture from left *)
+      let s2 := offset ep (- forward c) ( 1) in   (* ... or from right *)
+      let ok so := match so with Some s => ep_capture_legal st s ep | None => false end in
+      if ok s1 || ok s2 then Some ep else None
   end.
 
 Definition make_poskey (st:GameState) : PosKey :=
@@ -837,7 +840,11 @@ Definition dead_position_simple (st:GameState) : bool :=
   | O, O => true
   | S O, O => Nat.eqb m.(wN) 1 || Nat.eqb m.(wB) 1
   | O, S O => Nat.eqb m.(bN) 1 || Nat.eqb m.(bB) 1
-  | S O, S O =>
+  | S (S O), O =>                        (* White has exactly two knights; Black has only king *)
+      Nat.eqb m.(wN) 2 && Nat.eqb m.(wB) 0
+  | O, S (S O) =>                        (* Black has exactly two knights; White has only king *)
+      Nat.eqb m.(bN) 2 && Nat.eqb m.(bB) 0
+  | S O, S O =>                          (* KB vs KB same color squares (already present) *)
       Nat.eqb m.(wN) 0 && Nat.eqb m.(bN) 0 &&
       bishops_all_same_color m.(wB_sq) &&
       bishops_all_same_color m.(bB_sq) &&
@@ -951,7 +958,9 @@ Example scholars_mate_checkmate :
   | Some st => is_checkmate_state st = true
   | None => False
   end.
-Proof. reflexivity. Qed.
+Proof. 
+  reflexivity.
+Qed.
 
 (* Fool's Mate *)
 Definition fools_mate : list Move :=
@@ -1020,7 +1029,8 @@ Extraction "chess_total"
   (* repetition / draw rules *)
   threefold_claimable fivefold_automatic
   fifty_move_claimable seventyfive_automatic
-  (* “play” wrappers *)
+  (* "play" wrappers *)
   mk_move_normal legal_normal_moves legal_castles
   apply_move_normal_coords apply_castle_side
   perft_state.
+*)
