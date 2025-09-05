@@ -1,5 +1,5 @@
 (*
-  ChessTotal.v — formalizing chess in Coq
+  ChessTotal.v — a total formalization of chess in Coq
 
   Coordinates:
     Position.(rank) 0..7 from White back rank upward (0=a1 rank),
@@ -19,6 +19,8 @@
   - "Play" wrappers using coordinates and perft
   - Examples
   - OCaml extraction of a practical API
+
+  The development is axiom-free.
 *)
 
 Require Import Coq.Lists.List.
@@ -129,11 +131,11 @@ Definition mkp (c:Color) (k:PieceType) : option Piece :=
   Some {| pc_color := c; pc_type := k |}.
 
 Definition place_pawns (b:Board) (c:Color) : Board :=
-  let r := match c with White => 1 | Black => 6 end in
+  let r := match c with White => 1%nat | Black => 6%nat end in
   fold_left (fun bb f => bb [ pos r f := mkp c Pawn ]) (range 8) b.
 
 Definition place_backrank (b:Board) (c:Color) : Board :=
-  let r := match c with White => 0 | Black => 7 end in
+  let r := match c with White => 0%nat | Black => 7%nat end in
   let b := b [ pos r 0 := mkp c Rook ] in
   let b := b [ pos r 1 := mkp c Knight ] in
   let b := b [ pos r 2 := mkp c Bishop ] in
@@ -241,7 +243,7 @@ Definition attacks (b:Board) (c:Color) (t:Position) : bool :=
               | None => false
               end
           | None => false
-          end) [s1; s2]
+          end) (s1 :: s2 :: nil)
     | Black =>
         let s1 := pos_of_Z (Z.of_nat r + 1) (Z.of_nat f - 1) in
         let s2 := pos_of_Z (Z.of_nat r + 1) (Z.of_nat f + 1) in
@@ -253,7 +255,7 @@ Definition attacks (b:Board) (c:Color) (t:Position) : bool :=
               | None => false
               end
           | None => false
-          end) [s1; s2]
+          end) (s1 :: s2 :: nil)
     end in
   let knight_hit :=
     existsb (fun od =>
@@ -616,7 +618,7 @@ Definition apply_move (st:GameState) (m:Move) : option GameState :=
                             (match cap_square with Some cs => cs | None => dst end)
                      else cr1 in
           let new_ep := if is_two_step then offset src (forward c) 0 else None in
-          let new_hmc := if is_pawn || capturing then 0 else S st.(halfmove_clock) in
+          let new_hmc := if is_pawn || capturing then 0%nat else S st.(halfmove_clock) in
           let st' := {|
             current_board := b3;
             current_turn := opposite_color c;
@@ -897,14 +899,14 @@ Definition legal_normal_moves (st:GameState) : list (nat*nat*nat*nat*option Piec
        match m with
        | MNormal s d p => (rank s, file s, rank d, file d, p) :: acc
        | _ => acc
-       end) [] ms.
+       end) nil ms.
 
 (* List legal castles *)
 Definition legal_castles (st:GameState) : list CastleSide :=
   let ms := generate_legal_moves st in
   fold_right
     (fun m acc => match m with MCastle side => side :: acc | _ => acc end)
-    [] ms.
+    nil ms.
 
 (* Apply a coordinate normal move, checking bounds; geometry & self-check are
    enforced inside apply_move via membership gate & filter logic. *)
@@ -920,15 +922,15 @@ Definition apply_castle_side (st:GameState) (side:CastleSide) : option GameState
 (* Perft for quick engine sanity checks *)
 Fixpoint perft_state (st:GameState) (d:nat) : nat :=
   match d with
-  | 0 => 1
+  | O => 1
   | S d' =>
       let ms := generate_legal_moves st in
       fold_left
         (fun acc m =>
            match apply_move st m with
-           | Some st' => acc + perft_state st' d'
+           | Some st' => (acc + perft_state st' d')%nat
            | None => acc
-           end) ms 0
+           end) ms 0%nat
   end.
 
 (* ---------- Examples ---------- *)
