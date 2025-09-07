@@ -2529,7 +2529,7 @@ Definition next_board_normal (st : GameState) (from to : Position) (promo : opti
   | Some pc =>
       let moved := piece_after_promo pc promo in
       (b0[from := None])[to := Some moved]
-  | None => b0  (* unreachable if Step's preconditions hold *)
+  | None => b0
   end.
 
 (* Helper: compute halfmove clock after move *)
@@ -3094,14 +3094,12 @@ Definition apply_move_b (st: GameState) (m: Move) : option GameState :=
                   if in_check_b b' (turn st) then None
                   else Some (next_state_normal st from to promo)
             | None =>
-                (* Empty square - check en passant or normal move *)
                 let b' := next_board_normal st from to promo in
                 if in_check_b b' (turn st) then None
                 else Some (next_state_normal st from to promo)
             end
       end
   | MCastle side =>
-      (* For castling, we need to check all the conditions *)
       let c := turn st in
       let b := board st in
       (* Check castling rights *)
@@ -4017,7 +4015,6 @@ Definition gen_pseudo_moves (st: GameState) : list Move :=
       end) all_positions) in
   piece_moves ++ gen_castles st.
 
-(* Redefine gen_legal_moves with actual implementation *)
 Unset Program Mode.
 Definition gen_legal_moves_real (st: GameState) : list Move :=
   List.filter (fun m =>
@@ -4100,7 +4097,6 @@ Definition gen_legal_moves_optimized (st: GameState) : list Move :=
   else
     gen_legal_moves_real st.
 
-(* Redefine gen_legal_moves to use the optimized version *)
 Module LegalMoves.
   Definition gen_legal_moves (st: GameState) : list Move :=
     gen_legal_moves_optimized st.
@@ -4177,19 +4173,15 @@ Qed.
 
 Set Program Mode.
 
-(* PATCH C COMPLETION: Wire gen_legal_moves properly *)
-(* Now that gen_legal_moves_real is available, we create a wrapper that uses it *)
 Definition gen_legal_moves_proper (st: GameState) : list Move :=
   gen_legal_moves_optimized st.
 
-(* Fix no_moves_b to use the real implementation *)
 Definition no_moves_b_proper (st: GameState) : bool :=
   match gen_legal_moves_proper st with
   | [] => true
   | _ => false
   end.
 
-(* Fix game_outcome to use the real implementation *)
 Definition game_outcome_proper (g: Game) : Outcome :=
   let st := g_cur g in
   let b := board st in
@@ -4213,7 +4205,6 @@ Definition game_outcome_proper (g: Game) : Outcome :=
   else
     OOngoing (is_fifty_move_rule g) (is_threefold_repetition g).
 
-(* Perft using the proper move generator *)
 Fixpoint perft_proper (st: GameState) (depth: nat) : nat :=
   match depth with
   | 0%nat => 1%nat
