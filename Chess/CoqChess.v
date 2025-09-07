@@ -31,6 +31,7 @@ Require Import Coq.micromega.Lia.
 Require Import Coq.Lists.List.
 Require Import Coq.Sorting.Permutation.
 Import ListNotations.
+Require Import Coq.Init.Nat.
 
 Require Import Coq.Bool.Bool.
 Require Import Coq.Bool.BoolEq.
@@ -2787,6 +2788,190 @@ Proof.
   - right. split; [exact Hwf|]. split; [exact Hno|]. reflexivity.
 Qed.
 
+(* ========================================================================= *)
+(* GEOMETRY VALIDATION FOR MOVES                                            *)
+(* ========================================================================= *)
+
+Definition check_line_move (b: Board) (from to: Position) (dr df: Z) : bool :=
+  existsb (fun n => 
+    match offset from (Z.of_nat n * dr) (Z.of_nat n * df) with
+    | Some p => position_eqb p to
+    | None => false
+    end) (seq 1 7).
+
+Definition pawn_move_valid_b (st: GameState) (from to: Position) : bool :=
+  let b := board st in
+  let c := turn st in
+  let dr := forwardZ c in
+  match offset from dr 0 with
+  | Some p1 =>
+      if position_eqb p1 to then
+        match b[to] with None => true | _ => false end
+      else
+        match offset from (2 * dr) 0 with
+        | Some p2 =>
+            if position_eqb p2 to then
+              let start_rank := if color_eqb c White then 1 else 6 in
+              if Z.eqb (rankZ from) start_rank then
+                match b[p1], b[p2] with
+                | None, None => true
+                | _, _ => false
+                end
+              else false
+            else
+              match offset from dr 1, offset from dr (-1) with
+              | Some pl, Some pr =>
+                  if position_eqb pl to || position_eqb pr to then
+                    match b[to] with
+                    | Some pc => negb (color_eqb (piece_color pc) c)
+                    | None =>
+                        match en_passant st with
+                        | Some ep => position_eqb to ep
+                        | None => false
+                        end
+                    end
+                  else false
+              | Some pl, None =>
+                  if position_eqb pl to then
+                    match b[to] with
+                    | Some pc => negb (color_eqb (piece_color pc) c)
+                    | None =>
+                        match en_passant st with
+                        | Some ep => position_eqb to ep
+                        | None => false
+                        end
+                    end
+                  else false
+              | None, Some pr =>
+                  if position_eqb pr to then
+                    match b[to] with
+                    | Some pc => negb (color_eqb (piece_color pc) c)
+                    | None =>
+                        match en_passant st with
+                        | Some ep => position_eqb to ep
+                        | None => false
+                        end
+                    end
+                  else false
+              | None, None => false
+              end
+        | None =>
+            match offset from dr 1, offset from dr (-1) with
+            | Some pl, Some pr =>
+                if position_eqb pl to || position_eqb pr to then
+                  match b[to] with
+                  | Some pc => negb (color_eqb (piece_color pc) c)
+                  | None =>
+                      match en_passant st with
+                      | Some ep => position_eqb to ep
+                      | None => false
+                      end
+                  end
+                else false
+            | Some pl, None =>
+                if position_eqb pl to then
+                  match b[to] with
+                  | Some pc => negb (color_eqb (piece_color pc) c)
+                  | None =>
+                      match en_passant st with
+                      | Some ep => position_eqb to ep
+                      | None => false
+                      end
+                  end
+                else false
+            | None, Some pr =>
+                if position_eqb pr to then
+                  match b[to] with
+                  | Some pc => negb (color_eqb (piece_color pc) c)
+                  | None =>
+                      match en_passant st with
+                      | Some ep => position_eqb to ep
+                      | None => false
+                      end
+                  end
+                else false
+            | None, None => false
+            end
+        end
+  | None => false
+  end.
+
+Definition knight_move_valid_b (from to: Position) : bool :=
+  existsb (fun od =>
+    match offset from (fst od) (snd od) with
+    | Some p => position_eqb p to
+    | None => false
+    end) knight_offsets.
+
+Definition bishop_move_valid_b (b: Board) (from to: Position) : bool :=
+  check_line_move b from to 1 1 ||
+  check_line_move b from to 1 (-1) ||
+  check_line_move b from to (-1) 1 ||
+  check_line_move b from to (-1) (-1).
+
+Definition rook_move_valid_b (b: Board) (from to: Position) : bool :=
+  check_line_move b from to 1 0 ||
+  check_line_move b from to (-1) 0 ||
+  check_line_move b from to 0 1 ||
+  check_line_move b from to 0 (-1).
+
+Definition queen_move_valid_b (b: Board) (from to: Position) : bool :=
+  bishop_move_valid_b b from to || rook_move_valid_b b from to.
+
+Definition king_move_valid_b (from to: Position) : bool :=
+  existsb (fun od =>
+    match offset from (fst od) (snd od) with
+    | Some p => position_eqb p to
+    | None => false
+    end) king_offsets.
+
+Definition move_geometry_valid_b (st: GameState) (from to: Position) : bool :=
+  let b := board st in
+  match b[from] with
+  | None => false
+  | Some pc =>
+      match piece_type pc with
+      | Pawn => pawn_move_valid_b st from to
+      | Knight => knight_move_valid_b from to
+      | Bishop => bishop_move_valid_b b from to
+      | Rook => rook_move_valid_b b from to
+      | Queen => queen_move_valid_b b from to
+      | King => king_move_valid_b from to
+      end
+  end.
+
+(* En passant relevance check - returns the EP target only if a legal EP capture exists *)
+Definition ep_relevant_b (st: GameState) : option Position :=
+  match en_passant st with
+  | None => None
+  | Some ep_target =>
+      let b := board st in
+      let c := turn st in
+      let dr := forwardZ c in
+      (* Check if any pawn can capture en passant *)
+      let can_capture_left :=
+        match offset ep_target (-dr) (-1) with
+        | Some from =>
+            match b[from] with
+            | Some pc => 
+                color_eqb (piece_color pc) c && ptype_eqb (piece_type pc) Pawn
+            | None => false
+            end
+        | None => false
+        end in
+      let can_capture_right :=
+        match offset ep_target (-dr) 1 with
+        | Some from =>
+            match b[from] with
+            | Some pc =>
+                color_eqb (piece_color pc) c && ptype_eqb (piece_type pc) Pawn
+            | None => false
+            end
+        | None => false
+        end in
+      if can_capture_left || can_capture_right then Some ep_target else None
+  end.
+
 (* Boolean move application *)
 Definition apply_move_b (st: GameState) (m: Move) : option GameState :=
   match m with
@@ -2796,6 +2981,7 @@ Definition apply_move_b (st: GameState) (m: Move) : option GameState :=
       | None => None
       | Some pc =>
           if negb (color_eqb (piece_color pc) (turn st)) then None
+          else if negb (move_geometry_valid_b st from to) then None
           else 
             (* Check destination is capturable *)
             match b[to] with
@@ -2881,3 +3067,881 @@ Fixpoint gen_ray_moves (b: Board) (from: Position) (dr df: Z) (fuel: nat) (acc: 
           end
       end
   end.
+
+(* ========================================================================= *)
+(* PHASE 1: POSITION KEYS AND GAME HISTORY                                  *)
+(* ========================================================================= *)
+
+(* Position key for repetition detection *)
+Record PosKey := mkPosKey {
+  k_board : list (option Piece);
+  k_turn : Color;
+  k_castle : CastlingRights;
+  k_ep : option Position
+}.
+
+(* Convert board to canonical list *)
+Definition board_to_list (b: Board) : list (option Piece) :=
+  map (fun p => b[p]) all_positions.
+
+(* Temporarily disable Program Mode for recursive definitions *)
+Unset Program Mode.
+
+(* Equality for option Piece *)
+Definition option_piece_eqb (o1 o2: option Piece) : bool :=
+  match o1, o2 with
+  | None, None => true
+  | Some p1, Some p2 => piece_eqb p1 p2
+  | _, _ => false
+  end.
+
+(* Equality for list of option Piece *)
+Fixpoint list_option_piece_eqb (l1 l2: list (option Piece)) : bool :=
+  match l1, l2 with
+  | [], [] => true
+  | h1::t1, h2::t2 => option_piece_eqb h1 h2 && list_option_piece_eqb t1 t2
+  | _, _ => false
+  end.
+
+(* Equality for CastlingRights *)
+Definition castling_rights_eqb (cr1 cr2: CastlingRights) : bool :=
+  Bool.eqb (white_king_side cr1) (white_king_side cr2) &&
+  Bool.eqb (white_queen_side cr1) (white_queen_side cr2) &&
+  Bool.eqb (black_king_side cr1) (black_king_side cr2) &&
+  Bool.eqb (black_queen_side cr1) (black_queen_side cr2).
+
+(* Equality for option Position *)
+Definition option_position_eqb (o1 o2: option Position) : bool :=
+  match o1, o2 with
+  | None, None => true
+  | Some p1, Some p2 => position_eqb p1 p2
+  | _, _ => false
+  end.
+
+(* Re-enable Program Mode *)
+Set Program Mode.
+
+(* Create position key from game state *)
+Definition pos_key_of_state (st: GameState) : PosKey :=
+  mkPosKey (board_to_list (board st)) (turn st) (castling st) (ep_relevant_b st).
+
+(* Equality for PosKey *)
+Definition pos_key_eqb (k1 k2: PosKey) : bool :=
+  list_option_piece_eqb (k_board k1) (k_board k2) &&
+  color_eqb (k_turn k1) (k_turn k2) &&
+  castling_rights_eqb (k_castle k1) (k_castle k2) &&
+  option_position_eqb (k_ep k1) (k_ep k2).
+
+(* Decidability for PosKey *)
+Definition PosKey_dec : forall k1 k2 : PosKey, {k1 = k2} + {k1 <> k2}.
+Proof.
+  intros k1 k2.
+  destruct (pos_key_eqb k1 k2) eqn:E.
+  - left. 
+    destruct k1 as [b1 t1 c1 e1], k2 as [b2 t2 c2 e2].
+    unfold pos_key_eqb in E.
+    apply andb_prop in E. destruct E as [E1 E2].
+    apply andb_prop in E1. destruct E1 as [E3 E4].
+    apply andb_prop in E3. destruct E3 as [E5 E6].
+    f_equal.
+    + assert (Hb1b2: list_option_piece_eqb b1 b2 = true) by exact E5.
+      clear - Hb1b2.
+      revert b2 Hb1b2.
+      induction b1; destruct b2; simpl in *; intros; try discriminate; auto.
+      apply andb_prop in Hb1b2. destruct Hb1b2 as [H1 H2].
+      f_equal.
+      * destruct a, o; simpl in H1; try discriminate; auto.
+        destruct (piece_eqb_spec p p0); congruence.
+      * apply IHb1. exact H2.
+    + assert (Ht: color_eqb t1 t2 = true) by exact E6.
+      destruct (color_eqb_spec t1 t2); [exact e | discriminate Ht].
+    + unfold castling_rights_eqb in E4.
+      apply andb_prop in E4. destruct E4 as [E7 E8].
+      apply andb_prop in E7. destruct E7 as [E9 E10].
+      apply andb_prop in E9. destruct E9 as [E11 E12].
+      destruct c1, c2. simpl in *.
+      destruct white_king_side0, white_king_side1; try discriminate;
+      destruct white_queen_side0, white_queen_side1; try discriminate;
+      destruct black_king_side0, black_king_side1; try discriminate;
+      destruct black_queen_side0, black_queen_side1; try discriminate; auto.
+    + destruct e1, e2; simpl in E2; try discriminate; auto.
+      destruct (position_eqb_spec p p0); congruence.
+  - right. intro H. subst k2.
+    clear - E.
+    assert (pos_key_eqb k1 k1 = true).
+    { unfold pos_key_eqb.
+      assert (list_option_piece_eqb (k_board k1) (k_board k1) = true).
+      { clear. induction (k_board k1); simpl; auto.
+        destruct a; simpl; auto. rewrite piece_eqb_refl. simpl. apply IHl. }
+      rewrite H. simpl.
+      rewrite color_eqb_refl. simpl.
+      unfold castling_rights_eqb.
+      destruct (k_castle k1). simpl.
+      destruct white_king_side0, white_queen_side0, black_king_side0, black_queen_side0; simpl;
+      (destruct (k_ep k1); simpl; auto; destruct (position_eqb_spec p p); auto; congruence). }
+    congruence.
+Defined.
+
+(* Game with history *)
+Unset Program Mode.
+Record Game := mkGame {
+  g_cur : GameState;
+  g_hist : list PosKey
+}.
+
+(* Start a new game *)
+Definition start_game (initial_state: GameState) : Game :=
+  {| g_cur := initial_state; g_hist := [pos_key_of_state initial_state] |}.
+Set Program Mode.
+
+(* Apply a move to a game *)
+Definition game_apply (g: Game) (m: Move) : option Game :=
+  match apply_move_b (g_cur g) m with
+  | None => None
+  | Some st' =>
+      let k' := pos_key_of_state st' in
+      Some (mkGame st' (k' :: g_hist g))
+  end.
+
+(* Count occurrences of a position key in history *)
+Fixpoint count_key (k: PosKey) (hist: list PosKey) : nat :=
+  match hist with
+  | [] => 0
+  | h::t => if pos_key_eqb k h then S (count_key k t) else count_key k t
+  end.
+
+(* Check for threefold repetition (claimable) *)
+Definition is_threefold_repetition (g: Game) : bool :=
+  let cur_key := pos_key_of_state (g_cur g) in
+  (3 <=? count_key cur_key (g_hist g))%nat.
+
+(* Check for fivefold repetition (automatic) *)
+Definition is_fivefold_repetition (g: Game) : bool :=
+  let cur_key := pos_key_of_state (g_cur g) in
+  (5 <=? count_key cur_key (g_hist g))%nat.
+
+(* Check for 50-move rule (claimable) *)
+Definition is_fifty_move_rule (g: Game) : bool :=
+  (100 <=? halfmove (g_cur g))%nat.
+
+(* Check for 75-move rule (automatic) *)
+Definition is_seventyfive_move_rule (g: Game) : bool :=
+  (150 <=? halfmove (g_cur g))%nat.
+
+(* Count pieces by type and color *)
+Unset Program Mode.
+Definition count_pieces (b: Board) (c: Color) (pt: PieceType) : nat :=
+  List.length (List.filter (fun p =>
+    match b[p] with
+    | Some pc => color_eqb (piece_color pc) c && ptype_eqb (piece_type pc) pt
+    | None => false
+    end) all_positions).
+(* Count all pieces *)
+Definition count_all_pieces (b: Board) : nat :=
+  List.length (List.filter (fun p =>
+    match b[p] with
+    | Some _ => true
+    | None => false
+    end) all_positions).
+
+(* Check if position is light or dark square *)
+Definition is_light_square (p: Position) : bool :=
+  Z.even (rankZ p + fileZ p).
+
+(* Count bishops on light squares *)
+Definition count_bishops_light (b: Board) (c: Color) : nat :=
+  List.length (List.filter (fun p =>
+    is_light_square p &&
+    match b[p] with
+    | Some pc => color_eqb (piece_color pc) c && ptype_eqb (piece_type pc) Bishop
+    | None => false
+    end) all_positions).
+
+(* Count bishops on dark squares *)
+Definition count_bishops_dark (b: Board) (c: Color) : nat :=
+  List.length (List.filter (fun p =>
+    negb (is_light_square p) &&
+    match b[p] with
+    | Some pc => color_eqb (piece_color pc) c && ptype_eqb (piece_type pc) Bishop
+    | None => false
+    end) all_positions).
+
+Set Program Mode.
+
+(* Check for dead position *)
+Definition is_dead_position (b: Board) : bool :=
+  let total := count_all_pieces b in
+  (* K vs K *)
+  (Nat.eqb total 2) ||
+  (* K+B vs K or K+N vs K *)
+  ((Nat.eqb total 3) && 
+   ((Nat.eqb (count_pieces b White Bishop + count_pieces b Black Bishop) 1) ||
+    (Nat.eqb (count_pieces b White Knight + count_pieces b Black Knight) 1))) ||
+  (* K+B vs K+B with bishops on same color *)
+  ((Nat.eqb total 4) && 
+   (Nat.eqb (count_pieces b White Bishop) 1) && 
+   (Nat.eqb (count_pieces b Black Bishop) 1) &&
+   ((Nat.eqb (count_bishops_light b White) 1 && Nat.eqb (count_bishops_light b Black) 1) ||
+    (Nat.eqb (count_bishops_dark b White) 1 && Nat.eqb (count_bishops_dark b Black) 1))) ||
+  (* K+NN vs K *)
+  ((Nat.eqb total 4) &&
+   (Nat.eqb (count_pieces b White Knight) 2 && Nat.eqb (count_pieces b Black Knight) 0) ||
+   (Nat.eqb (count_pieces b White Knight) 0 && Nat.eqb (count_pieces b Black Knight) 2)).
+
+(* ========================================================================= *)
+(* UNIFIED OUTCOME FUNCTION                                                  *)
+(* ========================================================================= *)
+
+(* Outcome of a game *)
+Inductive Outcome :=
+  | OMate (winner : Color)
+  | ODraw (reason : string)
+  | OOngoing (can_claim_50 : bool) (can_claim_3fold : bool).
+
+(* Placeholder for legal move generation - to be implemented in Phase 3 *)
+Definition gen_legal_moves (st: GameState) : list Move := [].
+
+(* Helper: Check if there are no legal moves *)
+Definition no_moves_b (st: GameState) : bool :=
+  match gen_legal_moves st with
+  | [] => true
+  | _ => false
+  end.
+
+(* Get outcome of current position *)
+Definition game_outcome (g: Game) : Outcome :=
+  let st := g_cur g in
+  let b := board st in
+  let c := turn st in
+  (* Check for checkmate *)
+  if no_moves_b st && in_check_b b c then
+    OMate (opposite_color c)
+  (* Check for stalemate *)
+  else if no_moves_b st && negb (in_check_b b c) then
+    ODraw "stalemate"
+  (* Check for automatic 75-move rule *)
+  else if is_seventyfive_move_rule g then
+    ODraw "75-move rule"
+  (* Check for automatic 5-fold repetition *)
+  else if is_fivefold_repetition g then
+    ODraw "5-fold repetition"
+  (* Check for dead position *)
+  else if is_dead_position b then
+    ODraw "dead position"
+  (* Game is ongoing, check for claimable draws *)
+  else
+    OOngoing (is_fifty_move_rule g) (is_threefold_repetition g).
+
+(* ========================================================================= *)
+(* FEN NOTATION                                                              *)
+(* ========================================================================= *)
+
+(* Convert piece to FEN character *)
+Definition piece_to_fen_char (p: Piece) : ascii :=
+  match piece_color p, piece_type p with
+  | White, Pawn => "P"%char
+  | White, Knight => "N"%char
+  | White, Bishop => "B"%char
+  | White, Rook => "R"%char
+  | White, Queen => "Q"%char
+  | White, King => "K"%char
+  | Black, Pawn => "p"%char
+  | Black, Knight => "n"%char
+  | Black, Bishop => "b"%char
+  | Black, Rook => "r"%char
+  | Black, Queen => "q"%char
+  | Black, King => "k"%char
+  end.
+
+(* Convert nat digit to ascii *)
+Unset Program Mode.
+Definition nat_to_digit (n: nat) : ascii :=
+  match n with
+  | 0%nat => "0"%char
+  | 1%nat => "1"%char
+  | 2%nat => "2"%char
+  | 3%nat => "3"%char
+  | 4%nat => "4"%char
+  | 5%nat => "5"%char
+  | 6%nat => "6"%char
+  | 7%nat => "7"%char
+  | 8%nat => "8"%char
+  | _ => "?"%char
+  end.
+
+(* Process one rank for FEN - simplified version *)
+Definition fen_process_rank (b: Board) (rank: Fin.t 8) : string :=
+  let process_file := fix process_file (file: nat) (empty_count: nat) (acc: string) : string :=
+    match file with
+    | 0%nat => 
+        if Nat.eqb empty_count 0%nat then acc
+        else String (nat_to_digit empty_count) acc
+    | S file' =>
+        match lt_dec (8 - file) 8 with
+        | left pf =>
+            let pos := mkPos rank (Fin.of_nat_lt pf) in
+            match b[pos] with
+            | Some p =>
+                let acc' := if Nat.eqb empty_count 0%nat then acc 
+                           else String (nat_to_digit empty_count) acc in
+                process_file file' 0%nat (String (piece_to_fen_char p) acc')
+            | None =>
+                process_file file' (S empty_count) acc
+            end
+        | right _ => acc
+        end
+    end in
+  process_file 8%nat 0%nat EmptyString.
+
+(* Process all ranks for FEN *)
+Definition fen_board (b: Board) : string :=
+  let process_ranks := fix process_ranks (r: nat) (acc: string) : string :=
+    match r with
+    | 0%nat => acc
+    | S r' =>
+        match lt_dec r' 8 with
+        | left pf =>
+            let rank_str := fen_process_rank b (Fin.of_nat_lt pf) in
+            let sep := if Nat.eqb r 8%nat then EmptyString else "/"%string in
+            process_ranks r' (append rank_str (append sep acc))
+        | right _ => acc
+        end
+    end in
+  process_ranks 8%nat EmptyString.
+
+(* Convert castling rights to FEN string *)
+Definition fen_castling (cr: CastlingRights) : string :=
+  let k := if white_king_side cr then "K"%string else EmptyString in
+  let q := if white_queen_side cr then "Q"%string else EmptyString in
+  let k' := if black_king_side cr then "k"%string else EmptyString in
+  let q' := if black_queen_side cr then "q"%string else EmptyString in
+  let all := append k (append q (append k' q')) in
+  if string_dec all EmptyString then "-"%string else all.
+
+(* Convert file index to letter *)
+Definition file_to_char (f: File) : ascii :=
+  match proj1_sig (Fin.to_nat f) with
+  | 0%nat => "a"%char
+  | 1%nat => "b"%char
+  | 2%nat => "c"%char
+  | 3%nat => "d"%char
+  | 4%nat => "e"%char
+  | 5%nat => "f"%char
+  | 6%nat => "g"%char
+  | 7%nat => "h"%char
+  | _ => "?"%char
+  end.
+
+(* Convert rank index to character *)
+Definition rank_to_char (r: Rank) : ascii :=
+  nat_to_digit (S (proj1_sig (Fin.to_nat r))).
+
+(* Convert position to algebraic notation *)
+Definition pos_to_alg (p: Position) : string :=
+  String (file_to_char (pos_file p)) (String (rank_to_char (pos_rank p)) EmptyString).
+
+(* Convert en passant target to FEN string *)
+Definition fen_en_passant (ep: option Position) : string :=
+  match ep with
+  | None => "-"%string
+  | Some p => pos_to_alg p
+  end.
+
+(* Convert turn to FEN string *)
+Definition fen_turn (c: Color) : string :=
+  match c with
+  | White => "w"%string
+  | Black => "b"%string
+  end.
+
+(* Convert nat to string - simple version for small numbers *)
+Unset Program Mode.
+Fixpoint nat_to_string_aux (n: nat) (fuel: nat) : string :=
+  match fuel with
+  | 0%nat => ""%string
+  | S fuel' =>
+      match n with
+      | 0%nat => "0"%string
+      | _ =>
+          let digit := nat_to_digit (Nat.modulo n 10) in
+          let rest := Nat.div n 10 in
+          if Nat.eqb rest 0 then String digit EmptyString
+          else append (nat_to_string_aux rest fuel') (String digit EmptyString)
+      end
+  end.
+
+Definition nat_to_string (n: nat) : string :=
+  if Nat.eqb n 0 then "0"%string else nat_to_string_aux n n.
+Set Program Mode.
+
+(* Complete FEN export function *)
+Unset Program Mode.
+Definition fen_of_state (st: GameState) : string :=
+  let board_str := fen_board (board st) in
+  let turn_str := fen_turn (turn st) in
+  let castle_str := fen_castling (castling st) in
+  let ep_str := fen_en_passant (ep_relevant_b st) in
+  let halfmove_str := nat_to_string (halfmove st) in
+  let fullmove_str := nat_to_string (fullmove st) in
+  append board_str (append " "%string 
+    (append turn_str (append " "%string
+      (append castle_str (append " "%string
+        (append ep_str (append " "%string
+          (append halfmove_str (append " "%string fullmove_str))))))))).
+Set Program Mode.
+
+(* Convert piece to display character for ASCII board *)
+Definition piece_to_display_char (p: Piece) : ascii :=
+  piece_to_fen_char p.
+
+(* Display one rank of the board *)
+Unset Program Mode.
+Definition display_rank (b: Board) (rank: Fin.t 8) : string :=
+  let process_file := fix process_file (file: nat) (acc: string) : string :=
+    match file with
+    | 0%nat => acc
+    | S file' =>
+        match lt_dec (8 - file) 8 with
+        | left pf =>
+            let pos := mkPos rank (Fin.of_nat_lt pf) in
+            let char := match b[pos] with
+                        | Some p => piece_to_display_char p
+                        | None => "."%char
+                        end in
+            process_file file' (String char (String " "%char acc))
+        | right _ => acc
+        end
+    end in
+  process_file 8%nat EmptyString.
+
+(* Display the entire board *)
+Definition board_to_ascii (b: Board) : string :=
+  let display_ranks := fix display_ranks (r: nat) (acc: string) : string :=
+    match r with
+    | 0%nat => acc
+    | S r' =>
+        match lt_dec r' 8 with
+        | left pf =>
+            let rank_str := display_rank b (Fin.of_nat_lt pf) in
+            let rank_num := nat_to_string (S r') in
+            let line := append rank_num (append " "%string (append rank_str (String "010"%char EmptyString))) in
+            display_ranks r' (append acc line)
+        | right _ => acc
+        end
+    end in
+  let board_lines := display_ranks 8%nat EmptyString in
+  let files_label := "  a b c d e f g h"%string in
+  append board_lines (append files_label (String "010"%char EmptyString)).
+
+(* Parse file character to File *)
+Definition char_to_file (c: ascii) : option File :=
+  match c with
+  | "a"%char => match lt_dec 0 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "b"%char => match lt_dec 1 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "c"%char => match lt_dec 2 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "d"%char => match lt_dec 3 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "e"%char => match lt_dec 4 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "f"%char => match lt_dec 5 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "g"%char => match lt_dec 6 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "h"%char => match lt_dec 7 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | _ => None
+  end.
+
+(* Parse rank character to Rank *)
+Definition char_to_rank (c: ascii) : option Rank :=
+  match c with
+  | "1"%char => match lt_dec 0 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "2"%char => match lt_dec 1 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "3"%char => match lt_dec 2 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "4"%char => match lt_dec 3 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "5"%char => match lt_dec 4 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "6"%char => match lt_dec 5 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "7"%char => match lt_dec 6 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | "8"%char => match lt_dec 7 8 with left pf => Some (Fin.of_nat_lt pf) | _ => None end
+  | _ => None
+  end.
+
+(* Parse digit character to nat *)
+Definition digit_to_nat (c: ascii) : option nat :=
+  match c with
+  | "0"%char => Some 0%nat
+  | "1"%char => Some 1%nat
+  | "2"%char => Some 2%nat
+  | "3"%char => Some 3%nat
+  | "4"%char => Some 4%nat
+  | "5"%char => Some 5%nat
+  | "6"%char => Some 6%nat
+  | "7"%char => Some 7%nat
+  | "8"%char => Some 8%nat
+  | "9"%char => Some 9%nat
+  | _ => None
+  end.
+
+(* Parse FEN character to piece *)
+Definition fen_char_to_piece (c: ascii) : option Piece :=
+  match c with
+  | "P"%char => Some (mkPiece White Pawn)
+  | "N"%char => Some (mkPiece White Knight)
+  | "B"%char => Some (mkPiece White Bishop)
+  | "R"%char => Some (mkPiece White Rook)
+  | "Q"%char => Some (mkPiece White Queen)
+  | "K"%char => Some (mkPiece White King)
+  | "p"%char => Some (mkPiece Black Pawn)
+  | "n"%char => Some (mkPiece Black Knight)
+  | "b"%char => Some (mkPiece Black Bishop)
+  | "r"%char => Some (mkPiece Black Rook)
+  | "q"%char => Some (mkPiece Black Queen)
+  | "k"%char => Some (mkPiece Black King)
+  | _ => None
+  end.
+
+(* Parse FEN turn character *)
+Definition fen_char_to_turn (c: ascii) : option Color :=
+  match c with
+  | "w"%char => Some White
+  | "b"%char => Some Black
+  | _ => None
+  end.
+
+(* Parse one rank from FEN string *)
+Unset Program Mode.
+Definition parse_fen_rank (rank_str: string) (rank: Rank) : Board -> option Board :=
+  let fix parse_chars (s: string) (file: nat) (b: Board) : option Board :=
+    match s with
+    | EmptyString => 
+        if Nat.eqb file 8 then Some b else None
+    | String c rest =>
+        if Nat.ltb file 8 then
+          match digit_to_nat c with
+          | Some n =>
+              let new_file := Nat.add file n in
+              if Nat.leb new_file 8 then
+                parse_chars rest new_file b
+              else None
+          | None =>
+              match fen_char_to_piece c with
+              | Some p =>
+                  match lt_dec file 8 with
+                  | left pf =>
+                      let pos := mkPos rank (Fin.of_nat_lt pf) in
+                      parse_chars rest (S file) (b[pos := Some p])
+                  | right _ => None
+                  end
+              | None => None
+              end
+          end
+        else None
+    end in
+  parse_chars rank_str 0%nat .
+
+(* Split string by delimiter *)
+Fixpoint split_string_at (s: string) (delim: ascii) : (string * string) :=
+  match s with
+  | EmptyString => (EmptyString, EmptyString)
+  | String c rest =>
+      if Ascii.eqb c delim then
+        (EmptyString, rest)
+      else
+        let (before, after) := split_string_at rest delim in
+        (String c before, after)
+  end.
+
+(* Parse castling rights from FEN string *)
+Unset Program Mode.
+Definition parse_fen_castling (s: string) : CastlingRights :=
+  let fix check_chars (s: string) (wk wq bk bq: bool) : CastlingRights :=
+    match s with
+    | EmptyString => mkCastlingRights wk wq bk bq
+    | String c rest =>
+        match c with
+        | "K"%char => check_chars rest true wq bk bq
+        | "Q"%char => check_chars rest wk true bk bq
+        | "k"%char => check_chars rest wk wq true bq
+        | "q"%char => check_chars rest wk wq bk true
+        | "-"%char => mkCastlingRights false false false false
+        | _ => check_chars rest wk wq bk bq
+        end
+    end in
+  check_chars s false false false false.
+
+(* Parse en passant target from FEN string *)
+Definition parse_fen_ep (s: string) : option Position :=
+  match s with
+  | String f (String r EmptyString) =>
+      match char_to_file f, char_to_rank r with
+      | Some file, Some rank => Some (mkPos rank file)
+      | _, _ => None
+      end
+  | "-"%string => None
+  | _ => None
+  end.
+
+(* Parse natural number from string *)
+Unset Program Mode.
+Fixpoint string_to_nat (s: string) : option nat :=
+  match s with
+  | EmptyString => None
+  | String c rest =>
+      match digit_to_nat c with
+      | None => None
+      | Some d =>
+          match rest with
+          | EmptyString => Some d
+          | _ =>
+              match string_to_nat rest with
+              | None => None
+              | Some n => Some (10 * d + n)%nat
+              end
+          end
+      end
+  end.
+
+(* Parse all ranks from FEN board string *)
+Unset Program Mode.
+Definition parse_fen_board (board_str: string) : option Board :=
+  let fix parse_ranks (s: string) (rank_num: nat) (b: Board) : option Board :=
+    match rank_num with
+    | 0%nat => Some b
+    | S r' =>
+        let (rank_str, rest) := split_string_at s "/"%char in
+        match lt_dec (7 - r') 8 with
+        | left pf =>
+            match parse_fen_rank rank_str (Fin.of_nat_lt pf) b with
+            | Some b' => parse_ranks rest r' b'
+            | None => None
+            end
+        | right _ => None
+        end
+    end in
+  parse_ranks board_str 8%nat (fun _ => None).
+
+(* Main FEN import function *)
+Definition state_of_fen (fen: string) : option GameState :=
+  (* Split FEN into components *)
+  let (board_part, rest1) := split_string_at fen " "%char in
+  let (turn_part, rest2) := split_string_at rest1 " "%char in
+  let (castle_part, rest3) := split_string_at rest2 " "%char in
+  let (ep_part, rest4) := split_string_at rest3 " "%char in
+  let (halfmove_part, fullmove_part) := split_string_at rest4 " "%char in
+  
+  (* Parse each component *)
+  match parse_fen_board board_part with
+  | None => None
+  | Some board =>
+      match turn_part with
+      | String c EmptyString =>
+          match fen_char_to_turn c with
+          | None => None
+          | Some turn =>
+              let castling := parse_fen_castling castle_part in
+              let ep := parse_fen_ep ep_part in
+              match string_to_nat halfmove_part, string_to_nat fullmove_part with
+              | Some halfmove, Some fullmove =>
+                  Some (mkGameState board turn castling ep halfmove fullmove)
+              | _, _ => None
+              end
+          end
+      | _ => None
+      end
+  end.
+
+(* ========================================================================= *)
+(* PHASE 3: MOVE GENERATION                                                  *)
+(* ========================================================================= *)
+
+(* Generate knight moves from a position *)
+Definition gen_knight_moves (b: Board) (from: Position) (c: Color) : list Move :=
+  let moves := 
+    List.map (fun od =>
+      match offset from (fst od) (snd od) with
+      | Some to =>
+          match b[to] with
+          | Some pc =>
+              if negb (color_eqb (piece_color pc) c) then
+                [MNormal from to None]
+              else []
+          | None => [MNormal from to None]
+          end
+      | None => []
+      end) knight_offsets in
+  List.concat moves.
+
+(* Generate king moves from a position *)
+Definition gen_king_moves (b: Board) (from: Position) (c: Color) : list Move :=
+  let moves :=
+    List.map (fun od =>
+      match offset from (fst od) (snd od) with
+      | Some to =>
+          match b[to] with
+          | Some pc =>
+              if negb (color_eqb (piece_color pc) c) then
+                [MNormal from to None]
+              else []
+          | None => [MNormal from to None]
+          end
+      | None => []
+      end) king_offsets in
+  List.concat moves.
+
+(* Generate slider moves (for rook, bishop, queen) *)
+Definition gen_slider_moves (b: Board) (from: Position) (c: Color) (dirs: list (Z * Z)) : list Move :=
+  let moves :=
+    List.map (fun dir =>
+      gen_ray_moves b from (fst dir) (snd dir) 7 nil) dirs in
+  let valid_moves :=
+    List.filter (fun to =>
+      match b[to] with
+      | Some pc => negb (color_eqb (piece_color pc) c)
+      | None => true
+      end) (List.concat moves) in
+  List.map (fun to => MNormal from to None) valid_moves.
+
+(* Generate pawn pushes (forward moves) *)
+Definition gen_pawn_pushes (b: Board) (from: Position) (c: Color) : list Move :=
+  let dr := forwardZ c in
+  let moves1 :=
+    match offset from dr 0 with
+    | Some to =>
+        if match b[to] with None => true | _ => false end then
+          let is_promo := ((color_eqb c White) && (Z.eqb (rankZ to) 7)) || 
+                          ((color_eqb c Black) && (Z.eqb (rankZ to) 0)) in
+          if is_promo then
+            [MNormal from to (Some Queen); MNormal from to (Some Rook);
+             MNormal from to (Some Bishop); MNormal from to (Some Knight)]
+          else [MNormal from to None]
+        else nil
+    | None => nil
+    end in
+  let moves2 :=
+    let start_rank := if color_eqb c White then 1 else 6 in
+    if Z.eqb (rankZ from) start_rank then
+      match offset from dr 0 with
+      | Some mid =>
+          if match b[mid] with None => true | _ => false end then
+            match offset from (2 * dr) 0 with
+            | Some to =>
+                if match b[to] with None => true | _ => false end then
+                  [MNormal from to None]
+                else nil
+            | None => nil
+            end
+          else nil
+      | None => nil
+      end
+    else nil in
+  moves1 ++ moves2.
+
+(* Generate pawn captures *)
+Definition gen_pawn_captures (st: GameState) (from: Position) (c: Color) : list Move :=
+  let b := board st in
+  let dr := forwardZ c in
+  let cap_moves := 
+    List.concat (List.map (fun df =>
+      match offset from dr df with
+      | Some to =>
+          let is_promo := ((color_eqb c White) && (Z.eqb (rankZ to) 7)) || 
+                          ((color_eqb c Black) && (Z.eqb (rankZ to) 0)) in
+          match b[to] with
+          | Some pc =>
+              if negb (color_eqb (piece_color pc) c) then
+                if is_promo then
+                  [MNormal from to (Some Queen); MNormal from to (Some Rook);
+                   MNormal from to (Some Bishop); MNormal from to (Some Knight)]
+                else [MNormal from to None]
+              else nil
+          | None =>
+              match en_passant st with
+              | Some ep =>
+                  if position_eqb to ep then [MNormal from to None]
+                  else nil
+              | None => nil
+              end
+          end
+      | None => nil
+      end) (1 :: (-1) :: nil)) in
+  cap_moves.
+
+(* Check if castling is possible (boolean version) *)
+Definition can_castle_b (st: GameState) (side: CastleSide) : bool :=
+  let c := turn st in
+  let b := board st in
+  let has_right := 
+    match c, side with
+    | White, KingSide => white_king_side (castling st)
+    | White, QueenSide => white_queen_side (castling st)  
+    | Black, KingSide => black_king_side (castling st)
+    | Black, QueenSide => black_queen_side (castling st)
+    end in
+  if negb has_right then false
+  else
+    let ks := if color_eqb c White then white_king_start else black_king_start in
+    let rs := rook_start c side in
+    match b[ks], b[rs] with
+    | Some kpc, Some rpc =>
+        if negb (piece_eqb kpc (mkPiece c King)) then false
+        else if negb (piece_eqb rpc (mkPiece c Rook)) then false
+        else
+          let empty_check := 
+            forallb (fun p => match b[p] with None => true | _ => false end)
+                    (king_corridor c side ++ rook_corridor c side) in
+          if negb empty_check then false
+          else
+            if in_check_b b c then false
+            else
+              forallb (fun p => negb (attacks_b b (opposite_color c) p))
+                      (ks :: king_corridor c side)
+    | _, _ => false
+    end.
+
+(* Generate castling moves *)
+Definition gen_castles (st: GameState) : list Move :=
+  let moves := nil in
+  let moves := if can_castle_b st KingSide then MCastle KingSide :: moves else moves in
+  let moves := if can_castle_b st QueenSide then MCastle QueenSide :: moves else moves in
+  moves.
+
+(* Generate all pseudo-legal moves for current player *)
+Definition gen_pseudo_moves (st: GameState) : list Move :=
+  let b := board st in
+  let c := turn st in
+  let piece_moves :=
+    List.concat (List.map (fun pos =>
+      match b[pos] with
+      | Some pc =>
+          if color_eqb (piece_color pc) c then
+            match piece_type pc with
+            | Pawn => gen_pawn_pushes b pos c ++ gen_pawn_captures st pos c
+            | Knight => gen_knight_moves b pos c
+            | Bishop => gen_slider_moves b pos c ((1,1)%Z :: (1,-1)%Z :: (-1,1)%Z :: (-1,-1)%Z :: nil)
+            | Rook => gen_slider_moves b pos c ((1,0)%Z :: (-1,0)%Z :: (0,1)%Z :: (0,-1)%Z :: nil)
+            | Queen => gen_slider_moves b pos c ((1,1)%Z :: (1,-1)%Z :: (-1,1)%Z :: (-1,-1)%Z ::
+                                                  (1,0)%Z :: (-1,0)%Z :: (0,1)%Z :: (0,-1)%Z :: nil)
+            | King => gen_king_moves b pos c
+            end
+          else nil
+      | None => nil
+      end) all_positions) in
+  piece_moves ++ gen_castles st.
+
+(* Redefine gen_legal_moves with actual implementation *)
+Unset Program Mode.
+Definition gen_legal_moves_real (st: GameState) : list Move :=
+  List.filter (fun m =>
+    match apply_move_b st m with
+    | Some _ => true
+    | None => false
+    end) (gen_pseudo_moves st).
+
+(* Perft - count leaf nodes at given depth *)
+Fixpoint perft_state (st: GameState) (depth: nat) : nat :=
+  match depth with
+  | 0%nat => 1%nat
+  | S d =>
+      let moves := gen_legal_moves_real st in
+      List.fold_left (fun acc m =>
+        match apply_move_b st m with
+        | Some st' => Nat.add acc (perft_state st' d)
+        | None => acc
+        end) moves 0%nat
+  end.
+Set Program Mode.
