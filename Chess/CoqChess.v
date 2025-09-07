@@ -4086,8 +4086,8 @@ Definition initial_position : GameState :=
 
 (* Generate check evasions - moves that get out of check *)
 Definition gen_check_evasions (st: GameState) : list Move :=
-  (* For now, just use regular move generation and filter *)
-  (* A more optimized version would only generate:
+  (* Uses complete legal move generation and filtering.
+     Optimization targets:
      1. King moves to safe squares
      2. Captures of the checking piece
      3. Blocks (for sliding piece checks) *)
@@ -4158,7 +4158,7 @@ Definition is_dead_position_improved (b: Board) : bool :=
     (Nat.eqb (count_pieces b White Queen + count_pieces b Black Queen) 0))).
 
 (* ========================================================================= *)
-(* KEY CORRECTNESS THEOREMS                                                  *)
+(* KEY CORRECTNESS THEOREMS                                                 *)
 (* ========================================================================= *)
 
 Lemma position_eqb_trans : forall p1 p2 p3,
@@ -4181,3 +4181,47 @@ Set Program Mode.
 (* Now that gen_legal_moves_real is available, we create a wrapper that uses it *)
 Definition gen_legal_moves_proper (st: GameState) : list Move :=
   gen_legal_moves_optimized st.
+
+(* Fix no_moves_b to use the real implementation *)
+Definition no_moves_b_proper (st: GameState) : bool :=
+  match gen_legal_moves_proper st with
+  | [] => true
+  | _ => false
+  end.
+
+(* Fix game_outcome to use the real implementation *)
+Definition game_outcome_proper (g: Game) : Outcome :=
+  let st := g_cur g in
+  let b := board st in
+  let c := turn st in
+  (* Check for checkmate *)
+  if no_moves_b_proper st && in_check_b b c then
+    OMate (opposite_color c)
+  (* Check for stalemate *)
+  else if no_moves_b_proper st && negb (in_check_b b c) then
+    ODraw "stalemate"
+  (* Check for automatic 75-move rule *)
+  else if is_seventyfive_move_rule g then
+    ODraw "75-move rule"
+  (* Check for automatic 5-fold repetition *)
+  else if is_fivefold_repetition g then
+    ODraw "5-fold repetition"
+  (* Check for dead position *)
+  else if is_dead_position b then
+    ODraw "dead position"
+  (* Game is ongoing, check for claimable draws *)
+  else
+    OOngoing (is_fifty_move_rule g) (is_threefold_repetition g).
+
+(* Perft using the proper move generator *)
+Fixpoint perft_proper (st: GameState) (depth: nat) : nat :=
+  match depth with
+  | 0%nat => 1%nat
+  | S d =>
+      let moves := gen_legal_moves_proper st in
+      List.fold_left (fun acc m =>
+        match apply_move_b st m with
+        | Some st' => Nat.add acc (perft_proper st' d)
+        | None => acc
+        end) moves 0%nat
+  end.
