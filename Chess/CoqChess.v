@@ -3552,6 +3552,316 @@ Definition can_castle_b (st: GameState) (side: CastleSide) : bool :=
                       (ks :: king_corridor c side)
     | _, _ => false
     end.
+    
+Lemma can_castle_b_extract_right : forall st c side,
+  c = turn st ->
+  can_castle_b st side = true ->
+  match c, side with
+  | White, KingSide => white_king_side (castling st) = true
+  | White, QueenSide => white_queen_side (castling st) = true
+  | Black, KingSide => black_king_side (castling st) = true
+  | Black, QueenSide => black_queen_side (castling st) = true
+  end.
+Proof.
+  intros st c side Hc H.
+  subst c.
+  unfold can_castle_b in H.
+  destruct (turn st), side; simpl in H.
+  - destruct (white_king_side (castling st)); [reflexivity | discriminate].
+  - destruct (white_queen_side (castling st)); [reflexivity | discriminate].
+  - destruct (black_king_side (castling st)); [reflexivity | discriminate].
+  - destruct (black_queen_side (castling st)); [reflexivity | discriminate].
+Qed.
+
+Lemma can_castle_b_white_king_side_pieces : forall st,
+  turn st = White ->
+  can_castle_b st KingSide = true ->
+  (board st)[white_king_start] = Some white_king /\
+  (board st)[white_rook_king_side] = Some white_rook.
+Proof.
+  intros st Hturn H.
+  unfold can_castle_b in H.
+  rewrite Hturn in H. simpl in H.
+  destruct (white_king_side (castling st)); simpl in H; [|discriminate].
+  destruct ((board st)[white_king_start]) eqn:Hks; [|discriminate].
+  destruct ((board st)[white_rook_king_side]) eqn:Hrs; [|discriminate].
+  destruct (piece_eqb p (mkPiece White King)) eqn:Hpk; simpl in H; [|discriminate].
+  destruct (piece_eqb p0 (mkPiece White Rook)) eqn:Hpr; simpl in H; [|discriminate].
+  destruct (piece_eqb_spec p (mkPiece White King)); [|discriminate].
+  destruct (piece_eqb_spec p0 (mkPiece White Rook)); [|discriminate].
+  subst. unfold white_king, white_rook. split; reflexivity.
+Qed.
+
+Lemma can_castle_b_white_queen_side_pieces : forall st,
+  turn st = White ->
+  can_castle_b st QueenSide = true ->
+  (board st)[white_king_start] = Some white_king /\
+  (board st)[white_rook_queen_side] = Some white_rook.
+Proof.
+  intros st Hturn H.
+  unfold can_castle_b in H.
+  rewrite Hturn in H. simpl in H.
+  destruct (white_queen_side (castling st)); simpl in H; [|discriminate].
+  destruct ((board st)[white_king_start]) eqn:Hks; [|discriminate].
+  destruct ((board st)[white_rook_queen_side]) eqn:Hrs; [|discriminate].
+  destruct (piece_eqb p (mkPiece White King)) eqn:Hpk; simpl in H; [|discriminate].
+  destruct (piece_eqb p0 (mkPiece White Rook)) eqn:Hpr; simpl in H; [|discriminate].
+  destruct (piece_eqb_spec p (mkPiece White King)); [|discriminate].
+  destruct (piece_eqb_spec p0 (mkPiece White Rook)); [|discriminate].
+  subst. unfold white_king, white_rook. split; reflexivity.
+Qed.
+
+Lemma can_castle_b_black_king_side_pieces : forall st,
+  turn st = Black ->
+  can_castle_b st KingSide = true ->
+  (board st)[black_king_start] = Some black_king /\
+  (board st)[black_rook_king_side] = Some black_rook.
+Proof.
+  intros st Hturn H.
+  unfold can_castle_b in H.
+  rewrite Hturn in H. simpl in H.
+  destruct (black_king_side (castling st)); simpl in H; [|discriminate].
+  destruct ((board st)[black_king_start]) eqn:Hks; [|discriminate].
+  destruct ((board st)[black_rook_king_side]) eqn:Hrs; [|discriminate].
+  destruct (piece_eqb p (mkPiece Black King)) eqn:Hpk; simpl in H; [|discriminate].
+  destruct (piece_eqb p0 (mkPiece Black Rook)) eqn:Hpr; simpl in H; [|discriminate].
+  destruct (piece_eqb_spec p (mkPiece Black King)); [|discriminate].
+  destruct (piece_eqb_spec p0 (mkPiece Black Rook)); [|discriminate].
+  subst. unfold black_king, black_rook. split; reflexivity.
+Qed.
+
+Lemma can_castle_b_black_queen_side_pieces : forall st,
+  turn st = Black ->
+  can_castle_b st QueenSide = true ->
+  (board st)[black_king_start] = Some black_king /\
+  (board st)[black_rook_queen_side] = Some black_rook.
+Proof.
+  intros st Hturn H.
+  unfold can_castle_b in H.
+  rewrite Hturn in H. simpl in H.
+  destruct (black_queen_side (castling st)); simpl in H; [|discriminate].
+  destruct ((board st)[black_king_start]) eqn:Hks; [|discriminate].
+  destruct ((board st)[black_rook_queen_side]) eqn:Hrs; [|discriminate].
+  destruct (piece_eqb p (mkPiece Black King)) eqn:Hpk; simpl in H; [|discriminate].
+  destruct (piece_eqb p0 (mkPiece Black Rook)) eqn:Hpr; simpl in H; [|discriminate].
+  destruct (piece_eqb_spec p (mkPiece Black King)); [|discriminate].
+  destruct (piece_eqb_spec p0 (mkPiece Black Rook)); [|discriminate].
+  subst. unfold black_king, black_rook. split; reflexivity.
+Qed.
+
+Lemma can_castle_b_extract_pieces : forall st side,
+  can_castle_b st side = true ->
+  let c := turn st in
+  let b := board st in
+  let ks := if color_eqb c White then white_king_start else black_king_start in
+  let rs := rook_start c side in
+  b[ks] = Some (mkPiece c King) /\ b[rs] = Some (mkPiece c Rook).
+Proof.
+  intros st side H.
+  simpl.
+  destruct (turn st) eqn:Ec, side.
+  - (* White KingSide *)
+    apply can_castle_b_white_king_side_pieces; assumption.
+  - (* White QueenSide *)
+    apply can_castle_b_white_queen_side_pieces; assumption.
+  - (* Black KingSide *)
+    apply can_castle_b_black_king_side_pieces; assumption.
+  - (* Black QueenSide *)
+    apply can_castle_b_black_queen_side_pieces; assumption.
+Qed.
+
+Lemma can_castle_b_white_king_side_empty : forall st,
+  turn st = White ->
+  can_castle_b st KingSide = true ->
+  list_all_empty (board st) (king_corridor White KingSide ++ rook_corridor White KingSide).
+Proof.
+  intros st Hturn H.
+  unfold can_castle_b in H.
+  rewrite Hturn in H. simpl in H.
+  destruct (white_king_side (castling st)) eqn:Hright; simpl in H; try discriminate.
+  destruct ((board st)[white_king_start]) eqn:Hks; simpl in H; try discriminate.
+  destruct ((board st)[white_rook_king_side]) eqn:Hrs; simpl in H; try discriminate.
+  destruct (piece_eqb p (mkPiece White King)) eqn:Hpk; simpl in H; try discriminate.
+  destruct (piece_eqb p0 (mkPiece White Rook)) eqn:Hpr; simpl in H; try discriminate.
+  simpl in H.
+  destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end) 
+                    (king_corridor White KingSide ++ rook_corridor White KingSide)) eqn:Hemp.
+  - unfold list_all_empty.
+    rewrite Forall_forall.
+    intros x Hx.
+    rewrite forallb_forall in Hemp.
+    specialize (Hemp x Hx).
+    destruct ((board st)[x]); try reflexivity.
+    discriminate.
+  - unfold king_corridor, rook_corridor in Hemp.
+    simpl in Hemp.
+    destruct ((board st)[mkPos F1 (FS (FS (FS (FS (FS F1)))))]) eqn:Hf1;
+    destruct ((board st)[mkPos F1 (FS (FS (FS (FS (FS (FS F1))))))]) eqn:Hg1;
+    simpl in Hemp; try discriminate.
+Qed.
+
+Lemma can_castle_b_white_queen_side_empty : forall st,
+  turn st = White ->
+  can_castle_b st QueenSide = true ->
+  list_all_empty (board st) (king_corridor White QueenSide ++ rook_corridor White QueenSide).
+Proof.
+  intros st Hturn H.
+  unfold can_castle_b in H.
+  rewrite Hturn in H. simpl in H.
+  destruct (white_queen_side (castling st)) eqn:Hright; simpl in H; try discriminate.
+  destruct ((board st)[white_king_start]) eqn:Hks; simpl in H; try discriminate.
+  destruct ((board st)[white_rook_queen_side]) eqn:Hrs; simpl in H; try discriminate.
+  destruct (piece_eqb p (mkPiece White King)) eqn:Hpk; simpl in H; try discriminate.
+  destruct (piece_eqb p0 (mkPiece White Rook)) eqn:Hpr; simpl in H; try discriminate.
+  simpl in H.
+  destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end) 
+                    (king_corridor White QueenSide ++ rook_corridor White QueenSide)) eqn:Hemp.
+  - unfold list_all_empty.
+    rewrite Forall_forall.
+    intros x Hx.
+    rewrite forallb_forall in Hemp.
+    specialize (Hemp x Hx).
+    destruct ((board st)[x]); try reflexivity.
+    discriminate.
+  - unfold king_corridor, rook_corridor in Hemp.
+    simpl in Hemp.
+    destruct ((board st)[mkPos F1 (FS (FS (FS F1)))]) eqn:Hd1;
+    destruct ((board st)[mkPos F1 (FS (FS F1))]) eqn:Hc1;
+    destruct ((board st)[mkPos F1 (FS F1)]) eqn:Hb1;
+    simpl in Hemp; try discriminate.
+Qed.
+
+Lemma can_castle_b_black_king_side_empty : forall st,
+  turn st = Black ->
+  can_castle_b st KingSide = true ->
+  list_all_empty (board st) (king_corridor Black KingSide ++ rook_corridor Black KingSide).
+Proof.
+  intros st Hturn H.
+  unfold can_castle_b in H.
+  rewrite Hturn in H. simpl in H.
+  destruct (black_king_side (castling st)) eqn:Hright; simpl in H; try discriminate.
+  destruct ((board st)[black_king_start]) eqn:Hks; simpl in H; try discriminate.
+  destruct ((board st)[black_rook_king_side]) eqn:Hrs; simpl in H; try discriminate.
+  destruct (piece_eqb p (mkPiece Black King)) eqn:Hpk; simpl in H; try discriminate.
+  destruct (piece_eqb p0 (mkPiece Black Rook)) eqn:Hpr; simpl in H; try discriminate.
+  simpl in H.
+  destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end) 
+                    (king_corridor Black KingSide ++ rook_corridor Black KingSide)) eqn:Hemp.
+  - unfold list_all_empty.
+    rewrite Forall_forall.
+    intros x Hx.
+    rewrite forallb_forall in Hemp.
+    specialize (Hemp x Hx).
+    destruct ((board st)[x]); try reflexivity.
+    discriminate.
+  - unfold king_corridor, rook_corridor in Hemp.
+    simpl in Hemp.
+    destruct ((board st)[mkPos (FS (FS (FS (FS (FS (FS (FS F1))))))) (FS (FS (FS (FS (FS F1)))))]) eqn:Hf8;
+    destruct ((board st)[mkPos (FS (FS (FS (FS (FS (FS (FS F1))))))) (FS (FS (FS (FS (FS (FS F1))))))]) eqn:Hg8;
+    simpl in Hemp; try discriminate.
+Qed.
+
+Lemma can_castle_b_black_queen_side_empty : forall st,
+  turn st = Black ->
+  can_castle_b st QueenSide = true ->
+  list_all_empty (board st) (king_corridor Black QueenSide ++ rook_corridor Black QueenSide).
+Proof.
+  intros st Hturn H.
+  unfold can_castle_b in H.
+  rewrite Hturn in H. simpl in H.
+  destruct (black_queen_side (castling st)) eqn:Hright; simpl in H; try discriminate.
+  destruct ((board st)[black_king_start]) eqn:Hks; simpl in H; try discriminate.
+  destruct ((board st)[black_rook_queen_side]) eqn:Hrs; simpl in H; try discriminate.
+  destruct (piece_eqb p (mkPiece Black King)) eqn:Hpk; simpl in H; try discriminate.
+  destruct (piece_eqb p0 (mkPiece Black Rook)) eqn:Hpr; simpl in H; try discriminate.
+  simpl in H.
+  destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end) 
+                    (king_corridor Black QueenSide ++ rook_corridor Black QueenSide)) eqn:Hemp.
+  - unfold list_all_empty.
+    rewrite Forall_forall.
+    intros x Hx.
+    rewrite forallb_forall in Hemp.
+    specialize (Hemp x Hx).
+    destruct ((board st)[x]); try reflexivity.
+    discriminate.
+  - unfold king_corridor, rook_corridor in Hemp.
+    simpl in Hemp.
+    destruct ((board st)[mkPos (FS (FS (FS (FS (FS (FS (FS F1))))))) (FS (FS (FS F1)))]) eqn:Hd8;
+    destruct ((board st)[mkPos (FS (FS (FS (FS (FS (FS (FS F1))))))) (FS (FS F1))]) eqn:Hc8;
+    destruct ((board st)[mkPos (FS (FS (FS (FS (FS (FS (FS F1))))))) (FS F1)]) eqn:Hb8;
+    simpl in Hemp; try discriminate.
+Qed.
+
+Lemma can_castle_b_extract_empty : forall st side,
+  can_castle_b st side = true ->
+  let c := turn st in
+  list_all_empty (board st) (king_corridor c side ++ rook_corridor c side).
+Proof.
+  intros st side H.
+  simpl.
+  destruct (turn st) eqn:Ec, side.
+  - apply can_castle_b_white_king_side_empty; assumption.
+  - apply can_castle_b_white_queen_side_empty; assumption.
+  - apply can_castle_b_black_king_side_empty; assumption.
+  - apply can_castle_b_black_queen_side_empty; assumption.
+Qed.
+
+Lemma can_castle_b_extract_not_check : forall st side,
+  can_castle_b st side = true ->
+  in_check_b (board st) (turn st) = false.
+Proof.
+  intros st side H.
+  unfold can_castle_b in H.
+  destruct (turn st) eqn:Ec, side; simpl in H.
+  - (* White KingSide *)
+    destruct (white_king_side (castling st)); simpl in H; try discriminate.
+    destruct ((board st)[white_king_start]); simpl in H; try discriminate.
+    destruct ((board st)[white_rook_king_side]); simpl in H; try discriminate.
+    destruct (piece_eqb p (mkPiece White King)); simpl in H; try discriminate.
+    destruct (piece_eqb p0 (mkPiece White Rook)); simpl in H; try discriminate.
+    destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end)
+                      (king_corridor White KingSide ++ rook_corridor White KingSide)); 
+    simpl in H; try discriminate.
+    destruct (in_check_b (board st) White) eqn:Hcheck; simpl in H.
+    + rewrite Hcheck in H. simpl in H. discriminate.
+    + reflexivity.
+  - (* White QueenSide *)
+    destruct (white_queen_side (castling st)); simpl in H; try discriminate.
+    destruct ((board st)[white_king_start]); simpl in H; try discriminate.
+    destruct ((board st)[white_rook_queen_side]); simpl in H; try discriminate.
+    destruct (piece_eqb p (mkPiece White King)); simpl in H; try discriminate.
+    destruct (piece_eqb p0 (mkPiece White Rook)); simpl in H; try discriminate.
+    destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end)
+                      (king_corridor White QueenSide ++ rook_corridor White QueenSide)); 
+    simpl in H; try discriminate.
+    destruct (in_check_b (board st) White) eqn:Hcheck; simpl in H.
+    + rewrite Hcheck in H. simpl in H. discriminate.
+    + reflexivity.
+  - (* Black KingSide *)
+    destruct (black_king_side (castling st)); simpl in H; try discriminate.
+    destruct ((board st)[black_king_start]); simpl in H; try discriminate.
+    destruct ((board st)[black_rook_king_side]); simpl in H; try discriminate.
+    destruct (piece_eqb p (mkPiece Black King)); simpl in H; try discriminate.
+    destruct (piece_eqb p0 (mkPiece Black Rook)); simpl in H; try discriminate.
+    destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end)
+                      (king_corridor Black KingSide ++ rook_corridor Black KingSide)); 
+    simpl in H; try discriminate.
+    destruct (in_check_b (board st) Black) eqn:Hcheck; simpl in H.
+    + rewrite Hcheck in H. simpl in H. discriminate.
+    + reflexivity.
+  - (* Black QueenSide *)
+    destruct (black_queen_side (castling st)); simpl in H; try discriminate.
+    destruct ((board st)[black_king_start]); simpl in H; try discriminate.
+    destruct ((board st)[black_rook_queen_side]); simpl in H; try discriminate.
+    destruct (piece_eqb p (mkPiece Black King)); simpl in H; try discriminate.
+    destruct (piece_eqb p0 (mkPiece Black Rook)); simpl in H; try discriminate.
+    destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end)
+                      (king_corridor Black QueenSide ++ rook_corridor Black QueenSide)); 
+    simpl in H; try discriminate.
+    destruct (in_check_b (board st) Black) eqn:Hcheck; simpl in H.
+    + rewrite Hcheck in H. simpl in H. discriminate.
+    + reflexivity.
+Qed.
 
 Definition gen_castles (st: GameState) : list Move :=
   let moves := nil in
@@ -4299,9 +4609,3 @@ Compute match test_position_1 with
 | Some st => perft_state st 3
 | None => 0%nat
 end.
-
-Compute match test_position_1 with
-| Some st => perft_state st 4
-| None => 0%nat
-end.
-    
