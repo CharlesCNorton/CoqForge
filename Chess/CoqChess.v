@@ -3704,7 +3704,7 @@ Definition parse_fen_board (board_str: string) : option Board :=
     | 0%nat => Some b
     | S r' =>
         let (rank_str, rest) := split_string_at s "/"%char in
-        match lt_dec (7 - r') 8 with
+        match lt_dec (8 - rank_num) 8 with
         | left pf =>
             match parse_fen_rank rank_str (Fin.of_nat_lt pf) b with
             | Some b' => parse_ranks rest r' b'
@@ -3944,4 +3944,135 @@ Fixpoint perft_state (st: GameState) (depth: nat) : nat :=
         | None => acc
         end) moves 0%nat
   end.
+
+(* ========================================================================= *)
+(* IMPROVEMENTS AND ADDITIONAL FEATURES                                      *)
+(* ========================================================================= *)
+
+(* Standard starting position for testing *)
+Unset Program Mode.
+Definition standard_starting_board : Board :=
+  fun pos =>
+    let r := proj1_sig (Fin.to_nat (pos_rank pos)) in
+    let f := proj1_sig (Fin.to_nat (pos_file pos)) in
+    match r with
+    | 0%nat => (* Rank 1 - White pieces *)
+        match f with
+        | 0%nat => Some (mkPiece White Rook)
+        | 1%nat => Some (mkPiece White Knight)
+        | 2%nat => Some (mkPiece White Bishop)
+        | 3%nat => Some (mkPiece White Queen)
+        | 4%nat => Some (mkPiece White King)
+        | 5%nat => Some (mkPiece White Bishop)
+        | 6%nat => Some (mkPiece White Knight)
+        | 7%nat => Some (mkPiece White Rook)
+        | _ => None
+        end
+    | 1%nat => Some (mkPiece White Pawn) (* Rank 2 - White pawns *)
+    | 6%nat => Some (mkPiece Black Pawn) (* Rank 7 - Black pawns *)
+    | 7%nat => (* Rank 8 - Black pieces *)
+        match f with
+        | 0%nat => Some (mkPiece Black Rook)
+        | 1%nat => Some (mkPiece Black Knight)
+        | 2%nat => Some (mkPiece Black Bishop)
+        | 3%nat => Some (mkPiece Black Queen)
+        | 4%nat => Some (mkPiece Black King)
+        | 5%nat => Some (mkPiece Black Bishop)
+        | 6%nat => Some (mkPiece Black Knight)
+        | 7%nat => Some (mkPiece Black Rook)
+        | _ => None
+        end
+    | _ => None
+    end.
+
+Definition initial_position : GameState :=
+  mkGameState standard_starting_board White 
+    (mkCastlingRights true true true true) None 0 1.
+
+(* Generate check evasions - moves that get out of check *)
+Definition gen_check_evasions (st: GameState) : list Move :=
+  (* For now, just use regular move generation and filter *)
+  (* A more optimized version would only generate:
+     1. King moves to safe squares
+     2. Captures of the checking piece
+     3. Blocks (for sliding piece checks) *)
+  gen_legal_moves_real st.
+
+(* Optimized legal move generation *)
+Definition gen_legal_moves_optimized (st: GameState) : list Move :=
+  if in_check_b (board st) (turn st) then
+    gen_check_evasions st
+  else
+    gen_legal_moves_real st.
+
+(* Check if all pawns are blocked (cannot move or capture) *)
+Unset Program Mode.
+Definition all_pawns_blocked (b: Board) : bool :=
+  forallb (fun pos =>
+    match b[pos] with
+    | Some pc =>
+        if ptype_eqb (piece_type pc) Pawn then
+          let c := piece_color pc in
+          let dr := forwardZ c in
+          (* Check if pawn can move forward *)
+          let can_push := 
+            match offset pos dr 0 with
+            | Some to => match b[to] with None => true | _ => false end
+            | None => false
+            end in
+          (* Check if pawn can capture *)
+          let can_capture_left :=
+            match offset pos dr 1 with
+            | Some to => 
+                match b[to] with 
+                | Some target => negb (color_eqb (piece_color target) c)
+                | None => false
+                end
+            | None => false
+            end in
+          let can_capture_right :=
+            match offset pos dr (-1) with
+            | Some to =>
+                match b[to] with
+                | Some target => negb (color_eqb (piece_color target) c)
+                | None => false
+                end
+            | None => false
+            end in
+          negb (can_push || can_capture_left || can_capture_right)
+        else true
+    | None => true
+    end) all_positions.
+
+(* Improved dead position detection *)
+Definition is_dead_position_improved (b: Board) : bool :=
+  let total := count_all_pieces b in
+  (* Original cases *)
+  is_dead_position b ||
+  (* Additional case: All pawns blocked and insufficient material *)
+  (all_pawns_blocked b && 
+   ((Nat.eqb (count_pieces b White Knight + count_pieces b Black Knight) 0) &&
+    (Nat.eqb (count_pieces b White Bishop + count_pieces b Black Bishop) 0) &&
+    (Nat.eqb (count_pieces b White Rook + count_pieces b Black Rook) 0) &&
+    (Nat.eqb (count_pieces b White Queen + count_pieces b Black Queen) 0))).
+
+(* ========================================================================= *)
+(* KEY CORRECTNESS THEOREMS*)
+(* ========================================================================= *)
+
+Lemma position_eqb_trans : forall p1 p2 p3,
+  position_eqb p1 p2 = true ->
+  position_eqb p2 p3 = true ->
+  position_eqb p1 p3 = true.
+Proof.
+  intros p1 p2 p3 H12 H23.
+  destruct (position_eqb_spec p1 p2); try discriminate.
+  destruct (position_eqb_spec p2 p3); try discriminate.
+  subst.
+  destruct (position_eqb_spec p3 p3).
+  - reflexivity.
+  - contradiction.
+Qed.
+
 Set Program Mode.
+    
