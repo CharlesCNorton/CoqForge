@@ -858,6 +858,9 @@ Definition board_get (b : Board) (p : Position) : option Piece := b p.
 
 Definition board_set (b : Board) (p : Position) (x : option Piece) : Board :=
   fun q => if Position_dec q p then x else b q.
+  
+Definition board_set_b (b : Board) (p : Position) (x : option Piece) : Board :=
+  fun q => if position_eqb q p then x else b q.
 
 Notation "b [ p ]" := (board_get b p).
 Notation "b [ p := x ]" := (board_set b p x).
@@ -2511,7 +2514,7 @@ Definition apply_en_passant_capture (st : GameState) (from to : Position) (b : B
         | Some pc =>
             if ptype_eqb (piece_type pc) Pawn then
               match offset to (- forwardZ (piece_color pc)) 0 with
-              | Some cap => b[cap := None]
+              | Some cap => board_set_b b cap None
               | None => b
               end
             else b
@@ -2528,7 +2531,7 @@ Definition next_board_normal (st : GameState) (from to : Position) (promo : opti
   match b[from] with
   | Some pc =>
       let moved := piece_after_promo pc promo in
-      (b0[from := None])[to := Some moved]
+      board_set_b (board_set_b b0 from None) to (Some moved)
   | None => b0
   end.
 
@@ -2706,7 +2709,7 @@ Definition next_state_castle (st: GameState) (s: CastleSide) : GameState :=
   let kd := king_dest c s in
   let rs := rook_start c s in
   let rd := rook_dest c s in
-  let b' := (((b[ks := None])[rs := None])[kd := Some (mkPiece c King)])[rd := Some (mkPiece c Rook)] in
+  let b' := board_set_b (board_set_b (board_set_b (board_set_b b ks None) rs None) kd (Some (mkPiece c King))) rd (Some (mkPiece c Rook)) in
   let cr' :=
     match c with
     | White => mkCastlingRights false false (black_king_side (castling st)) (black_queen_side (castling st))
@@ -3901,7 +3904,8 @@ Definition parse_fen_rank (rank_str: string) (rank: Rank) : Board -> option Boar
                   match lt_dec file 8 with
                   | left pf =>
                       let pos := mkPos rank (Fin.of_nat_lt pf) in
-                      parse_chars rest (S file) (b[pos := Some p])
+                      parse_chars rest (S file) 
+                        (fun q => if position_eqb q pos then Some p else b q)
                   | right _ => None
                   end
               | None => None
@@ -3909,7 +3913,7 @@ Definition parse_fen_rank (rank_str: string) (rank: Rank) : Board -> option Boar
           end
         else None
     end in
-  parse_chars rank_str 0%nat .
+  parse_chars rank_str 0%nat.
 
 (* Split string by delimiter *)
 Fixpoint split_string_at (s: string) (delim: ascii) : (string * string) :=
@@ -4218,3 +4222,86 @@ Fixpoint perft_proper (st: GameState) (depth: nat) : nat :=
         | None => acc
         end) moves 0%nat
   end.
+  
+(* ========================================================================= *)
+(* TESTS                                                                     *)
+(* ========================================================================= *)
+
+Definition test_position_1 := state_of_fen "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 4".
+
+Compute List.length all_positions.
+
+Compute test_position_1.
+
+Compute match test_position_1 with
+| Some st => white_king_side (castling st)
+| None => false
+end.
+
+Compute match test_position_1 with
+| Some st => match (board st) white_king_start with
+             | Some _ => true
+             | None => false
+             end
+| None => false
+end.
+
+Compute match test_position_1 with
+| Some st => List.length (gen_pseudo_moves st)
+| None => 0%nat
+end.
+
+Compute match test_position_1 with
+| Some st => match gen_pseudo_moves st with
+             | m :: _ => true
+             | [] => false
+             end
+| None => false
+end.
+
+Compute match test_position_1 with
+| Some st => in_check_b (board st) White
+| None => false
+end.
+
+Compute match test_position_1 with
+| Some st => match (board st)[white_king_start := None] white_king_start with
+             | Some _ => true  
+             | None => false
+             end
+| None => false
+end.
+
+Compute match test_position_1 with
+| Some st => match gen_pseudo_moves st with
+             | m :: _ => match apply_move_b st m with
+                        | Some _ => true
+                        | None => false
+                        end
+             | [] => false
+             end
+| None => false
+end.
+
+Compute match test_position_1 with
+| Some st => perft_state st 1
+| None => 0%nat
+end.
+
+Compute perft_state initial_position 1.
+
+Compute match test_position_1 with
+| Some st => perft_state st 2
+| None => 0%nat
+end.
+
+Compute match test_position_1 with
+| Some st => perft_state st 3
+| None => 0%nat
+end.
+
+Compute match test_position_1 with
+| Some st => perft_state st 4
+| None => 0%nat
+end.
+    
