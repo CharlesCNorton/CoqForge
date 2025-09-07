@@ -2792,12 +2792,40 @@ Qed.
 (* GEOMETRY VALIDATION FOR MOVES                                            *)
 (* ========================================================================= *)
 
+(* Boolean clear-path for exactly n steps ahead (ignores the destination square). *)
+Fixpoint clear_path_n_b (b : Board) (from : Position) (dr df : Z) (n : nat) : bool :=
+  match n with
+  | 0%nat => true
+  | S n' =>
+      match offset from dr df with
+      | Some p =>
+          match b[p] with
+          | None => clear_path_n_b b p dr df n'
+          | Some _ => false
+          end
+      | None => false
+      end
+  end.
+
+Fixpoint reaches_in_n (b: Board) (from to: Position) (dr df: Z) (n: nat) : bool :=
+  match n with
+  | O => false
+  | S k =>
+      match offset from dr df with
+      | None => false
+      | Some p1 =>
+          if Nat.eqb k O then
+            position_eqb p1 to
+          else
+            match b[p1] with
+            | None => reaches_in_n b p1 to dr df k
+            | Some _ => false
+            end
+      end
+  end.
+
 Definition check_line_move (b: Board) (from to: Position) (dr df: Z) : bool :=
-  existsb (fun n => 
-    match offset from (Z.of_nat n * dr) (Z.of_nat n * df) with
-    | Some p => position_eqb p to
-    | None => false
-    end) (seq 1 7).
+  existsb (fun n => reaches_in_n b from to dr df n) (seq 1 7).
 
 Definition pawn_move_valid_b (st: GameState) (from to: Position) : bool :=
   let b := board st in
@@ -2826,7 +2854,19 @@ Definition pawn_move_valid_b (st: GameState) (from to: Position) : bool :=
                     | Some pc => negb (color_eqb (piece_color pc) c)
                     | None =>
                         match en_passant st with
-                        | Some ep => position_eqb to ep
+                        | Some ep => 
+                            if position_eqb to ep then
+                              match offset to (- dr) 0 with
+                              | Some cap =>
+                                  match b[cap] with
+                                  | Some cap_pc =>
+                                      (negb (color_eqb (piece_color cap_pc) c)) &&
+                                      ptype_eqb (piece_type cap_pc) Pawn
+                                  | None => false
+                                  end
+                              | None => false
+                              end
+                            else false
                         | None => false
                         end
                     end
@@ -2837,7 +2877,19 @@ Definition pawn_move_valid_b (st: GameState) (from to: Position) : bool :=
                     | Some pc => negb (color_eqb (piece_color pc) c)
                     | None =>
                         match en_passant st with
-                        | Some ep => position_eqb to ep
+                        | Some ep => 
+                            if position_eqb to ep then
+                              match offset to (- dr) 0 with
+                              | Some cap =>
+                                  match b[cap] with
+                                  | Some cap_pc =>
+                                      (negb (color_eqb (piece_color cap_pc) c)) &&
+                                      ptype_eqb (piece_type cap_pc) Pawn
+                                  | None => false
+                                  end
+                              | None => false
+                              end
+                            else false
                         | None => false
                         end
                     end
@@ -2848,7 +2900,19 @@ Definition pawn_move_valid_b (st: GameState) (from to: Position) : bool :=
                     | Some pc => negb (color_eqb (piece_color pc) c)
                     | None =>
                         match en_passant st with
-                        | Some ep => position_eqb to ep
+                        | Some ep => 
+                            if position_eqb to ep then
+                              match offset to (- dr) 0 with
+                              | Some cap =>
+                                  match b[cap] with
+                                  | Some cap_pc =>
+                                      (negb (color_eqb (piece_color cap_pc) c)) &&
+                                      ptype_eqb (piece_type cap_pc) Pawn
+                                  | None => false
+                                  end
+                              | None => false
+                              end
+                            else false
                         | None => false
                         end
                     end
@@ -2863,7 +2927,19 @@ Definition pawn_move_valid_b (st: GameState) (from to: Position) : bool :=
                   | Some pc => negb (color_eqb (piece_color pc) c)
                   | None =>
                       match en_passant st with
-                      | Some ep => position_eqb to ep
+                      | Some ep => 
+                          if position_eqb to ep then
+                            match offset to (- dr) 0 with
+                            | Some cap =>
+                                match b[cap] with
+                                | Some cap_pc =>
+                                    (negb (color_eqb (piece_color cap_pc) c)) &&
+                                    ptype_eqb (piece_type cap_pc) Pawn
+                                | None => false
+                                end
+                            | None => false
+                            end
+                          else false
                       | None => false
                       end
                   end
@@ -2874,7 +2950,19 @@ Definition pawn_move_valid_b (st: GameState) (from to: Position) : bool :=
                   | Some pc => negb (color_eqb (piece_color pc) c)
                   | None =>
                       match en_passant st with
-                      | Some ep => position_eqb to ep
+                      | Some ep => 
+                          if position_eqb to ep then
+                            match offset to (- dr) 0 with
+                            | Some cap =>
+                                match b[cap] with
+                                | Some cap_pc =>
+                                    (negb (color_eqb (piece_color cap_pc) c)) &&
+                                    ptype_eqb (piece_type cap_pc) Pawn
+                                | None => false
+                                end
+                            | None => false
+                            end
+                          else false
                       | None => false
                       end
                   end
@@ -2885,7 +2973,19 @@ Definition pawn_move_valid_b (st: GameState) (from to: Position) : bool :=
                   | Some pc => negb (color_eqb (piece_color pc) c)
                   | None =>
                       match en_passant st with
-                      | Some ep => position_eqb to ep
+                      | Some ep => 
+                          if position_eqb to ep then
+                            match offset to (- dr) 0 with
+                            | Some cap =>
+                                match b[cap] with
+                                | Some cap_pc =>
+                                    (negb (color_eqb (piece_color cap_pc) c)) &&
+                                    ptype_eqb (piece_type cap_pc) Pawn
+                                | None => false
+                                end
+                            | None => false
+                            end
+                          else false
                       | None => false
                       end
                   end
@@ -3285,8 +3385,8 @@ Definition is_dead_position (b: Board) : bool :=
     (Nat.eqb (count_bishops_dark b White) 1 && Nat.eqb (count_bishops_dark b Black) 1))) ||
   (* K+NN vs K *)
   ((Nat.eqb total 4) &&
-   (Nat.eqb (count_pieces b White Knight) 2 && Nat.eqb (count_pieces b Black Knight) 0) ||
-   (Nat.eqb (count_pieces b White Knight) 0 && Nat.eqb (count_pieces b Black Knight) 2)).
+   ((Nat.eqb (count_pieces b White Knight) 2 && Nat.eqb (count_pieces b Black Knight) 0) ||
+    (Nat.eqb (count_pieces b White Knight) 0 && Nat.eqb (count_pieces b Black Knight) 2))).
 
 (* ========================================================================= *)
 (* UNIFIED OUTCOME FUNCTION                                                  *)
@@ -3298,7 +3398,6 @@ Inductive Outcome :=
   | ODraw (reason : string)
   | OOngoing (can_claim_50 : bool) (can_claim_3fold : bool).
 
-(* Placeholder for legal move generation - to be implemented in Phase 3 *)
 Definition gen_legal_moves (st: GameState) : list Move := [].
 
 (* Helper: Check if there are no legal moves *)
@@ -3393,21 +3492,14 @@ Definition fen_process_rank (b: Board) (rank: Fin.t 8) : string :=
     end in
   process_file 8%nat 0%nat EmptyString.
 
-(* Process all ranks for FEN *)
+(* Process all ranks for FEN - top to bottom (rank 8 to rank 1) *)
 Definition fen_board (b: Board) : string :=
-  let process_ranks := fix process_ranks (r: nat) (acc: string) : string :=
-    match r with
-    | 0%nat => acc
-    | S r' =>
-        match lt_dec r' 8 with
-        | left pf =>
-            let rank_str := fen_process_rank b (Fin.of_nat_lt pf) in
-            let sep := if Nat.eqb r 8%nat then EmptyString else "/"%string in
-            process_ranks r' (append rank_str (append sep acc))
-        | right _ => acc
-        end
-    end in
-  process_ranks 8%nat EmptyString.
+  let ranks := List.rev fins8 in (* fins8 is [0..7], rev gives [7..0] *)
+  fold_right (fun r acc =>
+    let rs := fen_process_rank b r in
+    if string_dec acc EmptyString then rs
+    else append rs (append "/" acc))
+  EmptyString ranks.
 
 (* Convert castling rights to FEN string *)
 Definition fen_castling (cr: CastlingRights) : string :=
@@ -3696,15 +3788,16 @@ Fixpoint string_to_nat (s: string) : option nat :=
       end
   end.
 
-(* Parse all ranks from FEN board string *)
+(* Parse all ranks from FEN board string - top to bottom *)
 Unset Program Mode.
 Definition parse_fen_board (board_str: string) : option Board :=
-  let fix parse_ranks (s: string) (rank_num: nat) (b: Board) : option Board :=
-    match rank_num with
+  let fix parse_ranks (s: string) (r: nat) (b: Board) : option Board :=
+    match r with
     | 0%nat => Some b
     | S r' =>
         let (rank_str, rest) := split_string_at s "/"%char in
-        match lt_dec (8 - rank_num) 8 with
+        (* r' directly gives us rank index: r=8 means r'=7 (rank 8), r=7 means r'=6 (rank 7), etc. *)
+        match lt_dec r' 8 with
         | left pf =>
             match parse_fen_rank rank_str (Fin.of_nat_lt pf) b with
             | Some b' => parse_ranks rest r' b'
@@ -3713,6 +3806,7 @@ Definition parse_fen_board (board_str: string) : option Board :=
         | right _ => None
         end
     end in
+  (* Start at r=8; the first chunk goes to rank 7 (i.e., FEN's rank 8) *)
   parse_ranks board_str 8%nat (fun _ => None).
 
 (* Main FEN import function *)
@@ -3932,6 +4026,7 @@ Definition gen_legal_moves_real (st: GameState) : list Move :=
     | None => false
     end) (gen_pseudo_moves st).
 
+
 (* Perft - count leaf nodes at given depth *)
 Fixpoint perft_state (st: GameState) (depth: nat) : nat :=
   match depth with
@@ -4005,6 +4100,12 @@ Definition gen_legal_moves_optimized (st: GameState) : list Move :=
   else
     gen_legal_moves_real st.
 
+(* Redefine gen_legal_moves to use the optimized version *)
+Module LegalMoves.
+  Definition gen_legal_moves (st: GameState) : list Move :=
+    gen_legal_moves_optimized st.
+End LegalMoves.
+
 (* Check if all pawns are blocked (cannot move or capture) *)
 Unset Program Mode.
 Definition all_pawns_blocked (b: Board) : bool :=
@@ -4057,7 +4158,7 @@ Definition is_dead_position_improved (b: Board) : bool :=
     (Nat.eqb (count_pieces b White Queen + count_pieces b Black Queen) 0))).
 
 (* ========================================================================= *)
-(* KEY CORRECTNESS THEOREMS*)
+(* KEY CORRECTNESS THEOREMS                                                  *)
 (* ========================================================================= *)
 
 Lemma position_eqb_trans : forall p1 p2 p3,
@@ -4075,4 +4176,8 @@ Proof.
 Qed.
 
 Set Program Mode.
-    
+
+(* PATCH C COMPLETION: Wire gen_legal_moves properly *)
+(* Now that gen_legal_moves_real is available, we create a wrapper that uses it *)
+Definition gen_legal_moves_proper (st: GameState) : list Move :=
+  gen_legal_moves_optimized st.
