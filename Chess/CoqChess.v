@@ -4444,18 +4444,155 @@ Definition is_dead_position_improved (b: Board) : bool :=
 (* KEY CORRECTNESS THEOREMS                                                 *)
 (* ========================================================================= *)
 
-Lemma position_eqb_trans : forall p1 p2 p3,
-  position_eqb p1 p2 = true ->
-  position_eqb p2 p3 = true ->
-  position_eqb p1 p3 = true.
+(* Moving from a square turns off associated castling rights *)
+Theorem halfmove_after_pawn : forall st from to,
+  board st from = Some (mkPiece (turn st) Pawn) ->
+  halfmove_after st from to = 0%nat.
 Proof.
-  intros p1 p2 p3 H12 H23.
-  destruct (position_eqb_spec p1 p2); try discriminate.
-  destruct (position_eqb_spec p2 p3); try discriminate.
-  subst.
-  destruct (position_eqb_spec p3 p3).
+  intros st from to H.
+  unfold halfmove_after.
+  unfold board_get.
+  rewrite H.
+  simpl.
+  reflexivity.
+Qed.
+
+Theorem halfmove_after_capture : forall st from to pc_from pc_to,
+  board st from = Some pc_from ->
+  board st to = Some pc_to ->
+  halfmove_after st from to = 0%nat.
+Proof.
+  intros st from to pc_from pc_to Hfrom Hto.
+  unfold halfmove_after.
+  unfold board_get.
+  rewrite Hfrom.
+  rewrite Hto.
+  simpl.
+  destruct pc_from. simpl.
+  destruct piece_type0; simpl; reflexivity.
+Qed.
+
+Theorem fullmove_after_white : forall st,
+  turn st = White ->
+  fullmove_after st = fullmove st.
+Proof.
+  intros st H.
+  unfold fullmove_after.
+  rewrite H.
+  reflexivity.
+Qed.
+
+Theorem fullmove_after_black : forall st,
+  turn st = Black ->
+  fullmove_after st = S (fullmove st).
+Proof.
+  intros st H.
+  unfold fullmove_after.
+  rewrite H.
+  reflexivity.
+Qed.
+
+Theorem board_set_get_same : forall b p x,
+  board_set b p x p = x.
+Proof.
+  intros b p x.
+  unfold board_set.
+  destruct (Position_dec p p).
   - reflexivity.
-  - contradiction.
+  - contradiction n. reflexivity.
+Qed.
+
+Theorem board_set_get_diff : forall b p q x,
+  p <> q ->
+  board_set b p x q = b q.
+Proof.
+  intros b p q x H.
+  unfold board_set.
+  destruct (Position_dec q p).
+  - subst. contradiction.
+  - reflexivity.
+Qed.
+
+Theorem board_move_src_empty : forall b src dst,
+  src <> dst ->
+  (board_move b src dst) src = None.
+Proof.
+  intros b src dst H.
+  unfold board_move.
+  unfold board_get, board_set.
+  destruct (Position_dec src src).
+  - destruct (Position_dec src dst).
+    + subst. contradiction.
+    + reflexivity.
+  - contradiction n. reflexivity.
+Qed.
+
+Theorem board_move_dst_has_piece : forall b src dst pc,
+  b src = Some pc ->
+  src <> dst ->
+  (board_move b src dst) dst = Some pc.
+Proof.
+  intros b src dst pc H Hneq.
+  unfold board_move.
+  unfold board_get, board_set.
+  destruct (Position_dec dst dst).
+  - rewrite H.
+    destruct (Position_dec dst src).
+    + subst. contradiction.
+    + reflexivity.
+  - contradiction n. reflexivity.
+Qed.
+
+Theorem occupied_true_iff_some : forall b p,
+  occupied b p = true <-> exists pc, b[p] = Some pc.
+Proof.
+  intros b p.
+  unfold occupied.
+  split.
+  - intro H.
+    destruct (b[p]) eqn:E.
+    + exists p0. reflexivity.
+    + discriminate.
+  - intros [pc Hpc].
+    rewrite Hpc. reflexivity.
+Qed.
+
+Theorem occupied_false_iff_none : forall b p,
+  occupied b p = false <-> b[p] = None.
+Proof.
+  intros b p.
+  unfold occupied.
+  split.
+  - intro H.
+    destruct (b[p]) eqn:E.
+    + discriminate.
+    + reflexivity.
+  - intro H.
+    rewrite H. reflexivity.
+Qed.
+
+Theorem opposite_color_twice : forall c,
+  opposite_color (opposite_color c) = c.
+Proof.
+  intro c.
+  destruct c; reflexivity.
+Qed.
+
+Theorem occupied_by_true_iff : forall b p c,
+  occupied_by b p c = true <-> 
+  exists pc, b[p] = Some pc /\ piece_color pc = c.
+Proof.
+  intros b p c.
+  unfold occupied_by.
+  split.
+  - intro H.
+    destruct (b[p]) eqn:E.
+    + exists p0. split; [reflexivity|].
+      apply color_eqb_true_iff. exact H.
+    + discriminate.
+  - intros [pc [Hpc Hcolor]].
+    rewrite Hpc. subst.
+    apply color_eqb_true_iff. reflexivity.
 Qed.
 
 Set Program Mode.
@@ -4580,4 +4717,3 @@ Compute match test_position_1 with
 | Some st => perft_state st 3
 | None => 0%nat
 end.    
-    
