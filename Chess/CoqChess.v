@@ -3806,61 +3806,32 @@ Proof.
   - apply can_castle_b_black_queen_side_empty; assumption.
 Qed.
 
-Lemma can_castle_b_extract_not_check : forall st side,
+Lemma can_castle_b_extract_preconditions : forall st side,
   can_castle_b st side = true ->
-  in_check_b (board st) (turn st) = false.
+  let c := turn st in
+  let b := board st in
+  let ks := if color_eqb c White then white_king_start else black_king_start in
+  let rs := rook_start c side in
+  (match c, side with
+   | White, KingSide => white_king_side (castling st) = true
+   | White, QueenSide => white_queen_side (castling st) = true
+   | Black, KingSide => black_king_side (castling st) = true
+   | Black, QueenSide => black_queen_side (castling st) = true
+   end) /\
+  b[ks] = Some (mkPiece c King) /\
+  b[rs] = Some (mkPiece c Rook) /\
+  list_all_empty b (king_corridor c side ++ rook_corridor c side).
 Proof.
   intros st side H.
-  unfold can_castle_b in H.
-  destruct (turn st) eqn:Ec, side; simpl in H.
-  - (* White KingSide *)
-    destruct (white_king_side (castling st)); simpl in H; try discriminate.
-    destruct ((board st)[white_king_start]); simpl in H; try discriminate.
-    destruct ((board st)[white_rook_king_side]); simpl in H; try discriminate.
-    destruct (piece_eqb p (mkPiece White King)); simpl in H; try discriminate.
-    destruct (piece_eqb p0 (mkPiece White Rook)); simpl in H; try discriminate.
-    destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end)
-                      (king_corridor White KingSide ++ rook_corridor White KingSide)); 
-    simpl in H; try discriminate.
-    destruct (in_check_b (board st) White) eqn:Hcheck; simpl in H.
-    + rewrite Hcheck in H. simpl in H. discriminate.
+  split.
+  - apply can_castle_b_extract_right with (c := turn st).
     + reflexivity.
-  - (* White QueenSide *)
-    destruct (white_queen_side (castling st)); simpl in H; try discriminate.
-    destruct ((board st)[white_king_start]); simpl in H; try discriminate.
-    destruct ((board st)[white_rook_queen_side]); simpl in H; try discriminate.
-    destruct (piece_eqb p (mkPiece White King)); simpl in H; try discriminate.
-    destruct (piece_eqb p0 (mkPiece White Rook)); simpl in H; try discriminate.
-    destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end)
-                      (king_corridor White QueenSide ++ rook_corridor White QueenSide)); 
-    simpl in H; try discriminate.
-    destruct (in_check_b (board st) White) eqn:Hcheck; simpl in H.
-    + rewrite Hcheck in H. simpl in H. discriminate.
-    + reflexivity.
-  - (* Black KingSide *)
-    destruct (black_king_side (castling st)); simpl in H; try discriminate.
-    destruct ((board st)[black_king_start]); simpl in H; try discriminate.
-    destruct ((board st)[black_rook_king_side]); simpl in H; try discriminate.
-    destruct (piece_eqb p (mkPiece Black King)); simpl in H; try discriminate.
-    destruct (piece_eqb p0 (mkPiece Black Rook)); simpl in H; try discriminate.
-    destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end)
-                      (king_corridor Black KingSide ++ rook_corridor Black KingSide)); 
-    simpl in H; try discriminate.
-    destruct (in_check_b (board st) Black) eqn:Hcheck; simpl in H.
-    + rewrite Hcheck in H. simpl in H. discriminate.
-    + reflexivity.
-  - (* Black QueenSide *)
-    destruct (black_queen_side (castling st)); simpl in H; try discriminate.
-    destruct ((board st)[black_king_start]); simpl in H; try discriminate.
-    destruct ((board st)[black_rook_queen_side]); simpl in H; try discriminate.
-    destruct (piece_eqb p (mkPiece Black King)); simpl in H; try discriminate.
-    destruct (piece_eqb p0 (mkPiece Black Rook)); simpl in H; try discriminate.
-    destruct (forallb (fun p => match (board st)[p] with None => true | _ => false end)
-                      (king_corridor Black QueenSide ++ rook_corridor Black QueenSide)); 
-    simpl in H; try discriminate.
-    destruct (in_check_b (board st) Black) eqn:Hcheck; simpl in H.
-    + rewrite Hcheck in H. simpl in H. discriminate.
-    + reflexivity.
+    + assumption.
+  - split.
+    + apply can_castle_b_extract_pieces in H. apply H.
+    + split.
+      * apply can_castle_b_extract_pieces in H. apply H.
+      * apply can_castle_b_extract_empty. assumption.
 Qed.
 
 Definition gen_castles (st: GameState) : list Move :=
@@ -4608,4 +4579,5 @@ end.
 Compute match test_position_1 with
 | Some st => perft_state st 3
 | None => 0%nat
-end.
+end.    
+    
