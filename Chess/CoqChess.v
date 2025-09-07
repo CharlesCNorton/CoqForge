@@ -2733,13 +2733,13 @@ Inductive Step : GameState -> Move -> GameState -> Prop :=
       (* Destination OK: empty or enemy (not a king) *)
       can_capture b to c ->
       
-      (* Promotion constraints when present *)
-      (match promo with
-       | None => True
-       | Some pt => is_valid_promotion pt = true /\
-                    exists pc, b[from] = Some pc /\ piece_type pc = Pawn /\
-                    ((c = White /\ rankZ to = 7) \/ (c = Black /\ rankZ to = 0))
-       end) ->
+      (* Promotion constraints: promotion iff pawn reaches last rank *)
+      (exists pc, b[from] = Some pc /\
+        (piece_type pc = Pawn ->
+          let is_last_rank := (c = White /\ rankZ to = 7) \/ (c = Black /\ rankZ to = 0) in
+          (is_last_rank <-> promo <> None) /\
+          (match promo with None => True | Some pt => is_valid_promotion pt = true end)) /\
+        (piece_type pc <> Pawn -> promo = None)) ->
       
       (* No self-check after the move *)
       in_check_b (next_board_normal st from to promo) c = false ->
@@ -3072,6 +3072,22 @@ Definition ep_relevant_b (st: GameState) : option Position :=
       if can_capture_left || can_capture_right then Some ep_target else None
   end.
 
+Definition promotion_ok (st: GameState) (from to: Position) (promo: option PieceType) : bool :=
+  match (board st)[from] with
+  | Some pc =>
+      if ptype_eqb (piece_type pc) Pawn then
+        let last := (color_eqb (piece_color pc) White && Z.eqb (rankZ to) 7) ||
+                    (color_eqb (piece_color pc) Black && Z.eqb (rankZ to) 0) in
+        match last, promo with
+        | true, Some pt => is_valid_promotion pt
+        | true, None => false
+        | false, Some _ => false
+        | false, None => true
+        end
+      else match promo with None => true | Some _ => false end
+  | None => false
+  end.
+
 (* Boolean move application *)
 Definition apply_move_b (st: GameState) (m: Move) : option GameState :=
   match m with
@@ -3082,8 +3098,8 @@ Definition apply_move_b (st: GameState) (m: Move) : option GameState :=
       | Some pc =>
           if negb (color_eqb (piece_color pc) (turn st)) then None
           else if negb (move_geometry_valid_b st from to) then None
+          else if negb (promotion_ok st from to promo) then None
           else 
-            (* Check destination is capturable *)
             match b[to] with
             | Some target => 
                 if color_eqb (piece_color target) (turn st) then None
@@ -3396,7 +3412,178 @@ Inductive Outcome :=
   | ODraw (reason : string)
   | OOngoing (can_claim_50 : bool) (can_claim_3fold : bool).
 
-Definition gen_legal_moves (st: GameState) : list Move := [].
+Definition gen_knight_moves (b: Board) (from: Position) (c: Color) : list Move :=
+  let moves := 
+    List.map (fun od =>
+      match offset from (fst od) (snd od) with
+      | Some to =>
+          match b[to] with
+          | Some pc =>
+              if negb (color_eqb (piece_color pc) c) then
+                [MNormal from to None]
+              else []
+          | None => [MNormal from to None]
+          end
+      | None => []
+      end) knight_offsets in
+  List.concat moves.
+
+Definition gen_king_moves (b: Board) (from: Position) (c: Color) : list Move :=
+  let moves :=
+    List.map (fun od =>
+      match offset from (fst od) (snd od) with
+      | Some to =>
+          match b[to] with
+          | Some pc =>
+              if negb (color_eqb (piece_color pc) c) then
+                [MNormal from to None]
+              else []
+          | None => [MNormal from to None]
+          end
+      | None => []
+      end) king_offsets in
+  List.concat moves.
+
+Definition gen_slider_moves (b: Board) (from: Position) (c: Color) (dirs: list (Z * Z)) : list Move :=
+  let moves :=
+    List.map (fun dir =>
+      gen_ray_moves b from (fst dir) (snd dir) 7 nil) dirs in
+  let valid_moves :=
+    List.filter (fun to =>
+      match b[to] with
+      | Some pc => negb (color_eqb (piece_color pc) c)
+      | None => true
+      end) (List.concat moves) in
+  List.map (fun to => MNormal from to None) valid_moves.
+
+Definition gen_pawn_pushes (b: Board) (from: Position) (c: Color) : list Move :=
+  let dr := forwardZ c in
+  let moves1 :=
+    match offset from dr 0 with
+    | Some to =>
+        if match b[to] with None => true | _ => false end then
+          let is_promo := ((color_eqb c White) && (Z.eqb (rankZ to) 7)) || 
+                          ((color_eqb c Black) && (Z.eqb (rankZ to) 0)) in
+          if is_promo then
+            [MNormal from to (Some Queen); MNormal from to (Some Rook);
+             MNormal from to (Some Bishop); MNormal from to (Some Knight)]
+          else [MNormal from to None]
+        else nil
+    | None => nil
+    end in
+  let moves2 :=
+    let start_rank := if color_eqb c White then 1 else 6 in
+    if Z.eqb (rankZ from) start_rank then
+      match offset from dr 0 with
+      | Some mid =>
+          if match b[mid] with None => true | _ => false end then
+            match offset from (2 * dr) 0 with
+            | Some to =>
+                if match b[to] with None => true | _ => false end then
+                  [MNormal from to None]
+                else nil
+            | None => nil
+            end
+          else nil
+      | None => nil
+      end
+    else nil in
+  moves1 ++ moves2.
+
+Definition gen_pawn_captures (st: GameState) (from: Position) (c: Color) : list Move :=
+  let b := board st in
+  let dr := forwardZ c in
+  let cap_moves := 
+    List.concat (List.map (fun df =>
+      match offset from dr df with
+      | Some to =>
+          let is_promo := ((color_eqb c White) && (Z.eqb (rankZ to) 7)) || 
+                          ((color_eqb c Black) && (Z.eqb (rankZ to) 0)) in
+          match b[to] with
+          | Some pc =>
+              if negb (color_eqb (piece_color pc) c) then
+                if is_promo then
+                  [MNormal from to (Some Queen); MNormal from to (Some Rook);
+                   MNormal from to (Some Bishop); MNormal from to (Some Knight)]
+                else [MNormal from to None]
+              else nil
+          | None =>
+              match en_passant st with
+              | Some ep =>
+                  if position_eqb to ep then [MNormal from to None]
+                  else nil
+              | None => nil
+              end
+          end
+      | None => nil
+      end) (1 :: (-1) :: nil)) in
+  cap_moves.
+
+Definition can_castle_b (st: GameState) (side: CastleSide) : bool :=
+  let c := turn st in
+  let b := board st in
+  let has_right := 
+    match c, side with
+    | White, KingSide => white_king_side (castling st)
+    | White, QueenSide => white_queen_side (castling st)  
+    | Black, KingSide => black_king_side (castling st)
+    | Black, QueenSide => black_queen_side (castling st)
+    end in
+  if negb has_right then false
+  else
+    let ks := if color_eqb c White then white_king_start else black_king_start in
+    let rs := rook_start c side in
+    match b[ks], b[rs] with
+    | Some kpc, Some rpc =>
+        if negb (piece_eqb kpc (mkPiece c King)) then false
+        else if negb (piece_eqb rpc (mkPiece c Rook)) then false
+        else
+          let empty_check := 
+            forallb (fun p => match b[p] with None => true | _ => false end)
+                    (king_corridor c side ++ rook_corridor c side) in
+          if negb empty_check then false
+          else
+            if in_check_b b c then false
+            else
+              forallb (fun p => negb (attacks_b b (opposite_color c) p))
+                      (ks :: king_corridor c side)
+    | _, _ => false
+    end.
+
+Definition gen_castles (st: GameState) : list Move :=
+  let moves := nil in
+  let moves := if can_castle_b st KingSide then MCastle KingSide :: moves else moves in
+  let moves := if can_castle_b st QueenSide then MCastle QueenSide :: moves else moves in
+  moves.
+
+Definition gen_pseudo_moves (st: GameState) : list Move :=
+  let b := board st in
+  let c := turn st in
+  let piece_moves :=
+    List.concat (List.map (fun pos =>
+      match b[pos] with
+      | Some pc =>
+          if color_eqb (piece_color pc) c then
+            match piece_type pc with
+            | Pawn => gen_pawn_pushes b pos c ++ gen_pawn_captures st pos c
+            | Knight => gen_knight_moves b pos c
+            | Bishop => gen_slider_moves b pos c ((1,1)%Z :: (1,-1)%Z :: (-1,1)%Z :: (-1,-1)%Z :: nil)
+            | Rook => gen_slider_moves b pos c ((1,0)%Z :: (-1,0)%Z :: (0,1)%Z :: (0,-1)%Z :: nil)
+            | Queen => gen_slider_moves b pos c ((1,1)%Z :: (1,-1)%Z :: (-1,1)%Z :: (-1,-1)%Z ::
+                                                  (1,0)%Z :: (-1,0)%Z :: (0,1)%Z :: (0,-1)%Z :: nil)
+            | King => gen_king_moves b pos c
+            end
+          else nil
+      | None => nil
+      end) all_positions) in
+  piece_moves ++ gen_castles st.
+
+Definition gen_legal_moves (st: GameState) : list Move :=
+  List.filter (fun m =>
+    match apply_move_b st m with
+    | Some _ => true
+    | None => false
+    end) (gen_pseudo_moves st).
 
 (* Helper: Check if there are no legal moves *)
 Definition no_moves_b (st: GameState) : bool :=
@@ -3837,191 +4024,6 @@ Definition state_of_fen (fen: string) : option GameState :=
       end
   end.
 
-(* ========================================================================= *)
-(* PHASE 3: MOVE GENERATION                                                  *)
-(* ========================================================================= *)
-
-(* Generate knight moves from a position *)
-Definition gen_knight_moves (b: Board) (from: Position) (c: Color) : list Move :=
-  let moves := 
-    List.map (fun od =>
-      match offset from (fst od) (snd od) with
-      | Some to =>
-          match b[to] with
-          | Some pc =>
-              if negb (color_eqb (piece_color pc) c) then
-                [MNormal from to None]
-              else []
-          | None => [MNormal from to None]
-          end
-      | None => []
-      end) knight_offsets in
-  List.concat moves.
-
-(* Generate king moves from a position *)
-Definition gen_king_moves (b: Board) (from: Position) (c: Color) : list Move :=
-  let moves :=
-    List.map (fun od =>
-      match offset from (fst od) (snd od) with
-      | Some to =>
-          match b[to] with
-          | Some pc =>
-              if negb (color_eqb (piece_color pc) c) then
-                [MNormal from to None]
-              else []
-          | None => [MNormal from to None]
-          end
-      | None => []
-      end) king_offsets in
-  List.concat moves.
-
-(* Generate slider moves (for rook, bishop, queen) *)
-Definition gen_slider_moves (b: Board) (from: Position) (c: Color) (dirs: list (Z * Z)) : list Move :=
-  let moves :=
-    List.map (fun dir =>
-      gen_ray_moves b from (fst dir) (snd dir) 7 nil) dirs in
-  let valid_moves :=
-    List.filter (fun to =>
-      match b[to] with
-      | Some pc => negb (color_eqb (piece_color pc) c)
-      | None => true
-      end) (List.concat moves) in
-  List.map (fun to => MNormal from to None) valid_moves.
-
-(* Generate pawn pushes (forward moves) *)
-Definition gen_pawn_pushes (b: Board) (from: Position) (c: Color) : list Move :=
-  let dr := forwardZ c in
-  let moves1 :=
-    match offset from dr 0 with
-    | Some to =>
-        if match b[to] with None => true | _ => false end then
-          let is_promo := ((color_eqb c White) && (Z.eqb (rankZ to) 7)) || 
-                          ((color_eqb c Black) && (Z.eqb (rankZ to) 0)) in
-          if is_promo then
-            [MNormal from to (Some Queen); MNormal from to (Some Rook);
-             MNormal from to (Some Bishop); MNormal from to (Some Knight)]
-          else [MNormal from to None]
-        else nil
-    | None => nil
-    end in
-  let moves2 :=
-    let start_rank := if color_eqb c White then 1 else 6 in
-    if Z.eqb (rankZ from) start_rank then
-      match offset from dr 0 with
-      | Some mid =>
-          if match b[mid] with None => true | _ => false end then
-            match offset from (2 * dr) 0 with
-            | Some to =>
-                if match b[to] with None => true | _ => false end then
-                  [MNormal from to None]
-                else nil
-            | None => nil
-            end
-          else nil
-      | None => nil
-      end
-    else nil in
-  moves1 ++ moves2.
-
-(* Generate pawn captures *)
-Definition gen_pawn_captures (st: GameState) (from: Position) (c: Color) : list Move :=
-  let b := board st in
-  let dr := forwardZ c in
-  let cap_moves := 
-    List.concat (List.map (fun df =>
-      match offset from dr df with
-      | Some to =>
-          let is_promo := ((color_eqb c White) && (Z.eqb (rankZ to) 7)) || 
-                          ((color_eqb c Black) && (Z.eqb (rankZ to) 0)) in
-          match b[to] with
-          | Some pc =>
-              if negb (color_eqb (piece_color pc) c) then
-                if is_promo then
-                  [MNormal from to (Some Queen); MNormal from to (Some Rook);
-                   MNormal from to (Some Bishop); MNormal from to (Some Knight)]
-                else [MNormal from to None]
-              else nil
-          | None =>
-              match en_passant st with
-              | Some ep =>
-                  if position_eqb to ep then [MNormal from to None]
-                  else nil
-              | None => nil
-              end
-          end
-      | None => nil
-      end) (1 :: (-1) :: nil)) in
-  cap_moves.
-
-(* Check if castling is possible (boolean version) *)
-Definition can_castle_b (st: GameState) (side: CastleSide) : bool :=
-  let c := turn st in
-  let b := board st in
-  let has_right := 
-    match c, side with
-    | White, KingSide => white_king_side (castling st)
-    | White, QueenSide => white_queen_side (castling st)  
-    | Black, KingSide => black_king_side (castling st)
-    | Black, QueenSide => black_queen_side (castling st)
-    end in
-  if negb has_right then false
-  else
-    let ks := if color_eqb c White then white_king_start else black_king_start in
-    let rs := rook_start c side in
-    match b[ks], b[rs] with
-    | Some kpc, Some rpc =>
-        if negb (piece_eqb kpc (mkPiece c King)) then false
-        else if negb (piece_eqb rpc (mkPiece c Rook)) then false
-        else
-          let empty_check := 
-            forallb (fun p => match b[p] with None => true | _ => false end)
-                    (king_corridor c side ++ rook_corridor c side) in
-          if negb empty_check then false
-          else
-            if in_check_b b c then false
-            else
-              forallb (fun p => negb (attacks_b b (opposite_color c) p))
-                      (ks :: king_corridor c side)
-    | _, _ => false
-    end.
-
-(* Generate castling moves *)
-Definition gen_castles (st: GameState) : list Move :=
-  let moves := nil in
-  let moves := if can_castle_b st KingSide then MCastle KingSide :: moves else moves in
-  let moves := if can_castle_b st QueenSide then MCastle QueenSide :: moves else moves in
-  moves.
-
-(* Generate all pseudo-legal moves for current player *)
-Definition gen_pseudo_moves (st: GameState) : list Move :=
-  let b := board st in
-  let c := turn st in
-  let piece_moves :=
-    List.concat (List.map (fun pos =>
-      match b[pos] with
-      | Some pc =>
-          if color_eqb (piece_color pc) c then
-            match piece_type pc with
-            | Pawn => gen_pawn_pushes b pos c ++ gen_pawn_captures st pos c
-            | Knight => gen_knight_moves b pos c
-            | Bishop => gen_slider_moves b pos c ((1,1)%Z :: (1,-1)%Z :: (-1,1)%Z :: (-1,-1)%Z :: nil)
-            | Rook => gen_slider_moves b pos c ((1,0)%Z :: (-1,0)%Z :: (0,1)%Z :: (0,-1)%Z :: nil)
-            | Queen => gen_slider_moves b pos c ((1,1)%Z :: (1,-1)%Z :: (-1,1)%Z :: (-1,-1)%Z ::
-                                                  (1,0)%Z :: (-1,0)%Z :: (0,1)%Z :: (0,-1)%Z :: nil)
-            | King => gen_king_moves b pos c
-            end
-          else nil
-      | None => nil
-      end) all_positions) in
-  piece_moves ++ gen_castles st.
-
-Unset Program Mode.
-Definition gen_legal_moves_real (st: GameState) : list Move :=
-  List.filter (fun m =>
-    match apply_move_b st m with
-    | Some _ => true
-    | None => false
-    end) (gen_pseudo_moves st).
 
 
 (* Perft - count leaf nodes at given depth *)
@@ -4029,7 +4031,7 @@ Fixpoint perft_state (st: GameState) (depth: nat) : nat :=
   match depth with
   | 0%nat => 1%nat
   | S d =>
-      let moves := gen_legal_moves_real st in
+      let moves := gen_legal_moves st in
       List.fold_left (fun acc m =>
         match apply_move_b st m with
         | Some st' => Nat.add acc (perft_state st' d)
@@ -4088,14 +4090,14 @@ Definition gen_check_evasions (st: GameState) : list Move :=
      1. King moves to safe squares
      2. Captures of the checking piece
      3. Blocks (for sliding piece checks) *)
-  gen_legal_moves_real st.
+  gen_legal_moves st.
 
 (* Optimized legal move generation *)
 Definition gen_legal_moves_optimized (st: GameState) : list Move :=
   if in_check_b (board st) (turn st) then
     gen_check_evasions st
   else
-    gen_legal_moves_real st.
+    gen_legal_moves st.
 
 Module LegalMoves.
   Definition gen_legal_moves (st: GameState) : list Move :=
