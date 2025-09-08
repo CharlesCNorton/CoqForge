@@ -2338,6 +2338,7 @@ Proof.
   replace (Nat.pred n) with (n - 1)%nat by lia. exact Hclear.
 Qed.
 
+
 (* Helper: extract piece info and build attack *)
 Lemma bishop_piece_builds_attack : forall b s t c dr df n,
   b[s] = Some (mkPiece c Bishop) ->
@@ -2826,9 +2827,444 @@ Fixpoint reaches_in_n (b: Board) (from to: Position) (dr df: Z) (n: nat) : bool 
             end
       end
   end.
+  
+Lemma reaches_in_n_0 : forall b from to dr df,
+  reaches_in_n b from to dr df 0 = false.
+Proof.
+  intros. simpl. reflexivity.
+Qed.
+
+Lemma reaches_in_n_1 : forall b from to dr df,
+  reaches_in_n b from to dr df 1 = 
+  match offset from dr df with
+  | Some p1 => position_eqb p1 to
+  | None => false
+  end.
+Proof.
+  intros. simpl. 
+  destruct (offset from dr df); simpl; reflexivity.
+Qed.
+
+Lemma reaches_in_n_1_true : forall b from to dr df,
+  reaches_in_n b from to dr df 1 = true ->
+  offset from dr df = Some to.
+Proof.
+  intros b from to dr df H.
+  simpl in H.
+  destruct (offset from dr df) eqn:Eoff; try discriminate.
+  simpl in H.
+  destruct (position_eqb_spec p to); try discriminate.
+  subst. reflexivity.
+Qed.
+
+Lemma reaches_in_n_1_line_attack : forall b from to dr df,
+  reaches_in_n b from to dr df 1 = true ->
+  line_attacks_spec b from to dr df.
+Proof.
+  intros b from to dr df H.
+  apply reaches_in_n_1_true in H.
+  unfold line_attacks_spec.
+  exists 1%nat. split.
+  - lia.
+  - split.
+    + assert (Z.of_nat 1 * dr = dr) by ring.
+      assert (Z.of_nat 1 * df = df) by ring.
+      rewrite H0. rewrite H1. exact H.
+    + simpl. exact I.
+Qed.
+
+Lemma reaches_in_n_S_empty : forall b from to dr df n p1,
+  offset from dr df = Some p1 ->
+  b[p1] = None ->
+  reaches_in_n b from to dr df (S (S n)) = reaches_in_n b p1 to dr df (S n).
+Proof.
+  intros b from to dr df n p1 Hoff Hemp.
+  simpl.
+  rewrite Hoff.
+  destruct n; simpl.
+  - rewrite Hemp. reflexivity.
+  - rewrite Hemp. reflexivity.
+Qed.
+
+Lemma reaches_in_n_S_blocked : forall b from to dr df n p1,
+  offset from dr df = Some p1 ->
+  b[p1] <> None ->
+  reaches_in_n b from to dr df (S (S n)) = false.
+Proof.
+  intros b from to dr df n p1 Hoff Hocc.
+  simpl.
+  rewrite Hoff.
+  destruct n; simpl.
+  - destruct (b[p1]); try contradiction. reflexivity.
+  - destruct (b[p1]); try contradiction. reflexivity.
+Qed.
+
+Lemma reaches_in_n_2_direct : forall b from to dr df,
+  reaches_in_n b from to dr df 2 = true ->
+  offset from dr df = Some to \/
+  exists p1, offset from dr df = Some p1 /\ b[p1] = None /\ offset p1 dr df = Some to.
+Proof.
+  intros b from to dr df H.
+  simpl in H.
+  destruct (offset from dr df) as [p1|] eqn:Eoff; try discriminate.
+  destruct (position_eqb_spec p1 to).
+  - left. subst. reflexivity.
+  - right. simpl in H. 
+    destruct (b[p1]) eqn:Ebp1; try discriminate.
+    exists p1. split; [reflexivity|]. split; [exact Ebp1|].
+    simpl in H. destruct (offset p1 dr df) as [p2|] eqn:Eoff2; try discriminate.
+    destruct (position_eqb_spec p2 to); try discriminate.
+    subst. reflexivity.
+Qed.
+
+Lemma reaches_in_n_2_line_attack : forall b from to dr df,
+  reaches_in_n b from to dr df 2 = true ->
+  line_attacks_spec b from to dr df.
+Proof.
+  intros b from to dr df H.
+  apply reaches_in_n_2_direct in H.
+  destruct H as [H | H].
+  - apply reaches_in_n_1_line_attack. simpl. rewrite H. 
+    destruct (position_eqb_spec to to); congruence.
+  - destruct H as [p1 [Hoff1 [Hemp Hoff2]]].
+    unfold line_attacks_spec. exists 2%nat. split; [lia|]. split.
+    + assert (E1: Z.of_nat 2 * dr = dr + dr) by ring.
+      assert (E2: Z.of_nat 2 * df = df + df) by ring.
+      rewrite E1. rewrite E2. apply offset_compose with p1; assumption.
+    + simpl. rewrite Hoff1. split; [exact Hemp|]. simpl. exact I.
+Qed.
 
 Definition check_line_move (b: Board) (from to: Position) (dr df: Z) : bool :=
   existsb (fun n => reaches_in_n b from to dr df n) (seq 1 7).
+  
+Lemma reaches_in_n_offset : forall b from to dr df n,
+  reaches_in_n b from to dr df (S n) = true ->
+  n = 0%nat ->
+  offset from dr df = Some to.
+Proof.
+  intros b from to dr df n H Hn.
+  subst n. simpl in H.
+  destruct (offset from dr df) eqn:Eoff; try discriminate.
+  simpl in H.
+  destruct (position_eqb_spec p to); try discriminate.
+  subst. reflexivity.
+Qed.
+
+Lemma reaches_in_n_S_some : forall b from to dr df n,
+  reaches_in_n b from to dr df (S n) = true ->
+  exists p1, offset from dr df = Some p1.
+Proof.
+  intros b from to dr df n H.
+  simpl in H.
+  destruct (offset from dr df) eqn:Eoff.
+  - exists p. reflexivity.
+  - discriminate.
+Qed.
+
+Lemma reaches_in_n_S_step : forall b from to dr df n p1,
+  offset from dr df = Some p1 ->
+  b[p1] = None ->
+  reaches_in_n b from to dr df (S (S n)) = true ->
+  reaches_in_n b p1 to dr df (S n) = true.
+Proof.
+  intros b from to dr df n p1 Hoff Hemp H.
+  simpl in H.
+  rewrite Hoff in H.
+  destruct n; simpl in H; rewrite Hemp in H; exact H.
+Qed.
+
+Lemma reaches_in_n_3_spec : forall b from to dr df,
+  reaches_in_n b from to dr df 3 = true ->
+  line_attacks_spec b from to dr df.
+Proof.
+  intros b from to dr df H.
+  simpl in H.
+  destruct (offset from dr df) as [p1|] eqn:Eoff1; try discriminate.
+  destruct (position_eqb_spec p1 to).
+  - subst. apply reaches_in_n_1_line_attack. simpl. rewrite Eoff1.
+    destruct (position_eqb_spec to to); congruence.
+  - simpl in H. destruct (b[p1]) eqn:Ebp1; try discriminate.
+    simpl in H.
+    destruct (offset p1 dr df) as [p2|] eqn:Eoff2; try discriminate.
+    destruct (position_eqb_spec p2 to).
+    + subst. unfold line_attacks_spec. exists 2%nat. split; [lia|]. split.
+      * assert (E1: Z.of_nat 2 * dr = dr + dr) by ring.
+        assert (E2: Z.of_nat 2 * df = df + df) by ring.
+        rewrite E1. rewrite E2. apply offset_compose with p1; assumption.
+      * simpl. rewrite Eoff1. split; [exact Ebp1|]. simpl. exact I.
+    + simpl in H. destruct (b[p2]) eqn:Ebp2; try discriminate.
+      destruct (offset p2 dr df) as [p3|] eqn:Eoff3; try discriminate.
+      destruct (position_eqb_spec p3 to); try discriminate.
+      subst. unfold line_attacks_spec. exists 3%nat. split; [lia|]. split.
+      * assert (E1: Z.of_nat 3 * dr = dr + dr + dr) by ring.
+        assert (E2: Z.of_nat 3 * df = df + df + df) by ring.
+        rewrite E1. rewrite E2. 
+        apply offset_compose with p2; [|assumption].
+        apply offset_compose with p1; assumption.
+      * simpl. rewrite Eoff1. split; [exact Ebp1|].
+        simpl. rewrite Eoff2. split; [exact Ebp2|].
+        simpl. exact I.
+Qed.
+
+Lemma reaches_in_n_4_spec : forall b from to dr df,
+  reaches_in_n b from to dr df 4 = true ->
+  line_attacks_spec b from to dr df.
+Proof.
+  intros b from to dr df H.
+  simpl in H.
+  destruct (offset from dr df) as [p1|] eqn:Eoff1; try discriminate.
+  destruct (position_eqb_spec p1 to).
+  - subst. apply reaches_in_n_1_line_attack. simpl. rewrite Eoff1.
+    destruct (position_eqb_spec to to); congruence.
+  - simpl in H. destruct (b[p1]) eqn:Ebp1; try discriminate.
+    simpl in H.
+    destruct (offset p1 dr df) as [p2|] eqn:Eoff2; try discriminate.
+    destruct (position_eqb_spec p2 to).
+    + subst. unfold line_attacks_spec. exists 2%nat. split; [lia|]. split.
+      * assert (E1: Z.of_nat 2 * dr = dr + dr) by ring.
+        assert (E2: Z.of_nat 2 * df = df + df) by ring.
+        rewrite E1. rewrite E2. apply offset_compose with p1; assumption.
+      * simpl. rewrite Eoff1. split; [exact Ebp1|]. simpl. exact I.
+    + simpl in H. destruct (b[p2]) eqn:Ebp2; try discriminate.
+      simpl in H.
+      destruct (offset p2 dr df) as [p3|] eqn:Eoff3; try discriminate.
+      destruct (position_eqb_spec p3 to).
+      * subst. unfold line_attacks_spec. exists 3%nat. split; [lia|]. split.
+        -- assert (E1: Z.of_nat 3 * dr = dr + dr + dr) by ring.
+           assert (E2: Z.of_nat 3 * df = df + df + df) by ring.
+           rewrite E1. rewrite E2.
+           apply offset_compose with p2; [|assumption].
+           apply offset_compose with p1; assumption.
+        -- simpl. rewrite Eoff1. split; [exact Ebp1|].
+           simpl. rewrite Eoff2. split; [exact Ebp2|]. 
+           simpl. exact I.
+      * simpl in H. destruct (b[p3]) eqn:Ebp3; try discriminate.
+        destruct (offset p3 dr df) as [p4|] eqn:Eoff4; try discriminate.
+        destruct (position_eqb_spec p4 to); try discriminate.
+        subst. unfold line_attacks_spec. exists 4%nat. split; [lia|]. split.
+        -- assert (E1: Z.of_nat 4 * dr = dr + dr + dr + dr) by ring.
+           assert (E2: Z.of_nat 4 * df = df + df + df + df) by ring.
+           rewrite E1. rewrite E2.
+           apply offset_compose with p3; [|assumption].
+           apply offset_compose with p2; [|assumption].
+           apply offset_compose with p1; assumption.
+        -- simpl. rewrite Eoff1. split; [exact Ebp1|].
+           simpl. rewrite Eoff2. split; [exact Ebp2|].
+           simpl. rewrite Eoff3. split; [exact Ebp3|].
+           simpl. exact I.
+Qed.
+
+Lemma reaches_in_n_5_spec : forall b from to dr df,
+  reaches_in_n b from to dr df 5 = true ->
+  line_attacks_spec b from to dr df.
+Proof.
+  intros b from to dr df H.
+  simpl in H.
+  destruct (offset from dr df) as [p1|] eqn:Eoff1; try discriminate.
+  destruct (position_eqb_spec p1 to).
+  - subst. apply reaches_in_n_1_line_attack. simpl. rewrite Eoff1.
+    destruct (position_eqb_spec to to); congruence.
+  - simpl in H. destruct (b[p1]) eqn:Ebp1; try discriminate.
+    assert (H4: reaches_in_n b p1 to dr df 4 = true) by exact H.
+    apply reaches_in_n_4_spec in H4.
+    destruct H4 as [m [Hm [Hoff2 Hclear]]].
+    unfold line_attacks_spec. exists (S m). split; [lia|]. split.
+    + replace (Z.of_nat (S m)) with (1 + Z.of_nat m)%Z by lia.
+      rewrite Z.mul_add_distr_r. rewrite Z.mul_add_distr_r.
+      rewrite Z.mul_1_l. rewrite Z.mul_1_l.
+      apply offset_compose with p1; assumption.
+    + destruct m; [lia|]. simpl. rewrite Eoff1. split; [exact Ebp1|].
+      exact Hclear.
+Qed.
+
+Lemma reaches_in_n_6_spec : forall b from to dr df,
+  reaches_in_n b from to dr df 6 = true ->
+  line_attacks_spec b from to dr df.
+Proof.
+  intros b from to dr df H.
+  simpl in H.
+  destruct (offset from dr df) as [p1|] eqn:Eoff1; try discriminate.
+  destruct (position_eqb_spec p1 to).
+  - subst. apply reaches_in_n_1_line_attack. simpl. rewrite Eoff1.
+    destruct (position_eqb_spec to to); congruence.
+  - simpl in H. destruct (b[p1]) eqn:Ebp1; try discriminate.
+    assert (H5: reaches_in_n b p1 to dr df 5 = true) by exact H.
+    apply reaches_in_n_5_spec in H5.
+    destruct H5 as [m [Hm [Hoff2 Hclear]]].
+    unfold line_attacks_spec. exists (S m). split; [lia|]. split.
+    + replace (Z.of_nat (S m)) with (1 + Z.of_nat m)%Z by lia.
+      rewrite Z.mul_add_distr_r. rewrite Z.mul_add_distr_r.
+      rewrite Z.mul_1_l. rewrite Z.mul_1_l.
+      apply offset_compose with p1; assumption.
+    + destruct m; [lia|]. simpl. rewrite Eoff1. split; [exact Ebp1|].
+      exact Hclear.
+Qed.
+
+Lemma reaches_in_n_7_spec : forall b from to dr df,
+  reaches_in_n b from to dr df 7 = true ->
+  line_attacks_spec b from to dr df.
+Proof.
+  intros b from to dr df H.
+  simpl in H.
+  destruct (offset from dr df) as [p1|] eqn:Eoff1; try discriminate.
+  destruct (position_eqb_spec p1 to).
+  - subst. apply reaches_in_n_1_line_attack. simpl. rewrite Eoff1.
+    destruct (position_eqb_spec to to); congruence.
+  - simpl in H. destruct (b[p1]) eqn:Ebp1; try discriminate.
+    assert (H6: reaches_in_n b p1 to dr df 6 = true) by exact H.
+    apply reaches_in_n_6_spec in H6.
+    destruct H6 as [m [Hm [Hoff2 Hclear]]].
+    unfold line_attacks_spec. exists (S m). split; [lia|]. split.
+    + replace (Z.of_nat (S m)) with (1 + Z.of_nat m)%Z by lia.
+      rewrite Z.mul_add_distr_r. rewrite Z.mul_add_distr_r.
+      rewrite Z.mul_1_l. rewrite Z.mul_1_l.
+      apply offset_compose with p1; assumption.
+    + destruct m; [lia|]. simpl. rewrite Eoff1. split; [exact Ebp1|].
+      exact Hclear.
+Qed.
+
+Theorem check_line_move_true_spec : forall b from to dr df,
+  check_line_move b from to dr df = true ->
+  line_attacks_spec b from to dr df.
+Proof.
+  intros b from to dr df H.
+  unfold check_line_move in H.
+  apply existsb_exists in H.
+  destruct H as [n [Hin Hreach]].
+  simpl in Hin.
+  destruct Hin as [E|[E|[E|[E|[E|[E|[E|F]]]]]]]; subst.
+  - apply reaches_in_n_1_line_attack. exact Hreach.
+  - apply reaches_in_n_2_line_attack. exact Hreach.
+  - apply reaches_in_n_3_spec. exact Hreach.
+  - apply reaches_in_n_4_spec. exact Hreach.
+  - apply reaches_in_n_5_spec. exact Hreach.
+  - apply reaches_in_n_6_spec. exact Hreach.
+  - apply reaches_in_n_7_spec. exact Hreach.
+  - contradiction.
+Qed.
+
+Lemma line_attacks_reaches_1 : forall b from to dr df,
+  line_attacks_spec b from to dr df ->
+  offset from dr df = Some to ->
+  reaches_in_n b from to dr df 1 = true.
+Proof.
+  intros b from to dr df Hspec Hoff.
+  simpl. rewrite Hoff.
+  destruct (position_eqb_spec to to); congruence.
+Qed.
+
+Lemma line_attacks_reaches_2 : forall b from to dr df,
+  line_attacks_spec b from to dr df ->
+  (exists p1, offset from dr df = Some p1 /\ b[p1] = None /\ offset p1 dr df = Some to) ->
+  reaches_in_n b from to dr df 2 = true.
+Proof.
+  intros b from to dr df Hspec [p1 [Hoff1 [Hemp Hoff2]]].
+  simpl. rewrite Hoff1.
+  destruct (position_eqb_spec p1 to).
+  - subst. simpl. rewrite Hemp. simpl. rewrite Hoff2.
+    destruct (position_eqb_spec to to); congruence.
+  - simpl. rewrite Hemp. simpl. rewrite Hoff2.
+    destruct (position_eqb_spec to to); congruence.
+Qed.
+
+Lemma line_attacks_spec_bounded : forall b from to dr df,
+  line_attacks_spec b from to dr df ->
+  (dr <> 0 \/ df <> 0) ->  (* Valid line direction *)
+  exists n, (n > 0)%nat /\ (n <= 7)%nat /\ 
+    offset from (Z.of_nat n * dr) (Z.of_nat n * df) = Some to.
+Proof.
+  intros b from to dr df [n [Hn [Hoff Hclear]]] Hdir.
+  exists n. split; [exact Hn|]. split.
+  - (* Prove n <= 7 *)
+    (* The longest possible line on an 8x8 board is 7 squares *)
+    (* We'll show n > 7 leads to contradiction *)
+    assert (n <= 7 \/ n >= 8)%nat by lia.
+    destruct H; [exact H|].
+    (* n >= 8: impossible *)
+    exfalso.
+    (* Key insight: moving 8+ squares in any direction exits the board *)
+    pose proof Hoff as Hoff_copy.
+    apply offset_preserves_board_validity in Hoff_copy.
+    rename Hoff_copy into Hvalid.
+    destruct Hvalid as [Hr_eq [Hf_eq [Hr_bounds Hf_bounds]]].
+    pose proof (rankZ_bounds from) as [Hr_ge Hr_lt].
+    pose proof (fileZ_bounds from) as [Hf_ge Hf_lt].
+    (* Consider movement in each direction *)
+    destruct (Z.eq_dec dr 0), (Z.eq_dec df 0).
+    + (* dr = 0, df = 0: impossible by Hdir *)
+      subst dr df.
+      destruct Hdir; contradiction.
+    + (* dr = 0, df != 0: horizontal *)
+      subst dr. simpl in *.
+      assert (HZ2: Z.of_nat n * 0 = 0) by lia.
+      rewrite HZ2 in Hr_eq. clear HZ2.
+      rewrite Z.add_0_r in Hr_eq.
+      (* Movement is purely horizontal, at least 8 squares *)
+      assert (Z.abs (Z.of_nat n) >= 8).
+      { assert (Z.of_nat n >= 0) by lia.
+        assert (Z.abs (Z.of_nat n) = Z.of_nat n) by (apply Z.abs_eq; lia).
+        rewrite H1. lia. }
+      assert (Z.abs df >= 1).
+      { destruct (Z.abs_spec df) as [[? ?]|[? ?]]; lia. }
+      assert (Z.abs (Z.of_nat n * df) >= 8).
+      { rewrite Z.abs_mul. nia. }
+      (* We prove this would take us off the board *)
+      rewrite Hf_eq in Hf_bounds.
+      lia.
+    + (* dr != 0, df = 0: vertical *)
+      subst df. simpl in *.
+      assert (HZ3: Z.of_nat n * 0 = 0) by lia.
+      rewrite HZ3 in Hf_eq. clear HZ3.
+      rewrite Z.add_0_r in Hf_eq.
+      assert (Z.abs (Z.of_nat n) >= 8).
+      { assert (Z.of_nat n >= 0) by lia.
+        assert (Z.abs (Z.of_nat n) = Z.of_nat n) by (apply Z.abs_eq; lia).
+        rewrite H1. lia. }
+      assert (Z.abs dr >= 1).
+      { destruct (Z.abs_spec dr) as [[? ?]|[? ?]]; lia. }
+      assert (Z.abs (Z.of_nat n * dr) >= 8).
+      { rewrite Z.abs_mul. nia. }
+      rewrite Hr_eq in Hr_bounds.
+      lia.
+    + (* dr != 0, df != 0: diagonal *)
+      assert (Z.abs (Z.of_nat n) >= 8).
+      { assert (Z.of_nat n >= 0) by lia.
+        assert (Z.abs (Z.of_nat n) = Z.of_nat n) by (apply Z.abs_eq; lia).
+        rewrite H1. lia. }
+      assert (Z.abs dr >= 1).
+      { destruct (Z.abs_spec dr) as [[? ?]|[? ?]]; lia. }
+      assert (Z.abs (Z.of_nat n * dr) >= 8).
+      { rewrite Z.abs_mul. nia. }
+      rewrite Hr_eq in Hr_bounds.
+      lia.
+  - exact Hoff.
+Qed.
+
+
+Lemma reaches_in_n_implies_line_attack : forall b from to dr df n,
+  (0 < n <= 7)%nat ->
+  reaches_in_n b from to dr df n = true ->
+  line_attacks_spec b from to dr df.
+Proof.
+  intros b from to dr df n [Hn Hbound] H.
+  destruct n; [lia|].
+  destruct n.
+  - apply reaches_in_n_1_line_attack. exact H.
+  - destruct n.
+    + apply reaches_in_n_2_line_attack. exact H.
+    + destruct n.
+      * apply reaches_in_n_3_spec. exact H.
+      * destruct n.
+        -- apply reaches_in_n_4_spec. exact H.
+        -- destruct n.
+           ++ apply reaches_in_n_5_spec. exact H.
+           ++ destruct n.
+              ** apply reaches_in_n_6_spec. exact H.
+              ** destruct n.
+                 --- apply reaches_in_n_7_spec. exact H.
+                 --- lia.
+Qed.
+
 
 Definition pawn_move_valid_b (st: GameState) (from to: Position) : bool :=
   let b := board st in
@@ -4593,6 +5029,183 @@ Proof.
   - intros [pc [Hpc Hcolor]].
     rewrite Hpc. subst.
     apply color_eqb_true_iff. reflexivity.
+Qed.
+
+Theorem piece_after_promo_none : forall pc,
+  piece_after_promo pc None = pc.
+Proof.
+  intro pc.
+  unfold piece_after_promo.
+  reflexivity.
+Qed.
+
+Theorem piece_after_promo_some : forall pc pt,
+  piece_after_promo pc (Some pt) = mkPiece (piece_color pc) pt.
+Proof.
+  intros pc pt.
+  unfold piece_after_promo.
+  reflexivity.
+Qed.
+
+Theorem piece_after_promo_color : forall pc promo,
+  piece_color (piece_after_promo pc promo) = piece_color pc.
+Proof.
+  intros pc promo.
+  destruct promo; simpl; reflexivity.
+Qed.
+
+Theorem halfmove_reset_conditions : forall st from to pc_from,
+  board st from = Some pc_from ->
+  piece_color pc_from = turn st ->
+  (piece_type pc_from = Pawn \/ (exists pc_to, board st to = Some pc_to)) ->
+  halfmove_after st from to = 0%nat.
+Proof.
+  intros st from to pc_from Hfrom Hcolor [HPawn | [pc_to Hto]].
+  - (* Pawn case *)
+    assert (H: board st from = Some (mkPiece (turn st) Pawn)).
+    { rewrite Hfrom. f_equal. destruct pc_from. simpl in *. 
+      subst. reflexivity. }
+    apply halfmove_after_pawn. exact H.
+  - (* Capture case *)
+    apply halfmove_after_capture with pc_from pc_to; assumption.
+Qed.
+
+Theorem next_state_normal_turn : forall st from to promo,
+  turn (next_state_normal st from to promo) = opposite_color (turn st).
+Proof.
+  intros st from to promo.
+  unfold next_state_normal.
+  simpl.
+  reflexivity.
+Qed.
+
+Theorem next_state_castle_turn : forall st side,
+  turn (next_state_castle st side) = opposite_color (turn st).
+Proof.
+  intros st side.
+  unfold next_state_castle.
+  simpl.
+  reflexivity.
+Qed.
+
+Theorem fullmove_increments_after_black : forall st from to promo,
+  turn st = Black ->
+  fullmove (next_state_normal st from to promo) = S (fullmove st).
+Proof.
+  intros st from to promo H.
+  unfold next_state_normal.
+  simpl.
+  apply fullmove_after_black.
+  exact H.
+Qed.
+
+Theorem board_empty_all_none : forall p,
+  board_empty p = None.
+Proof.
+  intro p.
+  reflexivity.
+Qed.
+
+Theorem board_set_none_removes : forall b p,
+  board_set b p None p = None.
+Proof.
+  intros b p.
+  apply board_set_get_same.
+Qed.
+
+Theorem board_remove_removes : forall b p,
+  board_remove b p p = None.
+Proof.
+  intros b p.
+  unfold board_remove.
+  apply board_set_get_same.
+Qed.
+
+Theorem board_set_twice : forall b p x y,
+  board_set (board_set b p x) p y = board_set b p y.
+Proof.
+  intros b p x y.
+  apply functional_extensionality.
+  intro q.
+  unfold board_set.
+  destruct (Position_dec q p).
+  - subst. reflexivity.
+  - reflexivity.
+Qed.
+
+Theorem board_move_complete_spec : forall b src dst pc,
+  b src = Some pc ->
+  src <> dst ->
+  let b' := board_move b src dst in
+  (* Source becomes empty *)
+  b' src = None /\
+  (* Destination has the moved piece *)
+  b' dst = Some pc /\
+  (* Other squares unchanged *)
+  (forall q, q <> src -> q <> dst -> b' q = b q) /\
+  (* Occupation predicates *)
+  occupied b' src = false /\
+  occupied b' dst = true /\
+  occupied_by b' dst (piece_color pc) = true.
+Proof.
+  intros b src dst pc Hsrc Hneq.
+  simpl.
+  split.
+  - (* Source empty *)
+    apply board_move_src_empty. exact Hneq.
+  - split.
+    + (* Destination has piece *)
+      apply board_move_dst_has_piece; assumption.
+    + split.
+      * (* Others unchanged *)
+        intros q Hqs Hqd.
+        apply board_move_other; assumption.
+      * split.
+        -- (* Source not occupied *)
+           apply occupied_false_iff_none.
+           apply board_move_src_empty. exact Hneq.
+        -- split.
+           ++ (* Destination occupied *)
+              apply occupied_true_iff_some.
+              exists pc.
+              apply board_move_dst_has_piece; assumption.
+           ++ (* Destination has right color *)
+              apply occupied_by_true_iff.
+              exists pc.
+              split.
+              ** apply board_move_dst_has_piece; assumption.
+              ** reflexivity.
+Qed.
+
+Theorem next_state_castle_invariants : forall st side,
+  let st' := next_state_castle st side in
+  (* Turn alternates *)
+  turn st' = opposite_color (turn st) /\
+  (* Halfmove increments *)
+  halfmove st' = S (halfmove st) /\
+  (* Fullmove increments correctly *)
+  fullmove st' = fullmove_after st /\
+  (* Castling rights are cleared for the moving side *)
+  (turn st = White -> 
+   white_king_side (castling st') = false /\ 
+   white_queen_side (castling st') = false) /\
+  (turn st = Black -> 
+   black_king_side (castling st') = false /\ 
+   black_queen_side (castling st') = false).
+Proof.
+  intros st side.
+  simpl.
+  split.
+  - (* Turn alternates *)
+    reflexivity.
+  - split.
+    + (* Halfmove increments *)
+      reflexivity.
+    + split.
+      * (* Fullmove correct *)
+        reflexivity.
+      * (* Castling rights cleared *)
+        split; intro H; rewrite H; simpl; split; reflexivity.
 Qed.
 
 Set Program Mode.
